@@ -1,11 +1,22 @@
 # Miscellaneous
 *.class
 *.lock
+!mobile/pubspec.lock
 *.log
 *.pyc
 *.swp
 .buildlog/
 .history
+.env
+.env.*
+!.env.example
+node_modules/
+.vercel/
+*.db
+*.db-shm
+*.db-wal
+backend/dist/
+.tooling/
 
 
 

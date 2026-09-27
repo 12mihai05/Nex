@@ -1,0 +1,10 @@
+# TV, intent flags and stable discovery
+
+The September 27 request supersedes the original two-tab rule: Streaming/Browse, TV and Chat become separate primary destinations. Seen library already exists; watchlist becomes the clearly named Want to see destination, without duplicating saved-title storage.
+
+1. Add per-user, country-scoped channel favorites; preserve a lightweight full channel directory at ingestion. Import bounded default schedules plus requested favorites, with an explicit capacity/coverage state rather than promising unavailable listings. Never convert channel favorites into movie taste.
+2. Deterministic TV sections: live favorites first; upcoming 0–30/30–60/later buckets with favorites first within a bucket, then start time, normalized channel name and programme ID. Guide exposes all known channels with search/pagination, optional favorites filter and schedule availability. Compact TV preview reserves non-favorite exposure.
+3. Keep Seen, Want to see and opinion independent. Want-to-see supplies a capped hint slightly stronger than seen (0.20 versus 0.12); explicit opinions override both, removals reverse their influence, and behavioral-personalization opt-out applies. No accumulation across large libraries or automatic Like.
+4. Mutations update backend state immediately; Chat reads fresh state. Streaming keeps a stable client snapshot for five minutes/manual refresh, with immediate exclusion of seen/disliked/familiar titles and an explicit refresh affordance. Cache scope includes user/country/services; clear on logout/country change. Avoid caching private results globally. Reuse metadata and deduplicate concurrent public requests where safe.
+5. Burgundy design tokens with accessible light/dark foregrounds; inspect real Flutter renders, including TV, library and large text.
+6. Apply additive real Turso migration, verify owner isolation, ordering/caps/freshness/independent flags, execute live country and client journeys, rerun all 26 personas, analyzers/tests/builds and secret/retention audit. Document existing retrieval and native-device limitations honestly. No deployment or new paid infrastructure.

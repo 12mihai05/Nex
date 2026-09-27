@@ -1,0 +1,1 @@
+ALTER TABLE `watch_history` ADD `traits_json` text DEFAULT '[]' NOT NULL;

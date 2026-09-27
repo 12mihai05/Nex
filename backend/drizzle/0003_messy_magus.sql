@@ -1,0 +1,1 @@
+CREATE UNIQUE INDEX `epg_running_source_unique` ON `epg_sync_runs` (`source_id`) WHERE status = 'running';

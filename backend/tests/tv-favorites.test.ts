@@ -1,0 +1,66 @@
+import {readFile,readdir} from "node:fs/promises";
+import {createClient} from "@libsql/client";
+import {drizzle} from "drizzle-orm/libsql";
+import {beforeEach,afterEach,it,expect} from "vitest";
+import * as schema from "../src/db/schema.js";
+import {EpgService} from "../src/services/epg/service.js";
+import {FixtureTmdbRepository} from "../src/repositories/tmdb-repository.js";
+import {rankTv,tvPreview} from "../src/services/epg/tv-ranking.js";
+let client:ReturnType<typeof createClient>;let epg:EpgService;
+const now=new Date("2030-01-01T12:00:00Z");
+beforeEach(async()=>{
+  client=createClient({url:":memory:"});
+  for(const file of (await readdir(new URL("../drizzle/",import.meta.url))).filter(f=>f.endsWith(".sql")).sort())await client.executeMultiple((await readFile(new URL(`../drizzle/${file}`,import.meta.url),"utf8")).replaceAll("--> statement-breakpoint",""));
+  const db=drizzle(client,{schema});
+  await db.insert(schema.user).values([{id:"alice",name:"A",email:"a@test.local"},{id:"bob",name:"B",email:"b@test.local"}]);
+  await db.insert(schema.channels).values(Array.from({length:23},(_,i)=>({id:`c${i}`,sourceId:"fixture",externalId:`c${i}`,displayName:i===0?"Zulu":"Alpha",country:i===22?"GB":"RO"})));
+  await db.insert(schema.epgPrograms).values([
+    {id:"earlier",channelId:"c1",startAt:new Date(+now+5*60000)},
+    {id:"favorite",channelId:"c0",startAt:new Date(+now+20*60000)},
+    {id:"later",channelId:"c0",startAt:new Date(+now+90*60000)},
+    {id:"tie-b",channelId:"c2",startAt:new Date(+now+5*60000)},
+    {id:"tie-a",channelId:"c2",startAt:new Date(+now+5*60000)},
+    {id:"foreign",channelId:"c22",startAt:new Date(+now+2*60000)},
+  ].map(p=>({...p,title:p.id,sourceId:"fixture",sourceProgramId:p.id,endAt:new Date(+p.startAt+3600000)})));
+  epg=new EpgService(db,{sourceId:"fixture",load:async()=>({channels:[],programs:[],sourceTimestamp:null})},new FixtureTmdbRepository());
+});
+afterEach(()=>client.close());
+it("orders by time bucket, favorite, start, channel and stable programme ID; isolates viewers and countries",async()=>{
+  await epg.setChannelFavorite("alice","RO","c0",true);
+  expect((await epg.listWindow(now,new Date(+now+12*3600000),"RO","alice")).map(p=>p.id)).toEqual(["favorite","earlier","tie-a","tie-b","later"]);
+  const bob=await epg.listWindow(now,new Date(+now+12*3600000),"RO","bob");expect(bob[0]!.id).toBe("earlier");expect(bob.every(p=>!p.favorite)).toBe(true);
+  await expect(epg.setChannelFavorite("alice","RO","c22",true)).rejects.toThrow("CHANNEL_NOT_FOUND");
+  await epg.setChannelFavorite("bob","RO","c0",false);expect((await epg.listChannels("alice","RO","",0,true))).toHaveLength(1);
+  await epg.setChannelFavorite("alice","RO","c0",false);expect((await epg.listChannels("alice","RO","",0,true))).toHaveLength(0);
+});
+it("keeps channels without schedules searchable and enforces a bounded favorite count",async()=>{
+  expect((await epg.listChannels("alice","RO")).length).toBe(22);
+  expect((await epg.listChannels("alice","RO")).find(c=>c.id==="c20")!.available).toBe(false);
+  for(let i=0;i<20;i++)await epg.setChannelFavorite("alice","RO",`c${i}`,true);
+  await epg.setChannelFavorite("alice","RO","c0",true);
+  await expect(epg.setChannelFavorite("alice","RO","c20",true)).rejects.toThrow("CHANNEL_FAVORITE_LIMIT");
+});
+it("preview reserves exposure to non-favorites, never drops them from the full result",()=>{
+  const items=Array.from({length:12},(_,i)=>({id:String(i),startAt:new Date(+now+60000*i),endAt:new Date(+now+3600000),favorite:i<8,channel:{name:"A"}}));
+  const ranked=rankTv(items,now);const preview=tvPreview(ranked);
+  expect(preview).toHaveLength(6);expect(preview.filter(i=>!i.favorite)).toHaveLength(2);expect(ranked).toHaveLength(12);
+});
+it("withdrawn channels are hidden but existing favorites can still be removed",async()=>{
+  await epg.setChannelFavorite("alice","RO","c0",true);
+  await client.execute("update channels set active=0 where id='c0'");
+  expect((await epg.listChannels("bob","RO")).some(c=>c.id==="c0")).toBe(false);
+  const own=(await epg.listChannels("alice","RO","",0,true))[0]!;
+  expect(own.active).toBe(false);expect(own.available).toBe(false);
+  expect((await epg.listWindow(now,new Date(+now+12*3600000),"RO","alice")).some(p=>p.channel.id==="c0")).toBe(false);
+  await expect(epg.setChannelFavorite("bob","RO","c0",true)).rejects.toThrow("CHANNEL_NOT_FOUND");
+  await epg.setChannelFavorite("alice","RO","c0",false);
+  expect(await epg.listChannels("alice","RO","",0,true)).toEqual([]);
+});
+it("sync passes requested favorites to the provider independently of movie taste",async()=>{
+  const db=drizzle(client,{schema});
+  await db.insert(schema.channels).values({id:"fixture:outside",sourceId:"fixture",externalId:"outside",displayName:"Requested channel",country:"RO"});
+  await epg.setChannelFavorite("alice","RO","fixture:outside",true);let received=new Set<string>();
+  const service=new EpgService(db,{sourceId:"fixture",load:async options=>{received=options!.preferredExternalIds;return {channels:[{externalId:"outside",displayName:"Requested channel",logoUrl:null,language:null}],programs:[{sourceProgramId:"new",channelExternalId:"outside",title:"Programme",startAt:now,endAt:new Date(+now+3600000),subtitle:null,description:null,category:null,language:null,year:null}],sourceTimestamp:null};}},new FixtureTmdbRepository());
+  await service.sync(now);expect(received.has("outside")).toBe(true);
+  expect(await db.select().from(schema.userTastePreferences)).toEqual([]);
+});

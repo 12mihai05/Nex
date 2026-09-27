@@ -1,0 +1,33 @@
+name: Sync free XMLTV EPG
+
+on:
+  schedule:
+    - cron: "23 3 * * *"
+  workflow_dispatch:
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    concurrency:
+      group: nex-epg-sync
+      cancel-in-progress: false
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci
+      - name: Sync bounded country feeds directly to Turso
+        env:
+          TURSO_DATABASE_URL: ${{ secrets.TURSO_DATABASE_URL }}
+          TURSO_AUTH_TOKEN: ${{ secrets.TURSO_AUTH_TOKEN }}
+          TMDB_READ_ACCESS_TOKEN: ${{ secrets.TMDB_READ_ACCESS_TOKEN }}
+          EPG_SOURCE_TYPE: iptv-org
+          EPG_COUNTRIES: ${{ vars.EPG_COUNTRIES || 'RO,BG,GB,ES,FR,CH,IT,DE,MD' }}
+          EPG_COUNTRY_SOURCES_JSON: ${{ vars.EPG_COUNTRY_SOURCES_JSON || '{"RO":["https://epgshare01.online/epgshare01/epg_ripper_RO1.xml.gz"],"BG":["https://epgshare01.online/epgshare01/epg_ripper_BG1.xml.gz"]}' }}
+          EPG_MAX_CHANNELS_PER_COUNTRY: '60'
+          EPG_MAX_DOWNLOAD_BYTES: '75000000'
+          EPG_MAX_MATCHES_PER_SYNC: '5'
+        run: npm --workspace backend run epg:sync

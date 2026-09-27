@@ -1,0 +1,16 @@
+{
+  "name": "nex",
+  "private": true,
+  "workspaces": ["backend"],
+  "scripts": {
+    "backend:dev": "npm --workspace backend run dev",
+    "backend:test": "npm --workspace backend test",
+    "backend:check": "npm --workspace backend run check",
+    "backend:migrate": "npm --workspace backend run db:migrate"
+  },
+  "engines": { "node": ">=20" },
+  "devDependencies": { "drizzle-kit": "0.31.11" },
+  "overrides": {
+    "esbuild@<=0.24.2": "0.25.12"
+  }
+}

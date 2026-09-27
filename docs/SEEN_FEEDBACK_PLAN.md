@@ -1,0 +1,9 @@
+# Seen and opinion: implementation contract
+
+Keep independent history and feedback tables; never infer watched rows. Missing history means unknown, not unseen. Missing feedback means unrated, not Meh. On September 27 the user approved replacing strictly neutral history with a capped, weak positive seen-only hint. An additive migration stores trusted genre/keyword snapshots on history rows; older rows without metadata stay neutral until refreshed. Like/Super Like seed discovery; Dislike excludes the title and contributes negative evidence. Meh remembers neutrality without inferring genre dislikes. Every explicit opinion replaces the same title's seen-only hint. Rated titles are familiar for novelty filtering but never automatically added to history. Exact lookup remains accessible.
+
+Implement authenticated feedback restore/clear and history undo; clear only that title's reaction evidence. Restore every history snapshot in the client without requiring hundreds of metadata calls. Expose adjacent independent seen/opinion controls and search-to-add from the library. Persist before showing success and keep catalog entries for newly saved titles.
+
+The separate history hint contributes at most 0.12 to a candidate score, even with thousands of matching history entries. It does not change declared taste or label movies as liked; a typical explicit genre Like contributes over ten times more. Explicit negative matching taste suppresses the hint. Clear opinion restores a hint only if the title remains seen; undo seen removes it. Behavioral personalization off disables it. This is a conservative heuristic, not an empirically calibrated probability.
+
+Verify repository isolation, movie/series IDs, reaction transitions, history independence, restart restoration and library UI. Run all backend/Flutter checks and all 20 main plus six holdout live personas after changes, preserving documented abstentions and reporting regressions honestly. No deployment.

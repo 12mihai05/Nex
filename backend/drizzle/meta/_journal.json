@@ -1,0 +1,55 @@
+{
+  "version": "7",
+  "dialect": "sqlite",
+  "entries": [
+    {
+      "idx": 0,
+      "version": "6",
+      "when": 1790432043735,
+      "tag": "0000_perfect_hellfire_club",
+      "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "6",
+      "when": 1790433883263,
+      "tag": "0001_damp_proemial_gods",
+      "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "6",
+      "when": 1790437922273,
+      "tag": "0002_motionless_flatman",
+      "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "6",
+      "when": 1790439288566,
+      "tag": "0003_messy_magus",
+      "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "6",
+      "when": 1790463162464,
+      "tag": "0004_seen_trait_hints",
+      "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "6",
+      "when": 1790466019691,
+      "tag": "0005_tv_favorites_want_hints",
+      "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "6",
+      "when": 1790466718343,
+      "tag": "0006_channel_directory_lifecycle",
+      "breakpoints": true
+    }
+  ]
+}

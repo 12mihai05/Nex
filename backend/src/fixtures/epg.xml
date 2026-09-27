@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<tv generator-info-name="Nex fixture">
+  <channel id="protv.ro">
+    <display-name lang="ro">PRO TV</display-name>
+    <icon src="https://upload.wikimedia.org/wikipedia/commons/thumb/0/0e/Pro_TV_logo.svg/320px-Pro_TV_logo.svg.png"/>
+  </channel>
+  <channel id="hbo.ro">
+    <display-name lang="ro">HBO Romania</display-name>
+  </channel>
+  <programme start="20260926200000 +0300" stop="20260926223000 +0300" channel="protv.ro">
+    <title lang="ro">Interstellar</title>
+    <desc lang="ro">Exploratori pornesc prin spațiu în căutarea unui viitor pentru omenire.</desc>
+    <category lang="en">Movie</category>
+    <date>2014</date>
+  </programme>
+  <programme start="20260926213000 +0300" stop="20260926232000 +0300" channel="hbo.ro">
+    <title lang="ro">Arrival</title>
+    <desc lang="ro">O lingvistă încearcă să comunice cu vizitatori misterioși.</desc>
+    <category lang="en">Movie</category>
+    <date>2016</date>
+  </programme>
+</tv>
