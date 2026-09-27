@@ -158,7 +158,7 @@ npm run backend:migrate
 vercel --cwd backend --prod
 ```
 
-The committed `backend/vercel.json` routes `/api/*` to the Hono function. Its 120-second duration requires Fluid Compute. EPG scheduling is separate through GitHub Actions; no Vercel cron is configured. Configure production secrets and deployed auth/web origins in Vercel.
+Select the Hono application preset with `backend` as the root directory. The committed `backend/vercel.json` uses Vercel's native Hono support with `src/app.ts` as the entry point. No catch-all rewrite or legacy adapter is needed: requests retain their full paths, including `/api/health`. Leave the output-directory override unset. The function's 120-second duration requires Fluid Compute. EPG scheduling is separate through GitHub Actions; no Vercel cron is configured. Configure production secrets and deployed auth/web origins in Vercel.
 
 After deployment:
 
