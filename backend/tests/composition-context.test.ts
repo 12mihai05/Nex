@@ -1,5 +1,5 @@
 import {afterEach,expect,it,vi} from "vitest";
-import type OpenAI from "openai";
+import type { OpenAI } from "openai";
 import {AiService} from "../src/services/ai.js";
 import {filterQuerySchema} from "../src/domain/types.js";
 import {fixtureCatalog} from "../src/fixtures/catalog.js";
