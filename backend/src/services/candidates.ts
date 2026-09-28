@@ -4,7 +4,7 @@ import type { UserRepository } from "../repositories/user-repository.js";
 import {canonicalConcept} from "./concepts.js";
 
 export async function generateCandidates(catalog: TmdbRepository, state: Awaited<ReturnType<UserRepository["getRecommendationState"]>>, query: FilterQuery): Promise<ContentItem[]> {
-  const options = { region: state.country, providerIds: query.providerIds.length ? query.providerIds : query.availabilityScope === "owned_services" ? state.ownedProviderIds : [], mediaType: query.mediaType, maxRuntimeMinutes: query.maxRuntimeMinutes, genres: query.genres, genreMatch:query.genreMatch, originalLanguages:query.originalLanguages };
+  const options = { region: state.country, providerIds: query.providerIds.length ? query.providerIds : query.availabilityScope === "owned_services" ? state.ownedProviderIds : [], mediaType: query.mediaType, minRuntimeMinutes: query.minRuntimeMinutes, maxRuntimeMinutes: query.maxRuntimeMinutes, genres: query.genres, genreMatch:query.genreMatch, originalLanguages:query.originalLanguages };
   const genres = state.taste.filter((s)=>s.dimension === "genre" && s.score > .3 && s.confidence > .3).sort((a,b)=>b.score*b.confidence-a.score*a.confidence).slice(0,2).map((s)=>s.key);
   const jobs: Promise<ContentItem[]>[] = [catalog.discover(options)];
   if (query.similarTo && catalog.related) {

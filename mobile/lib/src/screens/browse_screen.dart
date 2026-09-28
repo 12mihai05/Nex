@@ -9,6 +9,7 @@ import '../state/app_controller.dart';
 import '../widgets/artwork.dart';
 import '../widgets/content_row.dart';
 import '../widgets/top_bar.dart';
+import '../widgets/skeleton.dart';
 
 class BrowseScreen extends ConsumerWidget {
   const BrowseScreen({super.key});
@@ -25,6 +26,29 @@ class BrowseScreen extends ConsumerWidget {
           key: const PageStorageKey('streaming-feed'),
           physics: const AlwaysScrollableScrollPhysics(),
           slivers: [
+            SliverToBoxAdapter(
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
+                child: Wrap(
+                  spacing: 8,
+                  children: [
+                    ActionChip(
+                      label: const Text('Movies'),
+                      onPressed: () => context.push('/catalog?type=movie'),
+                    ),
+                    ActionChip(
+                      label: const Text('Series'),
+                      onPressed: () => context.push('/catalog?type=series'),
+                    ),
+                    ActionChip(
+                      avatar: const Icon(Icons.tune, size: 18),
+                      label: const Text('Filters'),
+                      onPressed: () => context.push('/catalog'),
+                    ),
+                  ],
+                ),
+              ),
+            ),
             if (state.busy)
               const SliverToBoxAdapter(child: LinearProgressIndicator()),
             if (state.error != null)
@@ -121,6 +145,7 @@ class BrowseScreen extends ConsumerWidget {
     String mood = 'Use my taste';
     final excluded = <int>{};
     ContentItem? pick;
+    bool picking = false;
     await showModalBottomSheet<void>(
       context: context,
       isScrollControlled: true,
@@ -129,8 +154,14 @@ class BrowseScreen extends ConsumerWidget {
       builder: (context) => StatefulBuilder(
         builder: (context, setModalState) {
           final controller = ref.read(appControllerProvider.notifier);
-          Future<void> choose() async {
+          Future<void> choose({bool another = false}) async {
+            if (picking) return;
+            setModalState(() => picking = true);
             try {
+              if (another && pick != null) {
+                excluded.add(pick!.id);
+                await controller.rejectPick(pick!);
+              }
               final next = await controller.pickLive(
                 maxMinutes: maxMinutes,
                 mood: mood,
@@ -147,137 +178,161 @@ class BrowseScreen extends ConsumerWidget {
                   ),
                 );
               }
+            } finally {
+              if (context.mounted) setModalState(() => picking = false);
             }
           }
 
-          return Padding(
-            padding: EdgeInsets.fromLTRB(
-              22,
-              0,
-              22,
-              MediaQuery.viewInsetsOf(context).bottom + 24,
-            ),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                Text(
-                  'Pick for me',
-                  style: Theme.of(context).textTheme.headlineSmall,
-                ),
-                const SizedBox(height: 6),
-                Text(
-                  'One thoughtful answer. No endless grid.',
-                  style: Theme.of(context).textTheme.bodyMedium,
-                ),
-                const SizedBox(height: 22),
-                if (pick == null) ...[
+          return SingleChildScrollView(
+            child: Padding(
+              padding: EdgeInsets.fromLTRB(
+                22,
+                0,
+                22,
+                MediaQuery.viewInsetsOf(context).bottom + 24,
+              ),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
                   Text(
-                    'How much time?',
-                    style: Theme.of(context).textTheme.titleLarge,
+                    'Pick for me',
+                    style: Theme.of(context).textTheme.headlineSmall,
                   ),
-                  const SizedBox(height: 8),
-                  Wrap(
-                    spacing: 8,
-                    children:
-                        [
-                              (90, 'Under 90m'),
-                              (120, 'Around 2h'),
-                              (null, "Doesn’t matter"),
-                            ]
-                            .map(
-                              (entry) => ChoiceChip(
-                                label: Text(entry.$2),
-                                selected: maxMinutes == entry.$1,
-                                onSelected: (_) =>
-                                    setModalState(() => maxMinutes = entry.$1),
-                              ),
-                            )
-                            .toList(),
-                  ),
-                  const SizedBox(height: 20),
+                  const SizedBox(height: 6),
                   Text(
-                    'What kind of mood?',
-                    style: Theme.of(context).textTheme.titleLarge,
+                    'One thoughtful answer. No endless grid.',
+                    style: Theme.of(context).textTheme.bodyMedium,
                   ),
-                  const SizedBox(height: 8),
-                  Wrap(
-                    spacing: 8,
-                    runSpacing: 6,
-                    children:
-                        [
-                              'Use my taste',
-                              'Light',
-                              'Intense',
-                              'Funny',
-                              'Surprise me',
-                            ]
-                            .map(
-                              (value) => ChoiceChip(
-                                label: Text(value),
-                                selected: mood == value,
-                                onSelected: (_) =>
-                                    setModalState(() => mood = value),
-                              ),
-                            )
-                            .toList(),
-                  ),
-                  const SizedBox(height: 24),
-                  FilledButton(
-                    onPressed: choose,
-                    child: const Text('Make the pick'),
-                  ),
-                ] else ...[
-                  Row(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      SizedBox(
-                        width: 120,
-                        child: AspectRatio(
-                          aspectRatio: 2 / 3,
-                          child: Artwork(url: pick!.posterUrl),
-                        ),
-                      ),
-                      const SizedBox(width: 18),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
+                  const SizedBox(height: 22),
+                  if (picking)
+                    const Padding(
+                      padding: EdgeInsets.only(bottom: 20),
+                      child: NexSkeleton(
+                        child: Row(
                           children: [
-                            Text(
-                              pick!.title,
-                              style: Theme.of(context).textTheme.headlineSmall,
+                            SkeletonBlock(width: 100, height: 150),
+                            SizedBox(width: 18),
+                            Expanded(
+                              child: Column(
+                                children: [
+                                  SkeletonBlock(height: 24),
+                                  SizedBox(height: 12),
+                                  SkeletonBlock(height: 65),
+                                ],
+                              ),
                             ),
-                            const SizedBox(height: 5),
-                            Text(pick!.metadata),
-                            const SizedBox(height: 13),
-                            Text(controller.reasonFor(pick!)),
                           ],
                         ),
                       ),
-                    ],
-                  ),
-                  const SizedBox(height: 20),
-                  FilledButton(
-                    onPressed: () {
-                      Navigator.pop(context);
-                      context.push(
-                        '/title/${pick!.mediaType.name}/${pick!.id}',
-                        extra: pick,
-                      );
-                    },
-                    child: const Text('Perfect — show details'),
-                  ),
-                  const SizedBox(height: 8),
-                  OutlinedButton(
-                    onPressed: () async {
-                      excluded.add(pick!.id);
-                      await controller.rejectPick(pick!);
-                      await choose();
-                    },
-                    child: const Text('Another one'),
-                  ),
+                    ),
+                  if (!picking && pick == null) ...[
+                    Text(
+                      'How much time?',
+                      style: Theme.of(context).textTheme.titleLarge,
+                    ),
+                    const SizedBox(height: 8),
+                    Wrap(
+                      spacing: 8,
+                      children:
+                          [
+                                (90, 'Under 90m'),
+                                (120, 'Around 2h'),
+                                (null, "Doesn’t matter"),
+                              ]
+                              .map(
+                                (entry) => ChoiceChip(
+                                  label: Text(entry.$2),
+                                  selected: maxMinutes == entry.$1,
+                                  onSelected: (_) => setModalState(
+                                    () => maxMinutes = entry.$1,
+                                  ),
+                                ),
+                              )
+                              .toList(),
+                    ),
+                    const SizedBox(height: 20),
+                    Text(
+                      'What kind of mood?',
+                      style: Theme.of(context).textTheme.titleLarge,
+                    ),
+                    const SizedBox(height: 8),
+                    Wrap(
+                      spacing: 8,
+                      runSpacing: 6,
+                      children:
+                          [
+                                'Use my taste',
+                                'Light',
+                                'Intense',
+                                'Funny',
+                                'Surprise me',
+                              ]
+                              .map(
+                                (value) => ChoiceChip(
+                                  label: Text(value),
+                                  selected: mood == value,
+                                  onSelected: (_) =>
+                                      setModalState(() => mood = value),
+                                ),
+                              )
+                              .toList(),
+                    ),
+                    const SizedBox(height: 24),
+                    FilledButton(
+                      onPressed: choose,
+                      child: const Text('Make the pick'),
+                    ),
+                  ] else if (!picking && pick != null) ...[
+                    Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        SizedBox(
+                          width: 120,
+                          child: AspectRatio(
+                            aspectRatio: 2 / 3,
+                            child: Artwork(url: pick!.posterUrl),
+                          ),
+                        ),
+                        const SizedBox(width: 18),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                pick!.title,
+                                style: Theme.of(context)
+                                    .textTheme
+                                    .headlineSmall,
+                              ),
+                              const SizedBox(height: 5),
+                              Text(pick!.metadata),
+                              const SizedBox(height: 13),
+                              Text(controller.reasonFor(pick!)),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 20),
+                    FilledButton(
+                      onPressed: () {
+                        Navigator.pop(context);
+                        context.push(
+                          '/title/${pick!.mediaType.name}/${pick!.id}',
+                          extra: pick,
+                        );
+                      },
+                      child: const Text('Perfect — show details'),
+                    ),
+                    const SizedBox(height: 8),
+                    OutlinedButton(
+                      onPressed: () => choose(another: true),
+                      child: const Text('Another one'),
+                    ),
+                  ],
                 ],
-              ],
+              ),
             ),
           );
         },

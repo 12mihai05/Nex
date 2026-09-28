@@ -94,12 +94,16 @@ class NexApiClient {
     await _storage.delete(key: _tokenKey);
   }
 
-  Future<List<ContentItem>> search(String query) async {
+  Future<List<ContentItem>> search(String query) =>
+      _searchTitles(query, 'title');
+  Future<List<ContentItem>> searchOnboarding(String query) =>
+      _searchTitles(query, 'onboarding');
+  Future<List<ContentItem>> _searchTitles(String query, String mode) async {
     cancelSearch();
     _searchCancel = CancelToken();
     final response = await _dio.get<Map<String, dynamic>>(
       '/api/search',
-      queryParameters: {'q': query, 'mode': 'title'},
+      queryParameters: {'q': query, 'mode': mode},
       cancelToken: _searchCancel,
     );
     return ((response.data?['data'] as List?) ?? [])
@@ -118,6 +122,13 @@ class NexApiClient {
         .map((item) => (item as Map).cast<String, dynamic>())
         .toList();
   }
+
+  Future<Map<String, dynamic>> filteredCatalog(
+    Map<String, dynamic> filters,
+  ) async => (await _dio.get<Map<String, dynamic>>(
+    '/api/catalog',
+    queryParameters: filters,
+  )).data!;
 
   Future<Map<String, dynamic>> chat(String message, {String? sessionId}) async {
     final data = <String, dynamic>{'message': message};

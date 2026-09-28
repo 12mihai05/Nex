@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'core/router.dart';
@@ -20,6 +21,10 @@ class NexApp extends ConsumerWidget {
       darkTheme: NexTheme.dark,
       themeMode: appearance,
       routerConfig: router,
+      builder: (context, child) => AnnotatedRegion<SystemUiOverlayStyle>(
+        value: NexTheme.systemBars(Theme.of(context).brightness),
+        child: child!,
+      ),
     );
   }
 }

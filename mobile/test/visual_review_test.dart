@@ -14,6 +14,7 @@ import 'package:nex/src/screens/auth_screen.dart';
 import 'package:nex/src/screens/onboarding_screen.dart';
 import 'package:nex/src/screens/home_shell.dart';
 import 'package:nex/src/screens/tv_screen.dart';
+import 'package:nex/src/screens/filtered_catalog_screen.dart';
 import 'package:nex/src/screens/chat_screen.dart';
 import 'package:nex/src/screens/search_screen.dart';
 import 'package:nex/src/screens/profile_screen.dart';
@@ -76,6 +77,7 @@ void main() {
           '/onboarding': const OnboardingScreen(),
           '/home': const HomeShell(),
           '/tv': const TvScreen(),
+          '/catalog': const FilteredCatalogScreen(initialType: 'movie'),
           '/chat': const ChatScreen(),
           '/search': const SearchScreen(),
           '/profile': const ProfileScreen(),
@@ -194,11 +196,14 @@ void main() {
               find.byTooltip('Favorite channel').hitTestable().first,
             );
             await capture('tv-favorite');
-            await tester.drag(
-              find.byType(Scrollable).first,
-              const Offset(0, -1000),
-            );
+            await tester.tap(find.text('Channel guide'));
             await capture('tv-guide');
+          }
+          if (path == '/catalog') {
+            await tester.tap(find.text('Filters'));
+            await capture('catalog-filters');
+            Navigator.of(tester.element(find.text('Show titles'))).pop();
+            await tester.pump(const Duration(milliseconds: 400));
           }
           if (path == '/detail' || path == '/settings' || path == '/taste') {
             await tester.drag(

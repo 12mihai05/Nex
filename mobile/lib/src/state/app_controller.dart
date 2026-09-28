@@ -26,6 +26,7 @@ class AppState {
     this.audioLanguages = const {'original', 'en'},
     this.subtitleLanguages = const {'ro', 'en'},
     this.favoriteIds = const {},
+    this.onboardingFavorites = const [],
     this.tasteDescription = '',
     this.genres = const {'Science Fiction', 'Mystery', 'Thriller'},
     this.moods = const {'Cerebral', 'Tense', 'Slow-burn'},
@@ -57,6 +58,7 @@ class AppState {
   final Map<String, String> reactions;
   final List<ChatMessage> chatMessages;
   final List<ContentItem> searchResults;
+  final List<ContentItem> onboardingFavorites;
 
   AppState copyWith({
     bool? authenticated,
@@ -74,6 +76,7 @@ class AppState {
     Set<String>? audioLanguages,
     Set<String>? subtitleLanguages,
     Set<int>? favoriteIds,
+    List<ContentItem>? onboardingFavorites,
     String? tasteDescription,
     Set<String>? genres,
     Set<String>? moods,
@@ -100,6 +103,7 @@ class AppState {
     audioLanguages: audioLanguages ?? this.audioLanguages,
     subtitleLanguages: subtitleLanguages ?? this.subtitleLanguages,
     favoriteIds: favoriteIds ?? this.favoriteIds,
+    onboardingFavorites: onboardingFavorites ?? this.onboardingFavorites,
     tasteDescription: tasteDescription ?? this.tasteDescription,
     genres: genres ?? this.genres,
     moods: moods ?? this.moods,
@@ -553,6 +557,16 @@ class AppController extends Notifier<AppState> {
     genres: genres,
     moods: moods,
   );
+  void toggleOnboardingFavorite(ContentItem item) {
+    final items = [...state.onboardingFavorites];
+    if (items.any((i) => i.key == item.key)) {
+      items.removeWhere((i) => i.key == item.key);
+    } else if (items.length < 5) {
+      items.add(item);
+    }
+    state = state.copyWith(onboardingFavorites: items);
+  }
+
   Future<void> finishOnboarding({
     void Function(String)? onPhase,
     List<String> concepts = const [],
@@ -570,17 +584,21 @@ class AppController extends Notifier<AppState> {
       await _api.analyzeTaste({
         'description': state.tasteDescription,
         'concepts': concepts,
-        'favorites': demoCatalog
-            .where((item) => state.favoriteIds.contains(item.id))
-            .map(
-              (item) => {
-                'id': item.id,
-                'mediaType': item.mediaType.name,
-                'title': item.title,
-                'genres': item.genres,
-              },
-            )
-            .toList(),
+        'favorites':
+            (state.onboardingFavorites.isNotEmpty
+                    ? state.onboardingFavorites
+                    : demoCatalog.where(
+                        (item) => state.favoriteIds.contains(item.id),
+                      ))
+                .map(
+                  (item) => {
+                    'id': item.id,
+                    'mediaType': item.mediaType.name,
+                    'title': item.title,
+                    'genres': item.genres,
+                  },
+                )
+                .toList(),
         'genres': state.genres.toList(),
         'moods': state.moods.toList(),
       });

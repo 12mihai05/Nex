@@ -6,6 +6,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../state/app_controller.dart';
 import '../widgets/content_card.dart';
 import '../widgets/content_row.dart';
+import '../widgets/skeleton.dart';
 
 class SearchScreen extends ConsumerStatefulWidget {
   const SearchScreen({super.key});
@@ -67,50 +68,7 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
             ),
           ),
           if (searching)
-            Expanded(
-              child: Semantics(
-                liveRegion: true,
-                label: 'Searching titles',
-                child: Column(
-                  children: [
-                    const Padding(
-                      padding: EdgeInsets.all(20),
-                      child: Text('Looking through the catalog…'),
-                    ),
-                    Expanded(
-                      child: GridView.builder(
-                        padding: const EdgeInsets.all(16),
-                        itemCount: 6,
-                        gridDelegate:
-                            const SliverGridDelegateWithFixedCrossAxisCount(
-                              crossAxisCount: 2,
-                              childAspectRatio: .65,
-                              crossAxisSpacing: 16,
-                              mainAxisSpacing: 16,
-                            ),
-                        itemBuilder: (_, index) =>
-                            TweenAnimationBuilder<double>(
-                              tween: Tween(begin: .3, end: 1),
-                              duration: Duration(
-                                milliseconds: 400 + index * 120,
-                              ),
-                              builder: (context, value, child) =>
-                                  Opacity(opacity: value, child: child),
-                              child: Container(
-                                decoration: BoxDecoration(
-                                  color: Theme.of(context)
-                                      .colorScheme
-                                      .surfaceContainerHighest,
-                                  borderRadius: BorderRadius.circular(18),
-                                ),
-                              ),
-                            ),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            )
+            const Expanded(child: PosterSkeletons())
           else if (state.searchResults.isEmpty || searchError != null)
             Expanded(
               child: Center(
@@ -124,7 +82,7 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
                       Text(
                         searchError ??
                             (input.text.isEmpty
-                                ? 'Search your whole entertainment universe.'
+                                ? 'Find a movie or series.'
                                 : 'No titles found. Try another spelling.'),
                         textAlign: TextAlign.center,
                         style: Theme.of(context).textTheme.titleLarge,

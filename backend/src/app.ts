@@ -16,6 +16,7 @@ import { detectSearchIntent } from "./services/intent.js";
 import { rankCandidates } from "./services/recommendation.js";
 import { generateCandidates } from "./services/candidates.js";
 import { discoverHome } from "./services/discovery.js";
+import { catalogFilterSchema, filteredCatalog } from "./services/filtered-catalog.js";
 import { createEpgProvider } from "./services/epg/provider.js";
 import { getDatabase } from "./db/client.js";
 import {
@@ -73,6 +74,7 @@ app.use("/api/providers", requireAuth);
 app.use("/api/tv/*", requireAuth);
 app.use("/api/recommend", requireAuth);
 app.use("/api/discovery", requireAuth);
+app.use("/api/catalog", requireAuth);
 app.use("/api/surprise", requireAuth);
 app.use("/api/onboarding/*", requireAuth);
 app.use("/api/chat", requireAuth);
@@ -87,6 +89,11 @@ app.get("/api/providers", async (c) => {
 app.get("/api/search", async (c) => {
   const { q, page } = searchQuerySchema.parse(c.req.query());
   const userId = c.get("authSession").user.id;
+  if (c.req.query("mode") === "onboarding") {
+    const {profile} = await users.getSettings(userId);
+    const items = await catalog.search({query:q,region:profile.country,page,summaryOnly:true});
+    return c.json({data:items.map(i=>({...i,metadataOnly:true})),meta:{page,source:catalog.mode}});
+  }
   const state = await users.getRecommendationState(userId);
   const intent = detectSearchIntent(q);
   if(c.req.query("mode")==="title") { intent.intent="TITLE_LOOKUP";intent.availabilityScope="all_providers";intent.query=q; }
@@ -112,6 +119,12 @@ app.get("/api/discovery", async c => {
   await users.recordRecommendations(userId,rows[0]?.items??[],"discovery-lead");
   c.header("Cache-Control","private, no-store");
   return c.json({data:rows});
+});
+
+app.get("/api/catalog", async c => {
+  const query = catalogFilterSchema.parse(c.req.query());
+  const userId = c.get("authSession").user.id;
+  return c.json(await filteredCatalog(catalog, await users.getRecommendationState(userId), userId, query));
 });
 
 app.post("/api/recommend", async (c) => {

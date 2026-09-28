@@ -11,10 +11,7 @@ void main() {
     await tester.pumpWidget(const ProviderScope(child: NexApp()));
     await tester.pumpAndSettle();
     expect(find.text('Nex'), findsOneWidget);
-    expect(
-      find.text('Welcome back.'),
-      findsOneWidget,
-    );
+    expect(find.text('Sign in to Nex.'), findsOneWidget);
     await tester.ensureVisible(find.text('Explore demo mode'));
     await tester.tap(find.text('Explore demo mode'));
     await tester.pumpAndSettle();

@@ -1,6 +1,8 @@
 import 'package:go_router/go_router.dart';
 
 import '../screens/title_loader.dart';
+import '../screens/filtered_catalog_screen.dart';
+import '../screens/tv_screen.dart';
 import '../models/content.dart';
 import '../screens/auth_screen.dart';
 import '../screens/chat_screen.dart';
@@ -21,6 +23,16 @@ final router = GoRouter(
     GoRoute(path: '/home', builder: (_, _) => const HomeShell()),
     GoRoute(path: '/chat', builder: (_, _) => const ChatScreen()),
     GoRoute(path: '/search', builder: (_, _) => const SearchScreen()),
+    GoRoute(
+      path: '/catalog',
+      builder: (_, state) => FilteredCatalogScreen(
+        initialType: state.uri.queryParameters['type'] ?? 'any',
+      ),
+    ),
+    GoRoute(
+      path: '/channels',
+      builder: (_, _) => const TvScreen(initialGuide: true),
+    ),
     GoRoute(path: '/profile', builder: (_, _) => const ProfileScreen()),
     GoRoute(path: '/settings', builder: (_, _) => const SettingsScreen()),
     GoRoute(path: '/taste', builder: (_, _) => const TasteScreen()),

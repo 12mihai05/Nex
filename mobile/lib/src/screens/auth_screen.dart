@@ -66,9 +66,9 @@ class _AuthScreenState extends ConsumerState<AuthScreen> {
                         Color(0xFF111820),
                       ]
                     : const [
-                        Color(0xFFF7E8ED),
+                        Color(0xFFE4D4D5),
                         NexColors.bone,
-                        Color(0xFFF0ECE8),
+                        Color(0xFFDAD7D3),
                       ],
               ),
             ),
@@ -86,191 +86,220 @@ class _AuthScreenState extends ConsumerState<AuthScreen> {
             ),
           ),
           SafeArea(
-            child: SingleChildScrollView(
-              padding: const EdgeInsets.fromLTRB(26, 44, 26, 28),
-              child: Center(
+            child: LayoutBuilder(
+              builder: (context, constraints) => SingleChildScrollView(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 26,
+                  vertical: 28,
+                ),
                 child: ConstrainedBox(
-                  constraints: const BoxConstraints(maxWidth: 430),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: [
-                      Row(
+                  constraints: BoxConstraints(
+                    minHeight: (constraints.maxHeight - 56).clamp(
+                      0.0,
+                      double.infinity,
+                    ),
+                  ),
+                  child: Center(
+                    child: ConstrainedBox(
+                      constraints: const BoxConstraints(maxWidth: 430),
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
                         children: [
-                          const NexMark(size: 46),
-                          const SizedBox(width: 10),
-                          Text(
-                            'Nex',
-                            style: TextStyle(
-                              color: Theme.of(context).colorScheme.onSurface,
-                              fontSize: 34,
-                              fontWeight: FontWeight.w800,
-                              letterSpacing: -1.5,
-                            ),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 28),
-                      Text(
-                        create ? 'Make Nex yours.' : 'Welcome back.',
-                        style: Theme.of(context).textTheme.displaySmall
-                            ?.copyWith(
-                              color: Theme.of(context).colorScheme.onSurface,
-                            ),
-                      ),
-                      const SizedBox(height: 28),
-                      if (create) ...[
-                        TextField(
-                          controller: name,
-                          textCapitalization: TextCapitalization.words,
-                          decoration: const InputDecoration(labelText: 'Name'),
-                        ),
-                        const SizedBox(height: 12),
-                      ],
-                      TextField(
-                        controller: email,
-                        keyboardType: TextInputType.emailAddress,
-                        autocorrect: false,
-                        decoration: const InputDecoration(labelText: 'Email'),
-                      ),
-                      const SizedBox(height: 12),
-                      TextField(
-                        controller: password,
-                        obscureText: !showPassword,
-                        autocorrect: false,
-                        enableSuggestions: false,
-                        decoration: InputDecoration(
-                          labelText: 'Password',
-                          suffixIcon: IconButton(
-                            tooltip: showPassword
-                                ? 'Hide password'
-                                : 'Show password',
-                            onPressed: () =>
-                                setState(() => showPassword = !showPassword),
-                            icon: Icon(
-                              showPassword
-                                  ? Icons.visibility_off_outlined
-                                  : Icons.visibility_outlined,
-                            ),
-                          ),
-                        ),
-                      ),
-                      if (create) ...[
-                        const SizedBox(height: 12),
-                        TextField(
-                          controller: invite,
-                          obscureText: !showInvite,
-                          autocorrect: false,
-                          enableSuggestions: false,
-                          decoration: InputDecoration(
-                            labelText: 'Private invite code',
-                            suffixIcon: IconButton(
-                              tooltip: showInvite
-                                  ? 'Hide invite code'
-                                  : 'Show invite code',
-                              onPressed: () =>
-                                  setState(() => showInvite = !showInvite),
-                              icon: Icon(
-                                showInvite
-                                    ? Icons.visibility_off_outlined
-                                    : Icons.visibility_outlined,
-                              ),
-                            ),
-                          ),
-                        ),
-                      ],
-                      if (state.error != null)
-                        Padding(
-                          padding: const EdgeInsets.only(top: 12),
-                          child: Text(
-                            state.error!,
-                            style: TextStyle(
-                              color: Theme.of(context).colorScheme.error,
-                            ),
-                          ),
-                        ),
-                      const SizedBox(height: 18),
-                      FilledButton(
-                        onPressed: state.busy
-                            ? null
-                            : () async {
-                                final ok = await ref
-                                    .read(appControllerProvider.notifier)
-                                    .authenticate(
-                                      create: create,
-                                      name: name.text.trim(),
-                                      email: email.text.trim(),
-                                      password: password.text,
-                                      invite: invite.text,
-                                    );
-                                if (ok && context.mounted) {
-                                  context.go(
-                                    ref
-                                            .read(appControllerProvider)
-                                            .onboardingComplete
-                                        ? '/home'
-                                        : '/onboarding',
-                                  );
-                                }
-                              },
-                        child: state.busy
-                            ? const SizedBox.square(
-                                dimension: 22,
-                                child: CircularProgressIndicator(
-                                  strokeWidth: 2,
-                                  color: Colors.white,
-                                ),
-                              )
-                            : Text(
-                                create ? 'Create private account' : 'Sign in',
-                              ),
-                      ),
-                      TextButton(
-                        onPressed: () => setState(() {
-                          create = !create;
-                          showPassword = false;
-                          showInvite = false;
-                        }),
-                        child: Text(
-                          create
-                              ? 'Already have an account? Sign in'
-                              : 'New here? Create an account',
-                        ),
-                      ),
-                      Padding(
-                        padding: EdgeInsets.symmetric(vertical: 10),
-                        child: Row(
-                          children: [
-                            Expanded(child: Divider()),
-                            Padding(
-                              padding: EdgeInsets.symmetric(horizontal: 12),
-                              child: Text(
-                                'OR',
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              const NexMark(size: 46),
+                              const SizedBox(width: 10),
+                              Text(
+                                'Nex',
                                 style: TextStyle(
                                   color: Theme.of(context)
                                       .colorScheme
-                                      .onSurfaceVariant,
-                                  fontSize: 11,
+                                      .onSurface,
+                                  fontSize: 34,
+                                  fontWeight: FontWeight.w800,
+                                  letterSpacing: -1.5,
+                                ),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 28),
+                          Text(
+                            create ? 'Make Nex yours.' : 'Sign in to Nex.',
+                            textAlign: TextAlign.center,
+                            style: Theme.of(context).textTheme.displaySmall
+                                ?.copyWith(
+                                  color: Theme.of(context)
+                                      .colorScheme
+                                      .onSurface,
+                                ),
+                          ),
+                          const SizedBox(height: 44),
+                          if (create) ...[
+                            TextField(
+                              controller: name,
+                              textCapitalization: TextCapitalization.words,
+                              decoration: const InputDecoration(
+                                labelText: 'Name',
+                              ),
+                            ),
+                            const SizedBox(height: 16),
+                          ],
+                          TextField(
+                            controller: email,
+                            keyboardType: TextInputType.emailAddress,
+                            autocorrect: false,
+                            decoration: const InputDecoration(
+                              labelText: 'Email',
+                            ),
+                          ),
+                          const SizedBox(height: 16),
+                          TextField(
+                            controller: password,
+                            obscureText: !showPassword,
+                            autocorrect: false,
+                            enableSuggestions: false,
+                            decoration: InputDecoration(
+                              labelText: 'Password',
+                              suffixIcon: IconButton(
+                                tooltip: showPassword
+                                    ? 'Hide password'
+                                    : 'Show password',
+                                onPressed: () => setState(
+                                  () => showPassword = !showPassword,
+                                ),
+                                icon: Icon(
+                                  showPassword
+                                      ? Icons.visibility_off_outlined
+                                      : Icons.visibility_outlined,
                                 ),
                               ),
                             ),
-                            Expanded(child: Divider()),
+                          ),
+                          if (create) ...[
+                            const SizedBox(height: 16),
+                            TextField(
+                              controller: invite,
+                              obscureText: !showInvite,
+                              autocorrect: false,
+                              enableSuggestions: false,
+                              decoration: InputDecoration(
+                                labelText: 'Private invite code',
+                                suffixIcon: IconButton(
+                                  tooltip: showInvite
+                                      ? 'Hide invite code'
+                                      : 'Show invite code',
+                                  onPressed: () =>
+                                      setState(() => showInvite = !showInvite),
+                                  icon: Icon(
+                                    showInvite
+                                        ? Icons.visibility_off_outlined
+                                        : Icons.visibility_outlined,
+                                  ),
+                                ),
+                              ),
+                            ),
                           ],
-                        ),
+                          if (state.error != null)
+                            Padding(
+                              padding: const EdgeInsets.only(top: 12),
+                              child: Text(
+                                state.error!,
+                                style: TextStyle(
+                                  color: Theme.of(context).colorScheme.error,
+                                ),
+                              ),
+                            ),
+                          const SizedBox(height: 24),
+                          FilledButton(
+                            onPressed: state.busy
+                                ? null
+                                : () async {
+                                    final ok = await ref
+                                        .read(appControllerProvider.notifier)
+                                        .authenticate(
+                                          create: create,
+                                          name: name.text.trim(),
+                                          email: email.text.trim(),
+                                          password: password.text,
+                                          invite: invite.text,
+                                        );
+                                    if (ok && context.mounted) {
+                                      context.go(
+                                        ref
+                                                .read(appControllerProvider)
+                                                .onboardingComplete
+                                            ? '/home'
+                                            : '/onboarding',
+                                      );
+                                    }
+                                  },
+                            child: state.busy
+                                ? const SizedBox.square(
+                                    dimension: 22,
+                                    child: CircularProgressIndicator(
+                                      strokeWidth: 2,
+                                      color: Colors.white,
+                                    ),
+                                  )
+                                : Text(
+                                    create
+                                        ? 'Create private account'
+                                        : 'Sign in',
+                                  ),
+                          ),
+                          TextButton(
+                            onPressed: () => setState(() {
+                              create = !create;
+                              showPassword = false;
+                              showInvite = false;
+                            }),
+                            child: Text(
+                              create
+                                  ? 'Already have an account? Sign in'
+                                  : 'New here? Create an account',
+                            ),
+                          ),
+                          Padding(
+                            padding: EdgeInsets.symmetric(vertical: 10),
+                            child: Row(
+                              children: [
+                                Expanded(child: Divider()),
+                                Padding(
+                                  padding: EdgeInsets.symmetric(horizontal: 12),
+                                  child: Text(
+                                    'OR',
+                                    style: TextStyle(
+                                      color: Theme.of(context)
+                                          .colorScheme
+                                          .onSurfaceVariant,
+                                      fontSize: 11,
+                                    ),
+                                  ),
+                                ),
+                                Expanded(child: Divider()),
+                              ],
+                            ),
+                          ),
+                          OutlinedButton.icon(
+                            style: OutlinedButton.styleFrom(
+                              foregroundColor: Theme.of(context)
+                                  .colorScheme
+                                  .onSurface,
+                            ),
+                            onPressed: () {
+                              ref
+                                  .read(appControllerProvider.notifier)
+                                  .enterDemo();
+                              context.go('/onboarding');
+                            },
+                            icon: const Icon(Icons.play_circle_outline),
+                            label: const Text('Explore demo mode'),
+                          ),
+                        ],
                       ),
-                      OutlinedButton.icon(
-                        style: OutlinedButton.styleFrom(
-                          foregroundColor: Theme.of(context)
-                              .colorScheme
-                              .onSurface,
-                        ),
-                        onPressed: () {
-                          ref.read(appControllerProvider.notifier).enterDemo();
-                          context.go('/onboarding');
-                        },
-                        icon: const Icon(Icons.play_circle_outline),
-                        label: const Text('Explore demo mode'),
-                      ),
-                    ],
+                    ),
                   ),
                 ),
               ),

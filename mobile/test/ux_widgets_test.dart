@@ -6,6 +6,7 @@ import 'package:nex/src/screens/browse_screen.dart';
 import 'package:nex/src/screens/search_screen.dart';
 import 'package:nex/src/state/app_controller.dart';
 import 'package:nex/src/widgets/preparation_screen.dart';
+import 'package:nex/src/widgets/skeleton.dart';
 
 import 'stable_discovery_test.dart' show MutableApi;
 import 'ux_state_test.dart' show DelayedApi;
@@ -44,7 +45,8 @@ void main() {
       );
       await tester.enterText(find.byType(TextField), 'Unknown');
       await tester.pump();
-      expect(find.text('Looking through the catalog…'), findsOneWidget);
+      expect(find.byType(PosterSkeletons), findsOneWidget);
+      expect(find.text('Looking through the catalog…'), findsNothing);
       expect(find.text('No titles found. Try another spelling.'), findsNothing);
       await tester.pump(const Duration(milliseconds: 350));
       api.searches['Unknown']!.complete([]);

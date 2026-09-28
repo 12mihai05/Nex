@@ -1,15 +1,26 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/cupertino.dart';
+import 'package:flutter/services.dart';
 
 abstract final class NexColors {
   static const ember = Color(0xFFB73550);
   static const ink = Color(0xFF090A0C);
   static const charcoal = Color(0xFF14161A);
-  static const bone = Color(0xFFF8F6F4);
+  static const bone = Color(0xFFE5E1DD);
   static const moss = Color(0xFF98AE92);
 }
 
 abstract final class NexTheme {
+  static SystemUiOverlayStyle systemBars(Brightness brightness) =>
+      (brightness == Brightness.dark
+              ? SystemUiOverlayStyle.light
+              : SystemUiOverlayStyle.dark)
+          .copyWith(
+            statusBarColor: Colors.transparent,
+            systemNavigationBarColor: brightness == Brightness.dark
+                ? NexColors.ink
+                : NexColors.bone,
+          );
   static ThemeData get dark => _theme(Brightness.dark);
   static ThemeData get light => _theme(Brightness.light);
 
@@ -23,12 +34,12 @@ abstract final class NexTheme {
         ).copyWith(
           primary: dark ? const Color(0xFFF0788F) : const Color(0xFFAC2945),
           onPrimary: dark ? const Color(0xFF320713) : Colors.white,
+          secondaryContainer: dark ? null : const Color(0xFFAC2945),
+          onSecondaryContainer: dark ? null : Colors.white,
           primaryContainer: dark
               ? const Color(0xFF552033)
-              : const Color(0xFFF8DDE3),
-          onPrimaryContainer: dark
-              ? const Color(0xFFFFDEE5)
-              : const Color(0xFF64172B),
+              : const Color(0xFFAC2945),
+          onPrimaryContainer: dark ? const Color(0xFFFFDEE5) : Colors.white,
           onSurface: dark ? const Color(0xFFF5F1F2) : const Color(0xFF242126),
           onSurfaceVariant: dark
               ? const Color(0xFFC4BAC0)
@@ -50,6 +61,7 @@ abstract final class NexTheme {
         backgroundColor: scheme.surface,
         foregroundColor: scheme.onSurface,
         surfaceTintColor: Colors.transparent,
+        systemOverlayStyle: systemBars(brightness),
       ),
       bottomSheetTheme: BottomSheetThemeData(
         backgroundColor: scheme.surface,
@@ -101,7 +113,7 @@ abstract final class NexTheme {
       ),
       cardTheme: CardThemeData(
         elevation: 0,
-        color: dark ? NexColors.charcoal : Colors.white,
+        color: dark ? NexColors.charcoal : const Color(0xFFF0ECE8),
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
       ),
       navigationBarTheme: NavigationBarThemeData(
@@ -110,7 +122,16 @@ abstract final class NexTheme {
         backgroundColor: (dark ? NexColors.ink : NexColors.bone).withValues(
           alpha: .96,
         ),
-        indicatorColor: NexColors.ember.withValues(alpha: .16),
+        indicatorColor: dark
+            ? NexColors.ember.withValues(alpha: .16)
+            : scheme.primary,
+        iconTheme: WidgetStateProperty.resolveWith(
+          (states) => IconThemeData(
+            color: !dark && states.contains(WidgetState.selected)
+                ? Colors.white
+                : scheme.onSurface,
+          ),
+        ),
         labelTextStyle: WidgetStatePropertyAll(
           TextStyle(
             fontFamily: 'sans-serif',
@@ -141,7 +162,7 @@ abstract final class NexTheme {
       ),
       inputDecorationTheme: InputDecorationTheme(
         filled: true,
-        fillColor: dark ? NexColors.charcoal : Colors.white,
+        fillColor: dark ? NexColors.charcoal : const Color(0xFFF0ECE8),
         border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(18),
           borderSide: BorderSide.none,
@@ -160,7 +181,9 @@ abstract final class NexTheme {
         ),
       ),
       chipTheme: ChipThemeData(
-        backgroundColor: dark ? const Color(0xFF202329) : Colors.white,
+        backgroundColor: dark
+            ? const Color(0xFF202329)
+            : const Color(0xFFF0ECE8),
         selectedColor: scheme.primaryContainer,
         labelStyle: TextStyle(
           fontFamily: 'sans-serif',
@@ -170,7 +193,7 @@ abstract final class NexTheme {
           fontFamily: 'sans-serif',
           color: scheme.onPrimaryContainer,
         ),
-        checkmarkColor: scheme.primary,
+        checkmarkColor: dark ? scheme.primary : Colors.white,
         side: BorderSide(color: scheme.outlineVariant),
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
         padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 7),

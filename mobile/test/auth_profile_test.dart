@@ -24,6 +24,44 @@ class NamedApi extends OfflineCatalogApi {
 }
 
 void main() {
+  testWidgets('auth content is balanced and scrolls above the keyboard', (
+    tester,
+  ) async {
+    FlutterSecureStorage.setMockInitialValues({});
+    tester.view.physicalSize = const Size(430, 932);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    addTearDown(tester.view.resetViewInsets);
+    await tester.pumpWidget(const ProviderScope(child: NexApp()));
+    await tester.pumpAndSettle();
+
+    void expectBalanced() {
+      final top = tester.getTopLeft(find.text('Nex')).dy;
+      final bottom = tester.getBottomLeft(find.byType(OutlinedButton)).dy;
+      expect((top - (932 - bottom)).abs(), lessThan(24));
+      final heading = find.text('Make Nex yours.').evaluate().isNotEmpty
+          ? find.text('Make Nex yours.')
+          : find.text('Sign in to Nex.');
+      final fieldTop = tester.getTopLeft(find.byType(TextField).first).dy;
+      expect(
+        fieldTop - tester.getBottomLeft(heading).dy,
+        greaterThanOrEqualTo(44),
+      );
+    }
+
+    expectBalanced();
+    await tester.tap(find.text('New here? Create an account'));
+    await tester.pumpAndSettle();
+    expectBalanced();
+    tester.view.viewInsets = const FakeViewPadding(bottom: 350);
+    await tester.pumpAndSettle();
+    await tester.ensureVisible(find.text('Explore demo mode'));
+    await tester.pumpAndSettle();
+    expect(find.text('Explore demo mode').hitTestable(), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
+
   testWidgets(
     'password visibility works in login and registration; invite is independent',
     (tester) async {

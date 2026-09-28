@@ -12,6 +12,7 @@ export interface CatalogSearchOptions {
   query: string;
   region: string;
   page?: number;
+  summaryOnly?: boolean;
 }
 
 export interface DiscoverOptions {
@@ -19,6 +20,7 @@ export interface DiscoverOptions {
   providerIds?: number[];
   mediaType?: MediaType | "any";
   maxRuntimeMinutes?: number | null;
+  minRuntimeMinutes?: number | null;
   genres?: string[];
   genreMatch?: "any"|"all";
   keywords?: string[];
@@ -54,6 +56,7 @@ export class FixtureTmdbRepository implements TmdbRepository {
       if (options.mediaType && options.mediaType !== "any" && item.mediaType !== options.mediaType) return false;
       if(options.originalLanguages?.length&&!options.originalLanguages.includes(item.originalLanguage??""))return false;
       if (options.maxRuntimeMinutes && item.runtimeMinutes && item.runtimeMinutes > options.maxRuntimeMinutes) return false;
+      if (options.minRuntimeMinutes && (!item.runtimeMinutes || item.runtimeMinutes < options.minRuntimeMinutes)) return false;
       if (options.providerIds?.length && !item.availability.some((entry) => options.providerIds?.includes(entry.providerId))) return false;
       if (options.genres?.length && !options.genres.some((genre) => item.genres.some((g) => g.toLowerCase() === genre.toLowerCase()))) return false;
       return true;
@@ -90,7 +93,7 @@ export class LiveTmdbRepository implements TmdbRepository {
       query: options.query, include_adult: "false", language: "en-US", page: String(options.page ?? 1), region: options.region,
     });
     const candidates = (payload.results ?? []).filter((result) => result.media_type === "movie" || result.media_type === "tv").slice(0, 20);
-    return Promise.all(candidates.map((result) => this.summaryToItem(result, options.region)));
+    return Promise.all(candidates.map((result) => this.summaryToItem(result, options.region, options.summaryOnly)));
   }
 
   async discover(options: DiscoverOptions): Promise<ContentItem[]> {
@@ -105,10 +108,12 @@ export class LiveTmdbRepository implements TmdbRepository {
         params.with_watch_monetization_types = "flatrate|free|ads";
       }
       if (options.maxRuntimeMinutes) params["with_runtime.lte"] = String(options.maxRuntimeMinutes);
+      if (options.minRuntimeMinutes) params["with_runtime.gte"] = String(options.minRuntimeMinutes);
       if(options.originalLanguages?.length)params.with_original_language=options.originalLanguages.join("|");
       if (options.genres?.length) {
         const list = await this.request<{ genres: Array<{ id: number; name: string }> }>(`/genre/${mediaType === "series" ? "tv" : "movie"}/list`, { language: "en-US" });
         const ids = list.genres.filter((g)=>options.genres!.some((name)=>name.toLowerCase() === g.name.toLowerCase())).map((g)=>g.id);
+        if (!ids.length) return [];
         if (ids.length) params.with_genres = ids.join(options.genreMatch==="all"?",":"|");
       }
       if (options.keywords?.length) {
@@ -176,10 +181,10 @@ export class LiveTmdbRepository implements TmdbRepository {
     return Promise.all(payload.results.slice(0,6).map((r)=>this.summaryToItem({ ...r, media_type: mediaType === "series" ? "tv" : "movie" },region)));
   }
 
-  private async summaryToItem(value: Record<string, unknown>, region: string): Promise<ContentItem> {
+  private async summaryToItem(value: Record<string, unknown>, region: string, summaryOnly = false): Promise<ContentItem> {
     const mediaType: MediaType = value.media_type === "tv" ? "series" : "movie";
     const id = Number(value.id);
-    const detailed = Number.isFinite(id) ? await this.getTitle(mediaType, id, region) : null;
+    const detailed = !summaryOnly && Number.isFinite(id) ? await this.getTitle(mediaType, id, region) : null;
     if (detailed) return detailed;
     const title = String(value.title ?? value.name ?? "Untitled");
     return tmdbResultSchema.pipe(contentItemSchema).parse({

@@ -2,11 +2,10 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
-import '../data/demo_data.dart';
 import '../data/countries.dart';
 import '../data/taste_options.dart';
 import '../state/app_controller.dart';
-import '../widgets/artwork.dart';
+import '../widgets/onboarding_favorites.dart';
 import '../widgets/preparation_screen.dart';
 import '../widgets/nex_mark.dart';
 import '../data/api_client.dart';
@@ -123,60 +122,7 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
         title: 'Give us up to 5 you love.',
         subtitle:
             'These are a starting point, not a permanent definition of you.',
-        child: SizedBox(
-          height: 380,
-          child: GridView.builder(
-            gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-              crossAxisCount: 3,
-              childAspectRatio: .58,
-              crossAxisSpacing: 10,
-              mainAxisSpacing: 10,
-            ),
-            itemCount: demoCatalog.length,
-            itemBuilder: (_, index) {
-              final item = demoCatalog[index];
-              final selected = state.favoriteIds.contains(item.id);
-              return GestureDetector(
-                onTap: () {
-                  final next = {...state.favoriteIds};
-                  if (selected) {
-                    next.remove(item.id);
-                  } else if (next.length < 5) {
-                    next.add(item.id);
-                  }
-                  controller.updateOnboarding(favorites: next);
-                },
-                child: Stack(
-                  fit: StackFit.expand,
-                  children: [
-                    Artwork(url: item.posterUrl, borderRadius: 14),
-                    if (selected)
-                      DecoratedBox(
-                        decoration: BoxDecoration(
-                          borderRadius: BorderRadius.circular(14),
-                          border: Border.all(
-                            color: Theme.of(context).colorScheme.primary,
-                            width: 3,
-                          ),
-                          color: Colors.black26,
-                        ),
-                        child: const Align(
-                          alignment: Alignment.topRight,
-                          child: Padding(
-                            padding: EdgeInsets.all(7),
-                            child: CircleAvatar(
-                              radius: 13,
-                              child: Icon(Icons.check, size: 16),
-                            ),
-                          ),
-                        ),
-                      ),
-                  ],
-                ),
-              );
-            },
-          ),
-        ),
+        child: const OnboardingFavorites(),
       ),
       _ChoiceStep(
         icon: Icons.auto_awesome_outlined,

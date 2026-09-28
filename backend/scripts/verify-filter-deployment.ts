@@ -1,0 +1,47 @@
+import "../src/env.js";
+import { randomUUID } from "node:crypto";
+import assert from "node:assert/strict";
+
+// Disposable test account only. Never logs credentials, tokens or response bodies.
+const base = "https://nex-three-omega.vercel.app";
+const password = randomUUID() + randomUUID();
+let token: string | null = null;
+let created = false;
+async function request(path: string, method = "GET", body?: unknown) {
+  return fetch(base + path, {method, headers: {Origin: base, "Content-Type":"application/json",
+    ...(token ? {Authorization:`Bearer ${token}`} : {}),
+    ...(path === "/api/auth/sign-up/email" ? {"X-Nex-Invite":process.env.NEX_INVITE_CODE ?? ""} : {})},
+    ...(body === undefined ? {} : {body:JSON.stringify(body)}), signal:AbortSignal.timeout(60000)});
+}
+try {
+  assert.equal((await request("/api/health")).status,200);
+  assert.equal((await request("/api/catalog?mediaType=movie")).status,401);
+  const signup=await request("/api/auth/sign-up/email","POST",{name:"Nex filter verification",email:`nex-filter-${randomUUID()}@example.test`,password});
+  assert.equal(signup.status,200);created=true;
+  token=signup.headers.get("set-auth-token");assert.ok(token);
+  assert.equal((await request("/api/me/settings","PUT",{country:"RO",services:[{providerId:8,providerName:"Netflix"},{providerId:119,providerName:"Prime Video"},{providerId:1899,providerName:"Max"}]})).status,200);
+  const start=Date.now();
+  const filtered=await request("/api/catalog?mediaType=movie&minMinutes=60&maxMinutes=90");
+  assert.equal(filtered.status,200);
+  assert.equal(filtered.headers.get("cache-control"),"private, no-store");
+  const result=await filtered.json() as {data:Array<{mediaType:string;runtimeMinutes:number;availability:Array<{owned:boolean;access:string}>}>};
+  assert.ok(result.data.length>0);
+  assert.ok(result.data.every(i=>i.mediaType==="movie"&&i.runtimeMinutes>=60&&i.runtimeMinutes<=90&&i.availability.some(a=>a.owned&&a.access==="included")));
+  console.log(JSON.stringify({deployedFilters:true,results:result.data.length,milliseconds:Date.now()-start,ownedAndWithinRange:true}));
+  assert.equal((await request("/api/catalog?mediaType=movie&minMinutes=120&maxMinutes=60")).status,400);
+  const search=await request("/api/search?q=The%20Truman%20Show&mode=onboarding");
+  assert.equal(search.status,200);
+  const titles=await search.json() as {data:Array<{title:string;metadataOnly:boolean}>};
+  assert.ok(titles.data.some(i=>i.title==="The Truman Show"&&i.metadataOnly));
+  console.log(JSON.stringify({deployedOnboardingSearch:true,invalidRangeRejected:true,unauthenticatedFiltersRejected:true}));
+} catch {console.log("Deployment verification failed; sensitive details suppressed.");process.exitCode=1;}
+finally {
+  if(token) {
+    try {
+      const deleted=await request("/api/auth/delete-user","POST",{password});
+      assert.equal(deleted.status,200);
+      assert.equal((await request("/api/catalog?mediaType=movie")).status,401);
+      console.log(JSON.stringify({disposableAccountDeleted:true,oldSessionRejected:true}));
+    } catch {console.log("Disposable test-account cleanup requires attention; no credentials printed.");process.exitCode=1;}
+  } else if(created) {console.log("Test-account cleanup requires attention: signup returned no bearer token.");process.exitCode=1;}
+}

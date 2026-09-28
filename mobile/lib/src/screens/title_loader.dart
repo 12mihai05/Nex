@@ -1,10 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../data/api_client.dart';
 import '../data/demo_data.dart';
 import '../models/content.dart';
 import '../state/app_controller.dart';
+import '../widgets/skeleton.dart';
 import 'detail_screen.dart';
 
 class TitleLoader extends ConsumerStatefulWidget {
@@ -16,10 +16,14 @@ class TitleLoader extends ConsumerStatefulWidget {
 }
 
 class _TitleLoaderState extends ConsumerState<TitleLoader> {
-  late final Future<ContentItem?> item;
+  late Future<ContentItem?> item;
   @override
   void initState() {
     super.initState();
+    load();
+  }
+
+  void load() {
     item = ref.read(appControllerProvider).demoMode
         ? Future.value(
             demoCatalog
@@ -29,7 +33,7 @@ class _TitleLoaderState extends ConsumerState<TitleLoader> {
                 )
                 .firstOrNull,
           )
-        : NexApiClient().title(widget.mediaType, widget.id);
+        : ref.read(nexApiClientProvider).title(widget.mediaType, widget.id);
   }
 
   @override
@@ -37,12 +41,39 @@ class _TitleLoaderState extends ConsumerState<TitleLoader> {
     future: item,
     builder: (context, snapshot) {
       if (snapshot.connectionState != ConnectionState.done) {
-        return const Scaffold(body: Center(child: CircularProgressIndicator()));
+        return Scaffold(
+          appBar: AppBar(),
+          body: const Padding(
+            padding: EdgeInsets.all(20),
+            child: NexSkeleton(
+              child: Column(
+                children: [
+                  SkeletonBlock(height: 240),
+                  SizedBox(height: 24),
+                  SkeletonBlock(height: 28),
+                  SizedBox(height: 16),
+                  SkeletonBlock(height: 100),
+                ],
+              ),
+            ),
+          ),
+        );
       }
       if (snapshot.hasError || snapshot.data == null) {
         return Scaffold(
           appBar: AppBar(),
-          body: const Center(child: Text('This title could not be loaded.')),
+          body: Center(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Text('This title could not be loaded.'),
+                TextButton(
+                  onPressed: () => setState(load),
+                  child: const Text('Retry'),
+                ),
+              ],
+            ),
+          ),
         );
       }
       return DetailScreen(item: snapshot.data!);
