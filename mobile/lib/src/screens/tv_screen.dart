@@ -10,23 +10,8 @@ import '../data/countries.dart';
 import '../models/tv_program.dart';
 import '../state/app_controller.dart';
 import '../widgets/skeleton.dart';
-
-final channelOverridesProvider =
-    NotifierProvider<ChannelOverrides, Map<String, bool>>(ChannelOverrides.new);
-
-class ChannelOverrides extends Notifier<Map<String, bool>> {
-  @override
-  Map<String, bool> build() {
-    ref.watch(
-      appControllerProvider.select(
-        (s) => (s.country, s.authenticated, s.demoMode),
-      ),
-    );
-    return {};
-  }
-
-  void set(String id, bool value) => state = {...state, id: value};
-}
+import '../state/channel_favorites.dart';
+import 'tv_window_screen.dart';
 
 class TvScreen extends ConsumerStatefulWidget {
   const TvScreen({super.key, this.active = true, this.initialGuide = false});
@@ -239,7 +224,9 @@ class _TvScreenState extends ConsumerState<TvScreen> {
       final favorite = (isFavorite(b) ? 1 : 0) - (isFavorite(a) ? 1 : 0);
       if (favorite != 0) return favorite;
       final time = a.startsAt.compareTo(b.startsAt);
-      return time != 0 ? time : a.channel.compareTo(b.channel);
+      if (time != 0) return time;
+      final channel = a.channel.compareTo(b.channel);
+      return channel != 0 ? channel : a.id.compareTo(b.id);
     });
     final keys = valid
         .where((p) => !isFavorite(p))
@@ -247,7 +234,7 @@ class _TvScreenState extends ConsumerState<TvScreen> {
         .map((p) => p.id)
         .toSet();
     for (final p in valid) {
-      if (keys.length < 6) keys.add(p.id);
+      if (keys.length < 12 || isFavorite(p)) keys.add(p.id);
     }
     return valid.where((p) => keys.contains(p.id)).toList();
   }
@@ -371,6 +358,29 @@ class _TvScreenState extends ConsumerState<TvScreen> {
       ),
     ),
   );
+  Widget windowHeading(String text, String bucket) => Padding(
+    padding: const EdgeInsets.fromLTRB(4, 20, 0, 8),
+    child: Row(
+      children: [
+        Expanded(
+          child: Text(text, style: Theme.of(context).textTheme.titleLarge),
+        ),
+        TextButton(
+          onPressed: () => Navigator.of(context).push(
+            MaterialPageRoute<void>(
+              builder: (_) => TvWindowScreen(
+                title: text,
+                bucket: bucket,
+                programBuilder: (p) => programme(p),
+              ),
+            ),
+          ),
+          child: const Text('See all'),
+        ),
+      ],
+    ),
+  );
+
   Widget heading(String text) => Padding(
     padding: const EdgeInsets.fromLTRB(4, 24, 4, 8),
     child: Text(text, style: Theme.of(context).textTheme.titleLarge),
@@ -581,17 +591,9 @@ class _TvScreenState extends ConsumerState<TvScreen> {
               ),
             if (!guideOnly) ...[
               if (loading && live.isEmpty && upcoming.isEmpty)
-                const NexSkeleton(
-                  child: Column(
-                    children: [
-                      SizedBox(height: 20),
-                      SkeletonBlock(height: 260),
-                      SizedBox(height: 24),
-                      SkeletonBlock(height: 260),
-                    ],
-                  ),
-                ),
-              heading('Live now'),
+                const TvShelvesSkeleton(),
+              if (!loading || live.isNotEmpty)
+                windowHeading('Live now', 'live'),
               if (live.isEmpty && !loading)
                 const Text('No current listings available.'),
               if (live.isNotEmpty) shelf(preview(live)),
@@ -600,11 +602,14 @@ class _TvScreenState extends ConsumerState<TvScreen> {
                 (30, 60, '30–60 minutes'),
                 (60, 720, 'Later · next 12 hours'),
               ]) ...[
-                if (upcoming.any((p) {
-                  final m = p.startsAt.difference(now).inSeconds / 60;
-                  return m >= bucket.$1 && m < bucket.$2;
-                }))
-                  heading(bucket.$3),
+                windowHeading(
+                  bucket.$3,
+                  bucket.$1 == 0
+                      ? 'soon'
+                      : bucket.$1 == 30
+                      ? 'next'
+                      : 'later',
+                ),
                 if (upcoming.any((p) {
                   final m = p.startsAt.difference(now).inSeconds / 60;
                   return m >= bucket.$1 && m < bucket.$2;
@@ -631,6 +636,7 @@ class _TvScreenState extends ConsumerState<TvScreen> {
                 onChanged: (value) {
                   query = value;
                   generation++;
+                  setState(() => loading = true);
                   debounce?.cancel();
                   debounce = Timer(
                     const Duration(milliseconds: 350),
@@ -649,18 +655,7 @@ class _TvScreenState extends ConsumerState<TvScreen> {
                   },
                 ),
               ),
-              if (loading)
-                const NexSkeleton(
-                  child: Column(
-                    children: [
-                      SkeletonBlock(height: 70),
-                      SizedBox(height: 12),
-                      SkeletonBlock(height: 70),
-                      SizedBox(height: 12),
-                      SkeletonBlock(height: 70),
-                    ],
-                  ),
-                ),
+              if (loading) const ChannelListSkeleton(),
               if (visibleChannels.isEmpty && !loading)
                 const Padding(
                   padding: EdgeInsets.all(16),
@@ -668,44 +663,45 @@ class _TvScreenState extends ConsumerState<TvScreen> {
                     'No channels found. Try another search or refresh after sync.',
                   ),
                 ),
-              ...visibleChannels.map(
-                (c) => ListTile(
-                  title: Text(c['name'] as String),
-                  subtitle: Text(
-                    c['available'] == true
-                        ? 'Open schedule'
-                        : c['active'] == false
-                        ? 'No longer in the source · remove from favorites'
-                        : 'Schedule unavailable · next sync may add listings',
-                  ),
-                  trailing: IconButton(
-                    tooltip: (overrides[c['id']] ?? c['favorite'] == true)
-                        ? 'Unfavorite channel'
-                        : 'Favorite channel',
-                    onPressed: saving.contains(c['id'])
-                        ? null
-                        : () => favorite(
-                            c['id'] as String,
-                            !(overrides[c['id']] ?? c['favorite'] == true),
-                          ),
-                    icon: Icon(
-                      (overrides[c['id']] ?? c['favorite'] == true)
-                          ? Icons.star
-                          : Icons.star_border,
+              if (!loading)
+                ...visibleChannels.map(
+                  (c) => ListTile(
+                    title: Text(c['name'] as String),
+                    subtitle: Text(
+                      c['available'] == true
+                          ? 'Open schedule'
+                          : c['active'] == false
+                          ? 'No longer in the source · remove from favorites'
+                          : 'Schedule unavailable · next sync may add listings',
                     ),
-                  ),
-                  onTap: () => showModalBottomSheet<void>(
-                    context: context,
-                    isScrollControlled: true,
-                    showDragHandle: true,
-                    builder: (_) => ChannelSchedule(
-                      channel: c,
-                      programBuilder: (p) =>
-                          programme(p, channelControls: false),
+                    trailing: IconButton(
+                      tooltip: (overrides[c['id']] ?? c['favorite'] == true)
+                          ? 'Unfavorite channel'
+                          : 'Favorite channel',
+                      onPressed: saving.contains(c['id'])
+                          ? null
+                          : () => favorite(
+                              c['id'] as String,
+                              !(overrides[c['id']] ?? c['favorite'] == true),
+                            ),
+                      icon: Icon(
+                        (overrides[c['id']] ?? c['favorite'] == true)
+                            ? Icons.star
+                            : Icons.star_border,
+                      ),
+                    ),
+                    onTap: () => showModalBottomSheet<void>(
+                      context: context,
+                      isScrollControlled: true,
+                      showDragHandle: true,
+                      builder: (_) => ChannelSchedule(
+                        channel: c,
+                        programBuilder: (p) =>
+                            programme(p, channelControls: false),
+                      ),
                     ),
                   ),
                 ),
-              ),
               if (more)
                 TextButton(
                   onPressed: loading
@@ -782,17 +778,6 @@ class _ChannelScheduleState extends ConsumerState<ChannelSchedule> {
             widget.channel['name'] as String,
             style: Theme.of(context).textTheme.headlineSmall,
           ),
-          if (busy)
-            const NexSkeleton(
-              child: Column(
-                children: [
-                  SizedBox(height: 16),
-                  SkeletonBlock(height: 80),
-                  SizedBox(height: 12),
-                  SkeletonBlock(height: 80),
-                ],
-              ),
-            ),
           if (error != null) ...[
             Text(error!),
             TextButton(onPressed: load, child: const Text('Retry')),
@@ -805,6 +790,11 @@ class _ChannelScheduleState extends ConsumerState<ChannelSchedule> {
               ),
             ),
           ...items.map(widget.programBuilder),
+          if (busy)
+            ChannelListSkeleton(
+              schedule: true,
+              height: MediaQuery.sizeOf(context).height * .8 - 70,
+            ),
           if (more)
             TextButton(
               onPressed: busy ? null : load,

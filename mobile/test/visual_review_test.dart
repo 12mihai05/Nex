@@ -14,7 +14,7 @@ import 'package:nex/src/screens/auth_screen.dart';
 import 'package:nex/src/screens/onboarding_screen.dart';
 import 'package:nex/src/screens/home_shell.dart';
 import 'package:nex/src/screens/tv_screen.dart';
-import 'package:nex/src/screens/filtered_catalog_screen.dart';
+import 'package:nex/src/screens/browse_screen.dart';
 import 'package:nex/src/screens/chat_screen.dart';
 import 'package:nex/src/screens/search_screen.dart';
 import 'package:nex/src/screens/profile_screen.dart';
@@ -77,7 +77,7 @@ void main() {
           '/onboarding': const OnboardingScreen(),
           '/home': const HomeShell(),
           '/tv': const TvScreen(),
-          '/catalog': const FilteredCatalogScreen(initialType: 'movie'),
+          '/catalog': const BrowseScreen(),
           '/chat': const ChatScreen(),
           '/search': const SearchScreen(),
           '/profile': const ProfileScreen(),

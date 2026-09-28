@@ -42,20 +42,51 @@ class _TitleLoaderState extends ConsumerState<TitleLoader> {
     builder: (context, snapshot) {
       if (snapshot.connectionState != ConnectionState.done) {
         return Scaffold(
-          appBar: AppBar(),
-          body: const Padding(
-            padding: EdgeInsets.all(20),
-            child: NexSkeleton(
-              child: Column(
-                children: [
-                  SkeletonBlock(height: 240),
-                  SizedBox(height: 24),
-                  SkeletonBlock(height: 28),
-                  SizedBox(height: 16),
-                  SkeletonBlock(height: 100),
-                ],
+          body: CustomScrollView(
+            slivers: [
+              const SliverAppBar(
+                expandedHeight: 320,
+                pinned: true,
+                flexibleSpace: FlexibleSpaceBar(
+                  background: NexSkeleton(
+                    child: SkeletonBlock(height: 320, radius: 0),
+                  ),
+                ),
               ),
-            ),
+              SliverToBoxAdapter(
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(20, 22, 20, 36),
+                  child: NexSkeleton(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const SkeletonBlock(height: 32, width: 230, radius: 4),
+                        const SizedBox(height: 7),
+                        const SkeletonBlock(height: 18, width: 170, radius: 4),
+                        const SizedBox(height: 12),
+                        const Wrap(
+                          spacing: 7,
+                          children: [
+                            SkeletonBlock(height: 38, width: 80, radius: 14),
+                            SkeletonBlock(height: 38, width: 100, radius: 14),
+                          ],
+                        ),
+                        const SizedBox(height: 24),
+                        for (
+                          var i = 0;
+                          i < (MediaQuery.sizeOf(context).height / 80).ceil();
+                          i++
+                        )
+                          const Padding(
+                            padding: EdgeInsets.only(bottom: 10),
+                            child: SkeletonBlock(height: 16, radius: 4),
+                          ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+            ],
           ),
         );
       }

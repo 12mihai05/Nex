@@ -29,6 +29,13 @@ try {
   assert.ok(result.data.every(i=>i.mediaType==="movie"&&i.runtimeMinutes>=60&&i.runtimeMinutes<=90&&i.availability.some(a=>a.owned&&a.access==="included")));
   console.log(JSON.stringify({deployedFilters:true,results:result.data.length,milliseconds:Date.now()-start,ownedAndWithinRange:true}));
   assert.equal((await request("/api/catalog?mediaType=movie&minMinutes=120&maxMinutes=60")).status,400);
+  const home=await request("/api/discovery?mediaType=movie&minMinutes=60&maxMinutes=90");
+  assert.equal(home.status,200);
+  const homeRows=await home.json() as {data:Array<{items:Array<{item:{mediaType:string;runtimeMinutes:number}}>}>};
+  assert.ok(homeRows.data.length>1);
+  assert.ok(homeRows.data.every(r=>r.items.every(({item:i})=>i.mediaType==="movie"&&i.runtimeMinutes>=60&&i.runtimeMinutes<=90)));
+  assert.equal((await request("/api/tv/window?bucket=live&favorites=true")).status,200);
+  console.log(JSON.stringify({filteredHomeShelves:true,rows:homeRows.data.length,tvWindowEndpoint:true}));
   const search=await request("/api/search?q=The%20Truman%20Show&mode=onboarding");
   assert.equal(search.status,200);
   const titles=await search.json() as {data:Array<{title:string;metadataOnly:boolean}>};

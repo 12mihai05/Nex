@@ -72,7 +72,7 @@ export class EpgService {
     }
   }
 
-  async listWindow(start: Date, end: Date, country = "RO", userId="",options:{futureOnly?:boolean;channelId?:string;offset?:number}={}) {
+  async listWindow(start: Date, end: Date, country = "RO", userId="",options:{futureOnly?:boolean;channelId?:string;offset?:number;favoritesOnly?:boolean;singleBucket?:boolean}={}) {
     const favorite=sql<boolean>`exists(select 1 from channel_favorites f where f.channel_id=${channels.id} and f.user_id=${userId})`.mapWith(Boolean);
     const bucket=sql<number>`case when ${epgPrograms.startAt}<=${+start} then 0 when ${epgPrograms.startAt}<${+start+30*60_000} then 1 when ${epgPrograms.startAt}<${+start+60*60_000} then 2 else 3 end`;
     return this.db.select({
@@ -82,7 +82,7 @@ export class EpgService {
       matchedTmdbId: epgPrograms.matchedTmdbId, matchedMediaType: epgPrograms.matchedMediaType, matchConfidence: epgPrograms.matchConfidence,
       channel: { id: channels.id, name: channels.displayName, logoUrl: channels.logoUrl },
     }).from(epgPrograms).innerJoin(channels, eq(epgPrograms.channelId, channels.id))
-      .where(and(eq(channels.country, country),eq(channels.active,true), lt(epgPrograms.startAt, end), gt(epgPrograms.endAt, start),options.futureOnly?gt(epgPrograms.startAt,start):undefined,options.channelId?eq(channels.id,options.channelId):undefined)).orderBy(bucket,desc(favorite),epgPrograms.startAt,channels.displayName,epgPrograms.id).limit(100).offset(options.offset??0);
+      .where(and(eq(channels.country, country),eq(channels.active,true), lt(epgPrograms.startAt, end), gt(epgPrograms.endAt, start),options.futureOnly?gt(epgPrograms.startAt,start):undefined,options.channelId?eq(channels.id,options.channelId):undefined,options.favoritesOnly?favorite:undefined)).orderBy(options.singleBucket?sql`0+0`:bucket,desc(favorite),epgPrograms.startAt,channels.displayName,epgPrograms.id).limit(100).offset(options.offset??0);
   }
 
   async listChannels(userId:string,country:string,search="",offset=0,favoritesOnly=false){
@@ -99,7 +99,7 @@ export class EpgService {
       if(!channel.active)throw new Error("CHANNEL_NOT_FOUND");
       const own=await tx.select().from(channelFavorites).innerJoin(channels,eq(channels.id,channelFavorites.channelId)).where(and(eq(channelFavorites.userId,userId),eq(channels.country,country)));
       if(own.some(f=>f.channel_favorites.channelId===channelId))return;
-      if(own.length>=20)throw new Error("CHANNEL_FAVORITE_LIMIT");
+      if(own.length>=50)throw new Error("CHANNEL_FAVORITE_LIMIT");
       const countryFavorites=await tx.selectDistinct({id:channelFavorites.channelId}).from(channelFavorites).innerJoin(channels,eq(channels.id,channelFavorites.channelId)).where(eq(channels.country,country));
       if(countryFavorites.length>=120&&!countryFavorites.some(f=>f.id===channelId))throw new Error("CHANNEL_FAVORITE_CAPACITY");
       await tx.insert(channelFavorites).values({userId,channelId}).onConflictDoNothing();

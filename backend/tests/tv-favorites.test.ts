@@ -25,6 +25,17 @@ beforeEach(async()=>{
   epg=new EpgService(db,{sourceId:"fixture",load:async()=>({channels:[],programs:[],sourceTimestamp:null})},new FixtureTmdbRepository());
 });
 afterEach(()=>client.close());
+it("pages through a busy favorites-only window without hiding other viewers' channels",async()=>{
+  await epg.setChannelFavorite("alice","RO","c0",true);
+  const db=drizzle(client,{schema});
+  await db.insert(schema.epgPrograms).values(Array.from({length:130},(_,i)=>({id:`page-${i}`,channelId:"c0",startAt:new Date(+now+30*60000+i*1000),endAt:new Date(+now+2*3600000),title:`Show ${i}`,sourceId:"fixture",sourceProgramId:`page-${i}`})));
+  const first=await epg.listWindow(now,new Date(+now+12*3600000),"RO","alice",{favoritesOnly:true});
+  const next=await epg.listWindow(now,new Date(+now+12*3600000),"RO","alice",{favoritesOnly:true,offset:100});
+  expect(first).toHaveLength(100);expect(next).toHaveLength(32);
+  expect(new Set([...first,...next].map(p=>p.id)).size).toBe(132);
+  expect([...first,...next].every(p=>p.favorite&&p.channel.id==="c0")).toBe(true);
+  expect(await epg.listWindow(now,new Date(+now+12*3600000),"RO","bob",{favoritesOnly:true})).toEqual([]);
+});
 it("orders by time bucket, favorite, start, channel and stable programme ID; isolates viewers and countries",async()=>{
   await epg.setChannelFavorite("alice","RO","c0",true);
   expect((await epg.listWindow(now,new Date(+now+12*3600000),"RO","alice")).map(p=>p.id)).toEqual(["favorite","earlier","tie-a","tie-b","later"]);
@@ -36,9 +47,12 @@ it("orders by time bucket, favorite, start, channel and stable programme ID; iso
 it("keeps channels without schedules searchable and enforces a bounded favorite count",async()=>{
   expect((await epg.listChannels("alice","RO")).length).toBe(22);
   expect((await epg.listChannels("alice","RO")).find(c=>c.id==="c20")!.available).toBe(false);
-  for(let i=0;i<20;i++)await epg.setChannelFavorite("alice","RO",`c${i}`,true);
+  const db=drizzle(client,{schema});
+  await db.insert(schema.channels).values(Array.from({length:29},(_,i)=>({id:`extra${i}`,sourceId:"fixture",externalId:`extra${i}`,displayName:`Extra ${i}`,country:"RO"})));
+  for(let i=0;i<22;i++)await epg.setChannelFavorite("alice","RO",`c${i}`,true);
+  for(let i=0;i<28;i++)await epg.setChannelFavorite("alice","RO",`extra${i}`,true);
   await epg.setChannelFavorite("alice","RO","c0",true);
-  await expect(epg.setChannelFavorite("alice","RO","c20",true)).rejects.toThrow("CHANNEL_FAVORITE_LIMIT");
+  await expect(epg.setChannelFavorite("alice","RO","extra28",true)).rejects.toThrow("CHANNEL_FAVORITE_LIMIT");
 });
 it("preview reserves exposure to non-favorites, never drops them from the full result",()=>{
   const items=Array.from({length:12},(_,i)=>({id:String(i),startAt:new Date(+now+60000*i),endAt:new Date(+now+3600000),favorite:i<8,channel:{name:"A"}}));

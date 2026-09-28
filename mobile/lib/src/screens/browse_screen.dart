@@ -10,14 +10,166 @@ import '../widgets/artwork.dart';
 import '../widgets/content_row.dart';
 import '../widgets/top_bar.dart';
 import '../widgets/skeleton.dart';
+import '../widgets/catalog_filter_sheet.dart';
+import '../data/api_client.dart';
 
-class BrowseScreen extends ConsumerWidget {
+class BrowseScreen extends ConsumerStatefulWidget {
   const BrowseScreen({super.key});
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<BrowseScreen> createState() => _BrowseScreenState();
+}
+
+class _BrowseScreenState extends ConsumerState<BrowseScreen> {
+  String type = 'any';
+  String? genre, filterError;
+  int? minimum, maximum;
+  bool filtering = false;
+  int generation = 0;
+  List<ContentRow> filteredRows = [];
+  final snapshots = <String, List<ContentRow>>{};
+  bool get hasFilters =>
+      type != 'any' || genre != null || minimum != null || maximum != null;
+  String get filterKey => '$type:$genre:$minimum:$maximum';
+
+  Future<void> loadFilters({bool force = false}) async {
+    final ticket = ++generation;
+    if (!hasFilters) {
+      setState(() {
+        filtering = false;
+        filterError = null;
+      });
+      return;
+    }
+    final key = filterKey;
+    if (!force && snapshots.containsKey(key)) {
+      setState(() {
+        filteredRows = snapshots[key]!;
+        filtering = false;
+        filterError = null;
+      });
+      return;
+    }
+    setState(() {
+      filtering = true;
+      filterError = null;
+      filteredRows = [];
+    });
+    try {
+      List<ContentRow> rows;
+      if (ref.read(appControllerProvider).demoMode) {
+        rows = ref
+            .read(appControllerProvider.notifier)
+            .browseRows
+            .map(
+              (r) => ContentRow(
+                r.title,
+                r.subtitle,
+                r.items
+                    .where(
+                      (i) =>
+                          (type == 'any' || i.mediaType.name == type) &&
+                          (genre == null || i.genres.contains(genre)) &&
+                          (minimum == null ||
+                              (i.runtimeMinutes != null &&
+                                  i.runtimeMinutes! >= minimum!)) &&
+                          (maximum == null ||
+                              (i.runtimeMinutes != null &&
+                                  i.runtimeMinutes! <= maximum!)),
+                    )
+                    .toList(),
+              ),
+            )
+            .where((r) => r.items.isNotEmpty)
+            .toList();
+      } else {
+        final query = Uri(
+          queryParameters: {
+            'mediaType': type,
+            'genre': ?genre,
+            'minMinutes': ?minimum?.toString(),
+            'maxMinutes': ?maximum?.toString(),
+          },
+        ).query;
+        final data = await ref
+            .read(nexApiClientProvider)
+            .list('/api/discovery?$query');
+        rows = data
+            .map(
+              (r) => ContentRow(
+                r['title'] as String,
+                r['subtitle'] as String?,
+                (r['items'] as List)
+                    .map(
+                      (v) => ContentItem.fromJson(
+                        ((v as Map)['item'] as Map).cast<String, dynamic>(),
+                      ),
+                    )
+                    .toList(),
+              ),
+            )
+            .toList();
+      }
+      if (!mounted || ticket != generation) return;
+      if (snapshots.length >= 8) snapshots.remove(snapshots.keys.first);
+      snapshots[key] = rows;
+      setState(() => filteredRows = rows);
+    } catch (e) {
+      if (mounted && ticket == generation) {
+        setState(() => filterError = readableApiError(e));
+      }
+    } finally {
+      if (mounted && ticket == generation) setState(() => filtering = false);
+    }
+  }
+
+  Future<void> editFilters() async {
+    final value =
+        await showModalBottomSheet<({String? genre, int? min, int? max})>(
+          context: context,
+          isScrollControlled: true,
+          useSafeArea: true,
+          showDragHandle: true,
+          builder: (_) => CatalogFilterSheet(
+            type: type,
+            genre: genre,
+            min: minimum,
+            max: maximum,
+          ),
+        );
+    if (value == null || !mounted) return;
+    setState(() {
+      genre = value.genre;
+      minimum = value.min;
+      maximum = value.max;
+      if (minimum != null || maximum != null) type = 'movie';
+    });
+    await loadFilters();
+  }
+
+  @override
+  Widget build(BuildContext context) {
     final state = ref.watch(appControllerProvider);
+    ref.listen(
+      appControllerProvider.select(
+        (s) => (
+          s.country,
+          (s.providers.toList()..sort()).join(','),
+          s.authenticated,
+          s.demoMode,
+        ),
+      ),
+      (previous, next) {
+        if (previous != next) {
+          snapshots.clear();
+          loadFilters();
+        }
+      },
+    );
     final controller = ref.read(appControllerProvider.notifier);
-    final hero = controller.browseHero;
+    final rows = hasFilters ? filteredRows : controller.browseRows;
+    final hero = hasFilters
+        ? rows.firstOrNull?.items.firstOrNull
+        : controller.browseHero;
     return Scaffold(
       appBar: const NexTopBar(),
       body: RefreshIndicator(
@@ -32,25 +184,66 @@ class BrowseScreen extends ConsumerWidget {
                 child: Wrap(
                   spacing: 8,
                   children: [
-                    ActionChip(
-                      label: const Text('Movies'),
-                      onPressed: () => context.push('/catalog?type=movie'),
-                    ),
-                    ActionChip(
-                      label: const Text('Series'),
-                      onPressed: () => context.push('/catalog?type=series'),
-                    ),
+                    for (final entry in [
+                      ('any', 'All'),
+                      ('movie', 'Movies'),
+                      ('series', 'Series'),
+                    ])
+                      ChoiceChip(
+                        label: Text(entry.$2),
+                        selected: type == entry.$1,
+                        onSelected: (_) {
+                          setState(() {
+                            type = entry.$1;
+                            genre = null;
+                            minimum = null;
+                            maximum = null;
+                          });
+                          loadFilters();
+                        },
+                      ),
                     ActionChip(
                       avatar: const Icon(Icons.tune, size: 18),
                       label: const Text('Filters'),
-                      onPressed: () => context.push('/catalog'),
+                      onPressed: editFilters,
                     ),
+                    if (genre != null)
+                      InputChip(
+                        label: Text(genre!),
+                        onDeleted: () {
+                          setState(() => genre = null);
+                          loadFilters();
+                        },
+                      ),
+                    if (minimum != null || maximum != null)
+                      InputChip(
+                        label: Text('${minimum ?? 1}–${maximum ?? 'any'} min'),
+                        onDeleted: () {
+                          setState(() {
+                            minimum = null;
+                            maximum = null;
+                          });
+                          loadFilters();
+                        },
+                      ),
                   ],
                 ),
               ),
             ),
-            if (state.busy)
-              const SliverToBoxAdapter(child: LinearProgressIndicator()),
+            if (filtering || (state.busy && hero == null))
+              const SliverToBoxAdapter(child: HomeSkeleton()),
+            if (filterError != null)
+              SliverToBoxAdapter(
+                child: Column(
+                  children: [
+                    Text(filterError!),
+                    TextButton(
+                      onPressed: () => loadFilters(force: true),
+                      child: const Text('Retry'),
+                    ),
+                  ],
+                ),
+              ),
             if (state.error != null)
               SliverToBoxAdapter(
                 child: Padding(
@@ -65,12 +258,12 @@ class BrowseScreen extends ConsumerWidget {
                   onPick: () => _showPickSheet(context, ref),
                 ),
               )
-            else
+            else if (!filtering && !state.busy && filterError == null)
               const SliverToBoxAdapter(
                 child: Padding(
                   padding: EdgeInsets.all(24),
                   child: Text(
-                    'No matching picks yet. Try updating your services or taste.',
+                    'No matching picks. Try a broader genre or duration range.',
                   ),
                 ),
               ),
@@ -85,7 +278,7 @@ class BrowseScreen extends ConsumerWidget {
                   label: const Text('Taste updated · Refresh picks'),
                 ),
               ),
-            ...controller.browseRows.map(
+            ...rows.map(
               (row) => SliverToBoxAdapter(child: ContentShelf(row: row)),
             ),
             const SliverToBoxAdapter(child: SizedBox(height: 20)),
@@ -136,7 +329,12 @@ class BrowseScreen extends ConsumerWidget {
       ),
     );
     if (confirmed == true && context.mounted) {
-      await ref.read(appControllerProvider.notifier).refreshLive();
+      snapshots.clear();
+      if (hasFilters) {
+        await loadFilters(force: true);
+      } else {
+        await ref.read(appControllerProvider.notifier).refreshLive();
+      }
     }
   }
 
@@ -163,7 +361,14 @@ class BrowseScreen extends ConsumerWidget {
                 await controller.rejectPick(pick!);
               }
               final next = await controller.pickLive(
-                maxMinutes: maxMinutes,
+                maxMinutes: maximum == null
+                    ? maxMinutes
+                    : maxMinutes == null
+                    ? maximum
+                    : (maximum! < maxMinutes! ? maximum : maxMinutes),
+                minMinutes: minimum,
+                mediaType: type,
+                genre: genre,
                 mood: mood,
                 excluded: excluded,
               );
@@ -211,14 +416,18 @@ class BrowseScreen extends ConsumerWidget {
                       child: NexSkeleton(
                         child: Row(
                           children: [
-                            SkeletonBlock(width: 100, height: 150),
+                            SkeletonBlock(width: 120, height: 180),
                             SizedBox(width: 18),
                             Expanded(
                               child: Column(
                                 children: [
                                   SkeletonBlock(height: 24),
                                   SizedBox(height: 12),
-                                  SkeletonBlock(height: 65),
+                                  SkeletonBlock(height: 14),
+                                  SizedBox(height: 8),
+                                  SkeletonBlock(height: 14),
+                                  SizedBox(height: 8),
+                                  SkeletonBlock(height: 14),
                                 ],
                               ),
                             ),

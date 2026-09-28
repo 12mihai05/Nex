@@ -114,7 +114,9 @@ app.get("/api/title/:mediaType/:tmdbId", async (c) => {
 
 app.get("/api/discovery", async c => {
   const userId=c.get("authSession").user.id;
-  const rows=await discoverHome(catalog,await users.getRecommendationState(userId),userId);
+  const input=catalogFilterSchema.parse(c.req.query());
+  const filters=Object.keys(c.req.query()).length?{mediaType:input.mediaType,genres:input.genre?[input.genre]:[],minRuntimeMinutes:input.minMinutes??null,maxRuntimeMinutes:input.maxMinutes??null}:{};
+  const rows=await discoverHome(catalog,await users.getRecommendationState(userId),userId,filters);
   // Record only the lead shelf, not hundreds of titles below the fold.
   await users.recordRecommendations(userId,rows[0]?.items??[],"discovery-lead");
   c.header("Cache-Control","private, no-store");
@@ -146,6 +148,9 @@ app.post("/api/surprise", async (c) => {
   const state = await users.getRecommendationState(userId);
   const filter = detectSearchIntent(body.mood ? `something ${body.mood}` : "what should I watch?");
   filter.maxRuntimeMinutes = body.maxRuntimeMinutes;
+  filter.minRuntimeMinutes = body.minRuntimeMinutes;
+  filter.mediaType = body.mediaType;
+  filter.genres = body.genres;
   filter.intent = "DISCOVERY";
   const candidates = (await generateCandidates(catalog,state,filter)).filter((item) => !body.excludedIds.includes(item.id));
   const result = rankCandidates(candidates, filter, { ...state, viewerIds: [userId], temporaryMoods: body.mood ? [body.mood] : [] }, 1)[0];
@@ -199,6 +204,14 @@ app.get("/api/tv/channel-schedule",async c=>{
   const id=z.string().min(1).max(500).parse(c.req.query("id"));
   const offset=z.coerce.number().int().min(0).max(10000).parse(c.req.query("offset")??0);
   return c.json({data:await epg.listWindow(now,new Date(+now+48*3600000),profile.country,userId,{channelId:id,offset})});
+});
+app.get("/api/tv/window", async c=>{
+  const input=z.object({bucket:z.enum(["live","soon","next","later"]),offset:z.coerce.number().int().min(0).max(10000).default(0),favorites:z.enum(["true","false"]).default("false"),at:z.iso.datetime().optional()}).parse(c.req.query());
+  const now=input.at?new Date(input.at):new Date();
+  if(Math.abs(Date.now()-+now)>3600000) throw new HTTPException(400,{message:"Refresh the TV listings."});
+  const [from,to]=({live:[0,0],soon:[0,30],next:[30,60],later:[60,720]} as const)[input.bucket];
+  const userId=c.get("authSession").user.id; const {profile}=await users.getSettings(userId);
+  return c.json({data:await epg.listWindow(new Date(+now+from*60000),new Date(+now+(to?to*60000:1)),profile.country,userId,{futureOnly:input.bucket!=="live",offset:input.offset,favoritesOnly:input.favorites==="true",singleBucket:true})});
 });
 app.get("/api/tv/live", async (c) => {
   const now = new Date();

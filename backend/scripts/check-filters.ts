@@ -3,11 +3,19 @@ import assert from "node:assert/strict";
 import { createTmdbRepository } from "../src/repositories/tmdb-repository.js";
 import { catalogFilterSchema, filteredCatalog } from "../src/services/filtered-catalog.js";
 import { closeDatabase } from "../src/db/client.js";
+import { discoverHome } from "../src/services/discovery.js";
 
 const catalog=createTmdbRepository();
 const state={country:"RO",timezone:"Europe/Bucharest",ownedProviderIds:[8,119,1899],taste:[],watchedIds:new Set<number>(),watchlistIds:new Set<number>(),watchedKeys:new Set<string>(),watchlistKeys:new Set<string>(),ratedKeys:new Set<string>(),rejectedKeys:new Set<string>(),recentlyShown:new Map<string,number>(),wantHints:[],seenHints:[],behaviorPersonalization:true,favorites:[],saved:[]};
 try {
   assert.equal(catalog.mode,"live");
+  for(const filter of [{mediaType:"movie" as const,minRuntimeMinutes:60,maxRuntimeMinutes:90},{mediaType:"series" as const}]) {
+    const start=Date.now();
+    const rows=await discoverHome(catalog,state,"synthetic-shelves-check",filter);
+    assert.ok(rows.length>1);
+    assert.ok(rows.every(r=>r.items.every(({item:i})=>i.mediaType===filter.mediaType&&(!filter.minRuntimeMinutes||(i.runtimeMinutes??0)>=filter.minRuntimeMinutes)&&(!filter.maxRuntimeMinutes||(i.runtimeMinutes??Infinity)<=filter.maxRuntimeMinutes))));
+    console.log(JSON.stringify({homeFilter:filter,rows:rows.length,counts:rows.map(r=>r.items.length),milliseconds:Date.now()-start,valid:true}));
+  }
   for(const input of [{mediaType:"movie",minMinutes:60,maxMinutes:90},{mediaType:"movie",genre:"Drama",minMinutes:90,maxMinutes:150},{mediaType:"series",genre:"Comedy"}]) {
     const start=Date.now();
     const result=await filteredCatalog(catalog,state,"synthetic-filter-check",catalogFilterSchema.parse(input));

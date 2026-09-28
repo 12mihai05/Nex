@@ -10,6 +10,31 @@ import { filterQuerySchema } from "../src/domain/types.js";
 const state = () => ({country:"RO",timezone:"Europe/Bucharest",ownedProviderIds:[8],taste:[],watchedIds:new Set<number>(),watchlistIds:new Set<number>(),watchedKeys:new Set<string>(),watchlistKeys:new Set<string>(),ratedKeys:new Set<string>(),rejectedKeys:new Set<string>(),recentlyShown:new Map<string,number>(),wantHints:[],seenHints:[],behaviorPersonalization:true,favorites:[],saved:[]});
 const items = Array.from({length:180},(_,id)=>({...fixtureCatalog[0]!,id:id+1,title:`Title ${id}`,mediaType:id%5===0?"series" as const:"movie" as const,genres:[["Drama"],["Comedy"],["Thriller"],["Animation"]][id%4]!,keywords:id%3===0?["underdog"]:[],moods:[],rating:8,voteCount:500,runtimeMinutes:id%2===0?85:125,year:id%3===0?1990:2026,availability:[{providerId:8,providerName:"Netflix",logoUrl:null,access:"included" as const,owned:true}]}));
 describe("personalized discovery shelves",()=>{
+  it("applies global type, genre and inclusive duration bounds to every shelf",()=>{
+    for(const filter of [{mediaType:"movie" as const,minRuntimeMinutes:80,maxRuntimeMinutes:90},{mediaType:"series" as const},{mediaType:"movie" as const,genres:["Drama"],minRuntimeMinutes:80,maxRuntimeMinutes:90}]) {
+      const rows=buildDiscoveryRows(items,state(),"u",filter);
+      expect(rows.length).toBeGreaterThan(0);
+      for(const row of rows) for(const {item} of row.items) {
+        expect(item.mediaType).toBe(filter.mediaType);
+        if(filter.genres) expect(item.genres).toContain("Drama");
+        if(filter.minRuntimeMinutes) expect(item.runtimeMinutes).toBeGreaterThanOrEqual(80);
+        if(filter.maxRuntimeMinutes) expect(item.runtimeMinutes).toBeLessThanOrEqual(90);
+      }
+    }
+  });
+  it("retrieves series-specific shelves and never widens a selected movie range",async()=>{
+    const catalog=new FixtureTmdbRepository();
+    const calls:Array<Parameters<typeof catalog.discover>[0]>=[];
+    catalog.discover=async q=>{calls.push(q);return items;};
+    await discoverHome(catalog,state(),"u",{mediaType:"movie",genres:["Drama"],minRuntimeMinutes:110,maxRuntimeMinutes:140});
+    expect(calls.length).toBeGreaterThan(1);
+    expect(calls.every(q=>q.mediaType==="movie"&&q.minRuntimeMinutes===110&&q.maxRuntimeMinutes===140&&q.genres?.[0]==="Drama")).toBe(true);
+    calls.length=0;
+    const rows=await discoverHome(catalog,state(),"u",{mediaType:"series"});
+    expect(calls.every(q=>q.mediaType==="series")).toBe(true);
+    expect(calls.some(q=>q.genres?.includes("Drama"))).toBe(true);
+    expect(rows.length).toBeGreaterThan(1);
+  });
   it("every mobile genre, mood and concept becomes a grounded ranking signal",()=>{
     const source=readFileSync(new URL("../../mobile/lib/src/data/taste_options.dart",import.meta.url),"utf8");
     for(const [section,dimension,field] of [["Genres","genre","genres"],["Moods","mood","moods"],["Concepts","keyword","keywords"]] as const) {

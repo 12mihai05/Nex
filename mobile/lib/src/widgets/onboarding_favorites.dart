@@ -115,7 +115,7 @@ class _OnboardingFavoritesState extends ConsumerState<OnboardingFavorites> {
         SizedBox(
           height: 380,
           child: busy
-              ? const PosterSkeletons()
+              ? const PosterSkeletons(onboarding: true)
               : error != null
               ? Column(
                   children: [

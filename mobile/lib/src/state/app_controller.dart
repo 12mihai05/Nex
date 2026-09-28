@@ -966,6 +966,9 @@ class AppController extends Notifier<AppState> {
 
   ContentItem pickForMe({
     int? maxMinutes,
+    int? minMinutes,
+    String mediaType = 'any',
+    String? genre,
     String? mood,
     Set<int> excluded = const {},
   }) {
@@ -973,6 +976,10 @@ class AppController extends Notifier<AppState> {
         .where(
           (item) =>
               !excluded.contains(item.id) &&
+              (mediaType == 'any' || item.mediaType.name == mediaType) &&
+              (genre == null || item.genres.contains(genre)) &&
+              (minMinutes == null ||
+                  (item.runtimeMinutes ?? 0) >= minMinutes) &&
               _isNewToViewer(item) &&
               (maxMinutes == null ||
                   (item.runtimeMinutes ?? 999) <= maxMinutes) &&
@@ -994,14 +1001,27 @@ class AppController extends Notifier<AppState> {
 
   Future<ContentItem> pickLive({
     int? maxMinutes,
+    int? minMinutes,
+    String mediaType = 'any',
+    String? genre,
     String? mood,
     Set<int> excluded = const {},
   }) async {
     if (state.demoMode) {
-      return pickForMe(maxMinutes: maxMinutes, mood: mood, excluded: excluded);
+      return pickForMe(
+        maxMinutes: maxMinutes,
+        minMinutes: minMinutes,
+        mediaType: mediaType,
+        genre: genre,
+        mood: mood,
+        excluded: excluded,
+      );
     }
     final result = await _api.surprise(
       maxMinutes: maxMinutes,
+      minMinutes: minMinutes,
+      mediaType: mediaType,
+      genre: genre,
       mood: ['Use my taste', 'Surprise me'].contains(mood) ? null : mood,
       excluded: excluded,
     );

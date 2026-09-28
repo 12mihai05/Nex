@@ -74,12 +74,6 @@ class ProfileScreen extends ConsumerWidget {
             subtitle: 'Watching, appearance, privacy and account',
             onTap: () => context.push('/settings'),
           ),
-          _ProfileTile(
-            icon: Icons.star_outline,
-            title: 'Favorite TV channels',
-            subtitle: 'Manage channels in your selected country',
-            onTap: () => context.push('/channels'),
-          ),
           const SizedBox(height: 24),
           Text(
             'Nex uses your explicit choices more strongly than searches or detail opens. Temporary moods stay temporary.',

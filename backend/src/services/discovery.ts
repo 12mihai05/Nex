@@ -1,7 +1,7 @@
 import { filterQuerySchema, type ContentItem, type FilterQuery, type RankedContent } from "../domain/types.js";
 import type { DiscoverOptions, TmdbRepository } from "../repositories/tmdb-repository.js";
 import type { UserRepository } from "../repositories/user-repository.js";
-import { rankCandidates, titleKey } from "./recommendation.js";
+import { rankCandidates, scoreCandidate, titleKey } from "./recommendation.js";
 import { conceptEvidence } from "./concepts.js";
 import { contentTraits } from "./content-traits.js";
 
@@ -24,14 +24,17 @@ export function discoveryShelves(state: State): Shelf[] {
     { id:"classics",title:"Worth going back for",subtitle:"Pre-2000 films you haven’t marked seen",filter:{mediaType:"movie" as const},accepts:(i:ContentItem)=>(i.year??9999)<2000 },
   ];
 }
-export function buildDiscoveryRows(items: ContentItem[], state: State, userId: string) {
+export function buildDiscoveryRows(items: ContentItem[], state: State, userId: string, filters: Partial<FilterQuery> = {}) {
+  const global = filterQuerySchema.parse({intent:"DISCOVERY",...filters});
+  // Apply global hard constraints before individual shelves; a shelf must never widen them.
+  if(Object.keys(filters).length) items = items.filter(item=>scoreCandidate(item,global,{...state,viewerIds:[userId],temporaryMoods:[]})!==null);
   const occurrences = new Map<string,number>();
   const rows: Array<{id:string;title:string;subtitle:string;items:RankedContent[]}> = [];
   for (const shelf of discoveryShelves(state)) {
     const query = filterQuerySchema.parse({intent:"DISCOVERY",...shelf.filter});
     const eligible = items.filter(i=>(!shelf.accepts||shelf.accepts(i))&&(occurrences.get(titleKey(i))??0)<3);
     const ranked = rankCandidates(eligible,query,{...state,viewerIds:[userId],temporaryMoods:[]},20);
-    if (ranked.length < 3) continue;
+    if (ranked.length < (Object.keys(filters).length ? 1 : 3)) continue;
     if (rows.some(r=>ranked.filter(i=>r.items.some(j=>titleKey(j.item)===titleKey(i.item))).length/Math.max(r.items.length,ranked.length)>.85)) continue;
     rows.push({id:shelf.id,title:shelf.title,subtitle:shelf.subtitle,items:ranked});
     for (const r of ranked) occurrences.set(titleKey(r.item),(occurrences.get(titleKey(r.item))??0)+1);
@@ -39,19 +42,30 @@ export function buildDiscoveryRows(items: ContentItem[], state: State, userId: s
   }
   return rows;
 }
-export async function discoverHome(catalog: TmdbRepository, state: State, userId: string) {
+export async function discoverHome(catalog: TmdbRepository, state: State, userId: string, filters: Partial<FilterQuery> = {}) {
+  const hardFilters = {...filters};
+  if(!hardFilters.genres?.length) delete hardFilters.genres;
   const common: DiscoverOptions = {region:state.country,providerIds:state.ownedProviderIds,limit:20};
   const queries: DiscoverOptions[] = [
     {...common,mediaType:"movie"}, {...common,mediaType:"series"},
     {...common,mediaType:"movie",sortBy:"popularity.desc"}, {...common,mediaType:"movie",page:2},
     ...discoveryShelves(state).filter(s=>s.filter&&(s.filter.genres||s.filter.keywords||s.id==="short")).map(s=>({...common,mediaType:"movie" as const,...s.filter})),
   ];
+  const constrained: DiscoverOptions[] = [...new Map(queries.filter(q=>!filters.mediaType||filters.mediaType==="any"||!q.mediaType||q.mediaType===filters.mediaType)
+    .map(q=>({...q,...hardFilters, ...(filters.mediaType==="any"?{mediaType:q.mediaType}:{}),
+      // Preserve short-shelf bounds when they are stricter than the global maximum.
+      maxRuntimeMinutes: q.maxRuntimeMinutes && filters.maxRuntimeMinutes ? Math.min(q.maxRuntimeMinutes,filters.maxRuntimeMinutes) : filters.maxRuntimeMinutes??q.maxRuntimeMinutes??null}))
+    .filter(q=>!q.minRuntimeMinutes||!q.maxRuntimeMinutes||q.minRuntimeMinutes<=q.maxRuntimeMinutes)
+    .map(q=>[JSON.stringify(q),q])).values()];
+  // Series need their own genre sources, not just the default mixed home query.
+  if(filters.mediaType==="series" && !filters.genres?.length) for(const genre of ["Drama","Comedy","Mystery","Documentary"])
+    constrained.push({...common,...filters,mediaType:"series",genres:filters.genres?.length?filters.genres:[genre]});
   const pool: ContentItem[] = [];
   let succeeded = 0;
-  for(let start=0;start<queries.length;start+=3) {
-    const results = await Promise.allSettled(queries.slice(start,start+3).map(q=>catalog.discover(q)));
+  for(let start=0;start<constrained.length;start+=3) {
+    const results = await Promise.allSettled(constrained.slice(start,start+3).map(q=>catalog.discover(q)));
     for(const result of results) if(result.status==="fulfilled") { succeeded++;pool.push(...result.value); }
   }
   if(!succeeded) throw new Error("CATALOG_UNAVAILABLE");
-  return buildDiscoveryRows([...new Map(pool.map(i=>[titleKey(i),i])).values()],state,userId);
+  return buildDiscoveryRows([...new Map(pool.map(i=>[titleKey(i),i])).values()],state,userId,filters);
 }

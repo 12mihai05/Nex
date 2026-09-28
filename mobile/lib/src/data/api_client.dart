@@ -217,6 +217,9 @@ class NexApiClient {
   );
   Future<Map<String, dynamic>> surprise({
     int? maxMinutes,
+    int? minMinutes,
+    String mediaType = 'any',
+    String? genre,
     String? mood,
     Set<int> excluded = const {},
   }) async =>
@@ -224,6 +227,9 @@ class NexApiClient {
                 '/api/surprise',
                 data: {
                   'maxRuntimeMinutes': maxMinutes,
+                  'minRuntimeMinutes': minMinutes,
+                  'mediaType': mediaType,
+                  'genres': [?genre],
                   'mood': mood,
                   'excludedIds': excluded.toList(),
                 },

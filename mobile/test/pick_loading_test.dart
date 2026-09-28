@@ -15,6 +15,9 @@ class PickingApi extends MutableApi {
   @override
   Future<Map<String, dynamic>> surprise({
     int? maxMinutes,
+    int? minMinutes,
+    String mediaType = 'any',
+    String? genre,
     String? mood,
     Set<int> excluded = const {},
   }) {
