@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 
 import '../core/theme.dart';
 import '../state/app_controller.dart';
+import '../widgets/preparation_screen.dart';
 
 class AuthScreen extends ConsumerStatefulWidget {
   const AuthScreen({super.key});
@@ -17,6 +18,7 @@ class _AuthScreenState extends ConsumerState<AuthScreen> {
       name = TextEditingController(),
       invite = TextEditingController();
   var create = false;
+  bool restoring = true;
   @override
   void initState() {
     super.initState();
@@ -29,6 +31,7 @@ class _AuthScreenState extends ConsumerState<AuthScreen> {
               : '/onboarding',
         );
       }
+      if (mounted) setState(() => restoring = false);
     });
   }
 
@@ -44,16 +47,27 @@ class _AuthScreenState extends ConsumerState<AuthScreen> {
   @override
   Widget build(BuildContext context) {
     final state = ref.watch(appControllerProvider);
+    if (restoring) return const PreparationScreen(phase: 'Opening your Nex');
     return Scaffold(
       body: Stack(
         fit: StackFit.expand,
         children: [
-          const DecoratedBox(
+          DecoratedBox(
             decoration: BoxDecoration(
               gradient: LinearGradient(
                 begin: Alignment.topLeft,
                 end: Alignment.bottomRight,
-                colors: [Color(0xFF241713), NexColors.ink, Color(0xFF111820)],
+                colors: Theme.of(context).brightness == Brightness.dark
+                    ? const [
+                        Color(0xFF29131C),
+                        NexColors.ink,
+                        Color(0xFF111820),
+                      ]
+                    : const [
+                        Color(0xFFF7E8ED),
+                        NexColors.bone,
+                        Color(0xFFF0ECE8),
+                      ],
               ),
             ),
           ),
@@ -78,10 +92,10 @@ class _AuthScreenState extends ConsumerState<AuthScreen> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
-                      const Text(
+                      Text(
                         'Nex',
                         style: TextStyle(
-                          color: Colors.white,
+                          color: Theme.of(context).colorScheme.onSurface,
                           fontSize: 34,
                           fontWeight: FontWeight.w800,
                           letterSpacing: -1.5,
@@ -91,13 +105,16 @@ class _AuthScreenState extends ConsumerState<AuthScreen> {
                       Text(
                         'Your next great watch,\nwithout the hunt.',
                         style: Theme.of(context).textTheme.displayLarge
-                            ?.copyWith(color: Colors.white),
+                            ?.copyWith(
+                              color: Theme.of(context).colorScheme.onSurface,
+                            ),
                       ),
                       const SizedBox(height: 14),
                       Text(
                         'Streaming, Romanian TV and recommendations that understand what you mean.',
-                        style: Theme.of(context).textTheme.bodyLarge
-                            ?.copyWith(color: Colors.white70),
+                        style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+                          color: Theme.of(context).colorScheme.onSurfaceVariant,
+                        ),
                       ),
                       const SizedBox(height: 38),
                       if (create) ...[
@@ -186,7 +203,7 @@ class _AuthScreenState extends ConsumerState<AuthScreen> {
                               : 'New here? Create an account',
                         ),
                       ),
-                      const Padding(
+                      Padding(
                         padding: EdgeInsets.symmetric(vertical: 10),
                         child: Row(
                           children: [
@@ -196,7 +213,9 @@ class _AuthScreenState extends ConsumerState<AuthScreen> {
                               child: Text(
                                 'OR',
                                 style: TextStyle(
-                                  color: Colors.white54,
+                                  color: Theme.of(context)
+                                      .colorScheme
+                                      .onSurfaceVariant,
                                   fontSize: 11,
                                 ),
                               ),
@@ -207,7 +226,9 @@ class _AuthScreenState extends ConsumerState<AuthScreen> {
                       ),
                       OutlinedButton.icon(
                         style: OutlinedButton.styleFrom(
-                          foregroundColor: Colors.white,
+                          foregroundColor: Theme.of(context)
+                              .colorScheme
+                              .onSurface,
                         ),
                         onPressed: () {
                           ref.read(appControllerProvider.notifier).enterDemo();
@@ -217,10 +238,13 @@ class _AuthScreenState extends ConsumerState<AuthScreen> {
                         label: const Text('Explore demo mode'),
                       ),
                       const SizedBox(height: 12),
-                      const Text(
+                      Text(
                         'Demo mode keeps all data on this device and never uses paid services.',
                         textAlign: TextAlign.center,
-                        style: TextStyle(color: Colors.white54, fontSize: 12),
+                        style: TextStyle(
+                          color: Theme.of(context).colorScheme.onSurfaceVariant,
+                          fontSize: 12,
+                        ),
                       ),
                     ],
                   ),

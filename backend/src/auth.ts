@@ -27,7 +27,8 @@ export const auth = betterAuth({
     deleteUser: { enabled: true },
   },
   session: {
-    expiresIn: 60 * 60 * 24 * 30,
+    // Sliding device session: active users remain signed in; revocation still applies.
+    expiresIn: 60 * 60 * 24 * 365,
     updateAge: 60 * 60 * 24,
   },
   advanced: {

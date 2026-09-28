@@ -20,8 +20,10 @@ class BrowseScreen extends ConsumerWidget {
     return Scaffold(
       appBar: const NexTopBar(),
       body: RefreshIndicator(
-        onRefresh: controller.refreshLive,
+        onRefresh: () => _confirmRefresh(context, ref),
         child: CustomScrollView(
+          key: const PageStorageKey('streaming-feed'),
+          physics: const AlwaysScrollableScrollPhysics(),
           slivers: [
             if (state.busy)
               const SliverToBoxAdapter(child: LinearProgressIndicator()),
@@ -52,7 +54,9 @@ class BrowseScreen extends ConsumerWidget {
             if (controller.recommendationsPending)
               SliverToBoxAdapter(
                 child: TextButton.icon(
-                  onPressed: state.busy ? null : controller.refreshLive,
+                  onPressed: state.busy
+                      ? null
+                      : () => _confirmRefresh(context, ref),
                   icon: const Icon(Icons.refresh),
                   label: const Text('Taste updated · Refresh picks'),
                 ),
@@ -65,6 +69,51 @@ class BrowseScreen extends ConsumerWidget {
         ),
       ),
     );
+  }
+
+  Future<void> _confirmRefresh(BuildContext context, WidgetRef ref) async {
+    if (ref.read(appControllerProvider).busy) return;
+    final confirmed = await showModalBottomSheet<bool>(
+      context: context,
+      isScrollControlled: true,
+      showDragHandle: true,
+      useSafeArea: true,
+      builder: (sheet) => SingleChildScrollView(
+        padding: const EdgeInsets.fromLTRB(24, 8, 24, 28),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Icon(
+              Icons.auto_awesome_outlined,
+              size: 34,
+              color: Theme.of(sheet).colorScheme.primary,
+            ),
+            const SizedBox(height: 16),
+            Text(
+              'A fresh set of stories?',
+              style: Theme.of(sheet).textTheme.headlineSmall,
+            ),
+            const SizedBox(height: 10),
+            const Text(
+              'Rebuild your shelves using your latest taste and services. Your current picks may move or change; saved titles stay safe.',
+            ),
+            const SizedBox(height: 24),
+            FilledButton(
+              onPressed: () => Navigator.pop(sheet, true),
+              child: const Text('Refresh my shelves'),
+            ),
+            TextButton(
+              onPressed: () => Navigator.pop(sheet, false),
+              child: const Text('Keep these picks'),
+            ),
+          ],
+        ),
+      ),
+    );
+    if (confirmed == true && context.mounted) {
+      await ref.read(appControllerProvider.notifier).refreshLive();
+    }
   }
 
   Future<void> _showPickSheet(BuildContext context, WidgetRef ref) async {

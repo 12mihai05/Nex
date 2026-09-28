@@ -22,6 +22,7 @@ import 'package:nex/src/screens/taste_screen.dart';
 import 'package:nex/src/screens/library_screen.dart';
 import 'package:nex/src/screens/detail_screen.dart';
 import 'package:nex/src/state/app_controller.dart';
+import 'package:nex/src/widgets/preparation_screen.dart';
 
 class VisualBinding extends LiveTestWidgetsFlutterBinding {
   @override
@@ -82,6 +83,9 @@ void main() {
           '/watchlist': const LibraryScreen(watched: false),
           '/history': const LibraryScreen(watched: true),
           '/detail': DetailScreen(item: demoCatalog.first),
+          '/preparing': const PreparationScreen(
+            phase: 'Curating your first shelves',
+          ),
         };
         final router = GoRouter(
           routes: routes.entries
@@ -151,11 +155,26 @@ void main() {
             await tester.pump(const Duration(milliseconds: 400));
           }
           if (path == '/tv') {
-            await tester.tap(find.byTooltip('Remind me').first);
+            for (
+              var attempt = 0;
+              attempt < 8 &&
+                  find.text('Remind me').hitTestable().evaluate().isEmpty;
+              attempt++
+            ) {
+              await tester.drag(
+                find.byType(Scrollable).first,
+                const Offset(0, -200),
+              );
+              await tester.pump(const Duration(milliseconds: 400));
+            }
+            await tester.tap(find.text('Remind me').hitTestable().first);
             await capture('reminder-controls');
             Navigator.of(tester.element(find.text('At start'))).pop();
             await tester.pump(const Duration(milliseconds: 400));
-            await tester.tap(find.byTooltip('Favorite channel').first);
+            await tester.pump(const Duration(milliseconds: 500));
+            await tester.tap(
+              find.byTooltip('Favorite channel').hitTestable().first,
+            );
             await capture('tv-favorite');
             await tester.drag(
               find.byType(Scrollable).first,

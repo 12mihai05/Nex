@@ -2,10 +2,10 @@ import 'package:flutter/material.dart';
 import 'package:flutter/cupertino.dart';
 
 abstract final class NexColors {
-  static const ember = Color(0xFF992D49);
+  static const ember = Color(0xFFB73550);
   static const ink = Color(0xFF090A0C);
   static const charcoal = Color(0xFF14161A);
-  static const bone = Color(0xFFF7F3ED);
+  static const bone = Color(0xFFF8F6F4);
   static const moss = Color(0xFF98AE92);
 }
 
@@ -15,17 +15,46 @@ abstract final class NexTheme {
 
   static ThemeData _theme(Brightness brightness) {
     final dark = brightness == Brightness.dark;
-    final scheme = ColorScheme.fromSeed(
-      seedColor: NexColors.ember,
-      brightness: brightness,
-      surface: dark ? NexColors.ink : NexColors.bone,
-    );
+    final scheme =
+        ColorScheme.fromSeed(
+          seedColor: NexColors.ember,
+          brightness: brightness,
+          surface: dark ? NexColors.ink : NexColors.bone,
+        ).copyWith(
+          primary: dark ? const Color(0xFFF0788F) : const Color(0xFFAC2945),
+          onPrimary: dark ? const Color(0xFF320713) : Colors.white,
+          primaryContainer: dark
+              ? const Color(0xFF552033)
+              : const Color(0xFFF8DDE3),
+          onPrimaryContainer: dark
+              ? const Color(0xFFFFDEE5)
+              : const Color(0xFF64172B),
+          onSurface: dark ? const Color(0xFFF5F1F2) : const Color(0xFF242126),
+          onSurfaceVariant: dark
+              ? const Color(0xFFC4BAC0)
+              : const Color(0xFF62565D),
+          surfaceContainerHighest: dark
+              ? const Color(0xFF292329)
+              : const Color(0xFFECE5E7),
+          outlineVariant: dark
+              ? const Color(0xFF493D43)
+              : const Color(0xFFD8CDD1),
+        );
     return ThemeData(
       useMaterial3: true,
       brightness: brightness,
       colorScheme: scheme,
       scaffoldBackgroundColor: dark ? NexColors.ink : NexColors.bone,
       fontFamily: 'sans-serif',
+      appBarTheme: AppBarTheme(
+        backgroundColor: scheme.surface,
+        foregroundColor: scheme.onSurface,
+        surfaceTintColor: Colors.transparent,
+      ),
+      bottomSheetTheme: BottomSheetThemeData(
+        backgroundColor: scheme.surface,
+        surfaceTintColor: Colors.transparent,
+      ),
       textTheme: TextTheme(
         displayLarge: TextStyle(
           fontSize: 42,
@@ -84,6 +113,7 @@ abstract final class NexTheme {
         indicatorColor: NexColors.ember.withValues(alpha: .16),
         labelTextStyle: WidgetStatePropertyAll(
           TextStyle(
+            fontFamily: 'sans-serif',
             fontSize: 12,
             fontWeight: FontWeight.w600,
             color: scheme.onSurface,
@@ -131,7 +161,16 @@ abstract final class NexTheme {
       ),
       chipTheme: ChipThemeData(
         backgroundColor: dark ? const Color(0xFF202329) : Colors.white,
-        selectedColor: NexColors.ember.withValues(alpha: .18),
+        selectedColor: scheme.primaryContainer,
+        labelStyle: TextStyle(
+          fontFamily: 'sans-serif',
+          color: scheme.onSurface,
+        ),
+        secondaryLabelStyle: TextStyle(
+          fontFamily: 'sans-serif',
+          color: scheme.onPrimaryContainer,
+        ),
+        checkmarkColor: scheme.primary,
         side: BorderSide(color: scheme.outlineVariant),
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
         padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 7),

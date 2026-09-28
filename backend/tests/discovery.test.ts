@@ -1,0 +1,54 @@
+import { describe, expect, it } from "vitest";
+import { buildDiscoveryRows, discoverHome } from "../src/services/discovery.js";
+import { fixtureCatalog } from "../src/fixtures/catalog.js";
+import { FixtureTmdbRepository } from "../src/repositories/tmdb-repository.js";
+import { onboardingBodySchema } from "../src/http/schemas.js";
+import { readFileSync } from "node:fs";
+import { scoreCandidate } from "../src/services/recommendation.js";
+import { filterQuerySchema } from "../src/domain/types.js";
+
+const state = () => ({country:"RO",timezone:"Europe/Bucharest",ownedProviderIds:[8],taste:[],watchedIds:new Set<number>(),watchlistIds:new Set<number>(),watchedKeys:new Set<string>(),watchlistKeys:new Set<string>(),ratedKeys:new Set<string>(),rejectedKeys:new Set<string>(),recentlyShown:new Map<string,number>(),wantHints:[],seenHints:[],behaviorPersonalization:true,favorites:[],saved:[]});
+const items = Array.from({length:180},(_,id)=>({...fixtureCatalog[0]!,id:id+1,title:`Title ${id}`,mediaType:id%5===0?"series" as const:"movie" as const,genres:[["Drama"],["Comedy"],["Thriller"],["Animation"]][id%4]!,keywords:id%3===0?["underdog"]:[],moods:[],rating:8,voteCount:500,runtimeMinutes:id%2===0?85:125,year:id%3===0?1990:2026,availability:[{providerId:8,providerName:"Netflix",logoUrl:null,access:"included" as const,owned:true}]}));
+describe("personalized discovery shelves",()=>{
+  it("every mobile genre, mood and concept becomes a grounded ranking signal",()=>{
+    const source=readFileSync(new URL("../../mobile/lib/src/data/taste_options.dart",import.meta.url),"utf8");
+    for(const [section,dimension,field] of [["Genres","genre","genres"],["Moods","mood","moods"],["Concepts","keyword","keywords"]] as const) {
+      const block=source.split(`const onboarding${section} = [`)[1]!.split("];",1)[0]!;
+      const choices=[...block.matchAll(/'([^']+)'/g)].map(m=>m[1]!);
+      expect(choices.length).toBeGreaterThan(10);
+      for(const key of choices) {
+        const candidate={...items[0]!,genres:[],moods:[],keywords:[],[field]:[key]};
+        const ranked=scoreCandidate(candidate,filterQuerySchema.parse({intent:"DISCOVERY"}),{...state(),viewerIds:["u"],temporaryMoods:[],taste:[{dimension,key,score:.85,confidence:.8,evidenceCount:1,source:"onboarding_explicit"}]});
+        expect(ranked?.evidence.some(e=>e.code===`taste:${dimension}`),`${section}: ${key}`).toBe(true);
+      }
+    }
+  });
+  it("builds substantial, bounded, differentiated shelves",()=>{
+    const rows=buildDiscoveryRows(items,state(),"u");
+    expect(rows.length).toBeGreaterThanOrEqual(7);
+    expect(rows.length).toBeLessThanOrEqual(10);
+    expect(rows[0]!.items).toHaveLength(20);
+    const counts=new Map<string,number>();
+    for(const row of rows){expect(row.items.length).toBeLessThanOrEqual(20);expect(new Set(row.items.map(r=>r.item.id)).size).toBe(row.items.length);for(const r of row.items)counts.set(r.item.title,(counts.get(r.item.title)??0)+1);}
+    expect(Math.max(...counts.values())).toBeLessThanOrEqual(3);
+    expect(rows.find(r=>r.id==="short")!.items.every(r=>r.item.runtimeMinutes!<=100&&r.item.mediaType==="movie")).toBe(true);
+    expect(rows.find(r=>r.id==="series")!.items.every(r=>r.item.mediaType==="series")).toBe(true);
+  });
+  it("excludes seen, rated, rejected and unavailable titles from every shelf",()=>{
+    const s=state();s.watchedKeys.add("movie:2");s.ratedKeys.add("movie:3");s.rejectedKeys.add("movie:4");
+    const pool=items.map(i=>i.id===5?{...i,availability:[]}:i);
+    const flat=buildDiscoveryRows(pool,s,"u").flatMap(r=>r.items);
+    expect(flat.some(r=>[2,3,4,5].includes(r.item.id))).toBe(false);
+  });
+  it("does not fabricate shelves in a sparse market",()=>expect(buildDiscoveryRows(items.slice(0,2),state(),"u")).toEqual([]));
+  it("accepts explicit concepts independently of genre and mood",()=>{
+    const body=onboardingBodySchema.parse({description:"",favorites:[],genres:["Documentary","Romance"],moods:["Bittersweet"],concepts:["underdog","found family"]});
+    expect(body.concepts).toEqual(["underdog","found family"]);
+  });
+  it("uses a bounded catalog-only query set and recovers from a partial source failure",async()=>{
+    const catalog=new FixtureTmdbRepository();let calls=0,active=0,max=0;
+    catalog.discover=async()=>{calls++;active++;max=Math.max(max,active);await Promise.resolve();active--;if(calls===1)throw Error("Unavailable");return items;};
+    expect((await discoverHome(catalog,state(),"u")).length).toBeGreaterThan(2);
+    expect(calls).toBeLessThanOrEqual(11);expect(max).toBeLessThanOrEqual(3);
+  });
+});

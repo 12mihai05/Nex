@@ -4,8 +4,11 @@ import 'package:go_router/go_router.dart';
 
 import '../data/demo_data.dart';
 import '../data/countries.dart';
+import '../data/taste_options.dart';
 import '../state/app_controller.dart';
 import '../widgets/artwork.dart';
+import '../widgets/preparation_screen.dart';
+import '../data/api_client.dart';
 
 class OnboardingScreen extends ConsumerStatefulWidget {
   const OnboardingScreen({super.key});
@@ -15,30 +18,11 @@ class OnboardingScreen extends ConsumerStatefulWidget {
 
 class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
   var step = 0;
+  bool preparing = false;
+  String phase = 'Saving your choices';
+  String? completionError;
+  final concepts = <String>{};
   final taste = TextEditingController();
-  static const genres = [
-    'Science Fiction',
-    'Mystery',
-    'Thriller',
-    'Drama',
-    'Comedy',
-    'Crime',
-    'Animation',
-    'Fantasy',
-  ];
-  static const moods = [
-    'Cerebral',
-    'Tense',
-    'Dark',
-    'Feel-good',
-    'Cozy',
-    'Funny',
-    'Emotional',
-    'Intense',
-    'Weird',
-    'Fast-paced',
-    'Slow-burn',
-  ];
   @override
   void dispose() {
     taste.dispose();
@@ -49,6 +33,7 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
   Widget build(BuildContext context) {
     final state = ref.watch(appControllerProvider);
     final controller = ref.read(appControllerProvider.notifier);
+    if (preparing) return PreparationScreen(phase: phase);
     final providers = controller.availableServices;
     final pages = <Widget>[
       _ChoiceStep(
@@ -71,25 +56,41 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
         icon: Icons.connected_tv,
         title: 'Which services are yours?',
         subtitle: 'Recommendations prioritize things already included for you.',
-        child: Wrap(
-          spacing: 10,
-          runSpacing: 10,
-          children: providers.entries
-              .map(
-                (entry) => FilterChip(
-                  label: Text(entry.value),
-                  selected: state.providers.contains(entry.key),
-                  onSelected: (_) {
-                    final next = {...state.providers};
-                    next.contains(entry.key)
-                        ? next.remove(entry.key)
-                        : next.add(entry.key);
-                    controller.updateOnboarding(providers: next);
-                  },
-                ),
+        child: providers.isEmpty && !state.demoMode
+            ? Column(
+                children: [
+                  Text(
+                    state.error ??
+                        (controller.providersLoading
+                            ? 'Loading services for ${watchingCountries[state.country]}…'
+                            : 'No services available. You can continue without selecting one.'),
+                  ),
+                  TextButton(
+                    onPressed: () =>
+                        controller.updateOnboardingCountry(state.country),
+                    child: const Text('Retry'),
+                  ),
+                ],
               )
-              .toList(),
-        ),
+            : Wrap(
+                spacing: 10,
+                runSpacing: 10,
+                children: providers.entries
+                    .map(
+                      (entry) => FilterChip(
+                        label: Text(entry.value),
+                        selected: state.providers.contains(entry.key),
+                        onSelected: (_) {
+                          final next = {...state.providers};
+                          next.contains(entry.key)
+                              ? next.remove(entry.key)
+                              : next.add(entry.key);
+                          controller.updateOnboarding(providers: next);
+                        },
+                      ),
+                    )
+                    .toList(),
+              ),
       ),
       _ChoiceStep(
         icon: Icons.subtitles_outlined,
@@ -201,7 +202,7 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
             Text('Genres', style: Theme.of(context).textTheme.titleLarge),
             const SizedBox(height: 8),
             _toggleChips(
-              genres,
+              onboardingGenres,
               state.genres,
               (next) => controller.updateOnboarding(genres: next),
             ),
@@ -212,9 +213,28 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
             ),
             const SizedBox(height: 8),
             _toggleChips(
-              moods,
+              onboardingMoods,
               state.moods,
               (next) => controller.updateOnboarding(moods: next),
+            ),
+            const SizedBox(height: 22),
+            Text(
+              'Story ingredients',
+              style: Theme.of(context).textTheme.titleLarge,
+            ),
+            const SizedBox(height: 8),
+            const Text(
+              'Love an underdog, whatever the genre? Choose the ideas that pull you in. Everything is optional.',
+            ),
+            const SizedBox(height: 12),
+            _toggleChips(
+              onboardingConcepts,
+              concepts,
+              (next) => setState(() {
+                concepts
+                  ..clear()
+                  ..addAll(next);
+              }),
             ),
           ],
         ),
@@ -257,32 +277,72 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
             ),
             Padding(
               padding: const EdgeInsets.fromLTRB(20, 10, 20, 20),
-              child: Row(
+              child: Column(
                 children: [
-                  if (step > 0)
-                    IconButton(
-                      onPressed: () => setState(() => step--),
-                      icon: const Icon(Icons.arrow_back),
+                  if (completionError != null)
+                    Padding(
+                      padding: const EdgeInsets.only(bottom: 12),
+                      child: Text(
+                        completionError!,
+                        style: TextStyle(
+                          color: Theme.of(context).colorScheme.error,
+                        ),
+                      ),
                     ),
-                  const Spacer(),
-                  FilledButton.icon(
-                    onPressed: () async {
-                      if (step < pages.length - 1) {
-                        setState(() => step++);
-                      } else {
-                        await controller.finishOnboarding();
-                        if (context.mounted) context.go('/home');
-                      }
-                    },
-                    label: Text(
-                      step == pages.length - 1 ? 'Build my Nex' : 'Continue',
-                    ),
-                    iconAlignment: IconAlignment.end,
-                    icon: Icon(
-                      step == pages.length - 1
-                          ? Icons.auto_awesome
-                          : Icons.arrow_forward,
-                    ),
+                  Row(
+                    children: [
+                      if (step > 0)
+                        IconButton(
+                          onPressed: () => setState(() => step--),
+                          icon: const Icon(Icons.arrow_back),
+                        ),
+                      const Spacer(),
+                      FilledButton.icon(
+                        onPressed: step == 1 && controller.providersLoading
+                            ? null
+                            : () async {
+                                if (step < pages.length - 1) {
+                                  setState(() => step++);
+                                } else {
+                                  setState(() {
+                                    preparing = true;
+                                    completionError = null;
+                                  });
+                                  try {
+                                    await controller.finishOnboarding(
+                                      concepts: concepts.toList(),
+                                      onPhase: (value) {
+                                        if (mounted) {
+                                          setState(() => phase = value);
+                                        }
+                                      },
+                                    );
+                                    if (context.mounted) context.go('/home');
+                                  } catch (error) {
+                                    if (mounted) {
+                                      setState(() {
+                                        preparing = false;
+                                        completionError = readableApiError(
+                                          error,
+                                        );
+                                      });
+                                    }
+                                  }
+                                }
+                              },
+                        label: Text(
+                          step == pages.length - 1
+                              ? 'Build my Nex'
+                              : 'Continue',
+                        ),
+                        iconAlignment: IconAlignment.end,
+                        icon: Icon(
+                          step == pages.length - 1
+                              ? Icons.auto_awesome
+                              : Icons.arrow_forward,
+                        ),
+                      ),
+                    ],
                   ),
                 ],
               ),

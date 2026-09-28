@@ -6,6 +6,7 @@ import 'package:intl/intl.dart';
 
 import '../data/api_client.dart';
 import '../data/demo_data.dart';
+import '../data/countries.dart';
 import '../models/tv_program.dart';
 import '../state/app_controller.dart';
 
@@ -21,6 +22,8 @@ class _TvScreenState extends ConsumerState<TvScreen> {
   List<Map<String, dynamic>> channels = [];
   final demoFavorites = <String>{};
   bool loading = false, onlyFavorites = false, more = false;
+  bool guideOnly = false;
+  DateTime? loadedAt;
   String? error, country;
   String query = '';
   int generation = 0;
@@ -33,14 +36,28 @@ class _TvScreenState extends ConsumerState<TvScreen> {
       if (widget.active) load();
     });
     clock = Timer.periodic(const Duration(minutes: 1), (_) {
-      if (widget.active && !loading) load();
+      if (widget.active && !loading) {
+        if (loadedAt == null ||
+            DateTime.now().difference(loadedAt!) > const Duration(minutes: 5)) {
+          load();
+        } else {
+          setState(() {});
+        }
+      }
     });
   }
 
   @override
   void didUpdateWidget(TvScreen old) {
     super.didUpdateWidget(old);
-    if (widget.active && !old.active) load();
+    if (widget.active &&
+        !old.active &&
+        (country != ref.read(appControllerProvider).country ||
+            loadedAt == null ||
+            DateTime.now().difference(loadedAt!) >
+                const Duration(minutes: 5))) {
+      load();
+    }
   }
 
   @override
@@ -51,7 +68,7 @@ class _TvScreenState extends ConsumerState<TvScreen> {
     super.dispose();
   }
 
-  Future<void> load({bool next = false}) async {
+  Future<void> load({bool next = false, bool refreshSchedule = true}) async {
     final ticket = ++generation;
     final state = ref.read(appControllerProvider);
     final api = ref.read(nexApiClientProvider);
@@ -102,7 +119,9 @@ class _TvScreenState extends ConsumerState<TvScreen> {
       } else {
         final offset = next ? channels.length : 0;
         final results = await Future.wait([
-          api.tvDiscover(),
+          refreshSchedule
+              ? api.tvDiscover()
+              : Future.value(<String, dynamic>{}),
           api.list(
             '/api/tv/channels?q=${Uri.encodeQueryComponent(query)}&offset=$offset&favorites=$onlyFavorites',
           ),
@@ -116,11 +135,14 @@ class _TvScreenState extends ConsumerState<TvScreen> {
         List<TvProgram> parse(String key) => (data[key] as List)
             .map((p) => TvProgram.fromJson((p as Map).cast<String, dynamic>()))
             .toList();
-        live = parse('live');
-        upcoming = parse('upcoming');
+        if (refreshSchedule) {
+          live = parse('live');
+          upcoming = parse('upcoming');
+        }
         final page = results[1] as List<Map<String, dynamic>>;
         channels = next ? [...channels, ...page] : page;
         more = page.length == 50;
+        if (refreshSchedule) loadedAt = DateTime.now();
       }
     } catch (e) {
       if (mounted && ticket == generation) error = readableApiError(e);
@@ -283,6 +305,111 @@ class _TvScreenState extends ConsumerState<TvScreen> {
     padding: const EdgeInsets.fromLTRB(4, 24, 4, 8),
     child: Text(text, style: Theme.of(context).textTheme.titleLarge),
   );
+  Widget shelf(List<TvProgram> programs) => SizedBox(
+    height:
+        280 + (MediaQuery.textScalerOf(context).scale(100) - 100).clamp(0, 200),
+    child: ListView.separated(
+      scrollDirection: Axis.horizontal,
+      itemCount: programs.length,
+      separatorBuilder: (_, _) => const SizedBox(width: 12),
+      itemBuilder: (context, index) {
+        final p = programs[index];
+        final scheme = Theme.of(context).colorScheme;
+        return SizedBox(
+          width: 270,
+          child: Card(
+            margin: EdgeInsets.zero,
+            child: Padding(
+              padding: const EdgeInsets.all(18),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Icon(
+                        p.isLive ? Icons.graphic_eq : Icons.schedule,
+                        color: scheme.primary,
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          p.channel,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: Theme.of(context).textTheme.labelLarge,
+                        ),
+                      ),
+                      IconButton(
+                        tooltip: isFavorite(p)
+                            ? 'Unfavorite channel'
+                            : 'Favorite channel',
+                        onPressed: saving.contains(p.channelId)
+                            ? null
+                            : () => favorite(
+                                p.channelId.isEmpty ? p.channel : p.channelId,
+                                !isFavorite(p),
+                              ),
+                        icon: Icon(
+                          isFavorite(p) ? Icons.star : Icons.star_border,
+                          color: scheme.primary,
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    p.title,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: Theme.of(context).textTheme.titleLarge,
+                  ),
+                  const Spacer(),
+                  Text(
+                    '${p.isLive ? 'ON AIR · ' : ''}${DateFormat.Hm().format(p.startsAt)}–${DateFormat.Hm().format(p.endsAt)}',
+                    style: TextStyle(
+                      color: scheme.primary,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                  const SizedBox(height: 10),
+                  if (p.isLive)
+                    LinearProgressIndicator(
+                      value:
+                          (DateTime.now().difference(p.startsAt).inSeconds /
+                                  p.endsAt.difference(p.startsAt).inSeconds)
+                              .clamp(0, 1),
+                      borderRadius: BorderRadius.circular(4),
+                    )
+                  else
+                    TextButton.icon(
+                      onPressed: () => reminder(p),
+                      icon: const Icon(Icons.notifications_outlined),
+                      label: const Text('Remind me'),
+                    ),
+                  TextButton(
+                    onPressed: () => showModalBottomSheet<void>(
+                      context: context,
+                      showDragHandle: true,
+                      builder: (_) => SafeArea(
+                        child: SingleChildScrollView(
+                          padding: const EdgeInsets.all(24),
+                          child: Text(
+                            p.description ??
+                                'No programme description available.',
+                          ),
+                        ),
+                      ),
+                    ),
+                    child: const Text('Programme details'),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        );
+      },
+    ),
+  );
   @override
   Widget build(BuildContext context) {
     final state = ref.watch(appControllerProvider);
@@ -304,15 +431,57 @@ class _TvScreenState extends ConsumerState<TvScreen> {
         actions: [
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 16),
-            child: Center(child: Text(state.country)),
+            child: Center(
+              child: Text(watchingCountries[state.country] ?? state.country),
+            ),
           ),
         ],
       ),
       body: RefreshIndicator(
         onRefresh: load,
         child: ListView(
+          physics: const AlwaysScrollableScrollPhysics(),
           padding: const EdgeInsets.fromLTRB(16, 0, 16, 32),
           children: [
+            Card(
+              color: Theme.of(context).colorScheme.primaryContainer,
+              child: Padding(
+                padding: const EdgeInsets.all(20),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Your front-row seat',
+                      style: Theme.of(context).textTheme.headlineSmall
+                          ?.copyWith(
+                            color: Theme.of(context)
+                                .colorScheme
+                                .onPrimaryContainer,
+                          ),
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      'Live television in ${watchingCountries[state.country] ?? state.country}. Star the channels you love; the rest are always here.',
+                      style: TextStyle(
+                        color: Theme.of(context).colorScheme.onPrimaryContainer,
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    FilledButton.icon(
+                      onPressed: () => setState(() => guideOnly = !guideOnly),
+                      icon: Icon(
+                        guideOnly ? Icons.live_tv : Icons.star_outline,
+                      ),
+                      label: Text(
+                        guideOnly
+                            ? 'Back to live TV'
+                            : 'Choose favorite channels',
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
             if (loading) const LinearProgressIndicator(),
             if (error != null)
               Padding(
@@ -327,26 +496,34 @@ class _TvScreenState extends ConsumerState<TvScreen> {
                   ],
                 ),
               ),
-            heading('Live now'),
-            if (live.isEmpty && !loading)
-              const Text('No current listings available.'),
-            ...preview(live).map(programme),
-            for (final bucket in [
-              (0, 30, 'Next 30 minutes'),
-              (30, 60, '30–60 minutes'),
-              (60, 720, 'Later · next 12 hours'),
-            ]) ...[
-              if (upcoming.any((p) {
-                final m = p.startsAt.difference(now).inSeconds / 60;
-                return m >= bucket.$1 && m < bucket.$2;
-              }))
-                heading(bucket.$3),
-              ...preview(
-                upcoming.where((p) {
+            if (!guideOnly) ...[
+              heading('Live now'),
+              if (live.isEmpty && !loading)
+                const Text('No current listings available.'),
+              if (live.isNotEmpty) shelf(preview(live)),
+              for (final bucket in [
+                (0, 30, 'Next 30 minutes'),
+                (30, 60, '30–60 minutes'),
+                (60, 720, 'Later · next 12 hours'),
+              ]) ...[
+                if (upcoming.any((p) {
                   final m = p.startsAt.difference(now).inSeconds / 60;
                   return m >= bucket.$1 && m < bucket.$2;
-                }).toList(),
-              ).map(programme),
+                }))
+                  heading(bucket.$3),
+                if (upcoming.any((p) {
+                  final m = p.startsAt.difference(now).inSeconds / 60;
+                  return m >= bucket.$1 && m < bucket.$2;
+                }))
+                  shelf(
+                    preview(
+                      upcoming.where((p) {
+                        final m = p.startsAt.difference(now).inSeconds / 60;
+                        return m >= bucket.$1 && m < bucket.$2;
+                      }).toList(),
+                    ),
+                  ),
+              ],
             ],
             heading('Channel guide'),
             const Text(
@@ -363,7 +540,7 @@ class _TvScreenState extends ConsumerState<TvScreen> {
                 debounce?.cancel();
                 debounce = Timer(
                   const Duration(milliseconds: 350),
-                  () => load(),
+                  () => load(refreshSchedule: false),
                 );
               },
             ),
@@ -374,7 +551,7 @@ class _TvScreenState extends ConsumerState<TvScreen> {
                 selected: onlyFavorites,
                 onSelected: (v) {
                   setState(() => onlyFavorites = v);
-                  load();
+                  load(refreshSchedule: false);
                 },
               ),
             ),
@@ -420,7 +597,9 @@ class _TvScreenState extends ConsumerState<TvScreen> {
             ),
             if (more)
               TextButton(
-                onPressed: loading ? null : () => load(next: true),
+                onPressed: loading
+                    ? null
+                    : () => load(next: true, refreshSchedule: false),
                 child: const Text('Load more channels'),
               ),
           ],

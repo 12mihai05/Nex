@@ -15,6 +15,7 @@ import { EpgService } from "./services/epg/service.js";
 import { detectSearchIntent } from "./services/intent.js";
 import { rankCandidates } from "./services/recommendation.js";
 import { generateCandidates } from "./services/candidates.js";
+import { discoverHome } from "./services/discovery.js";
 import { createEpgProvider } from "./services/epg/provider.js";
 import { getDatabase } from "./db/client.js";
 import {
@@ -71,14 +72,16 @@ app.use("/api/title/*", requireAuth);
 app.use("/api/providers", requireAuth);
 app.use("/api/tv/*", requireAuth);
 app.use("/api/recommend", requireAuth);
+app.use("/api/discovery", requireAuth);
 app.use("/api/surprise", requireAuth);
 app.use("/api/onboarding/*", requireAuth);
 app.use("/api/chat", requireAuth);
 app.use("/api/me/*", requireAuth);
 
 app.get("/api/providers", async (c) => {
-  const state = await users.getRecommendationState(c.get("authSession").user.id);
-  return c.json({ data: await catalog.getProviders(state.country), source: catalog.mode });
+  const {profile} = await users.getSettings(c.get("authSession").user.id);
+  const region=z.enum(["RO","BG","GB","ES","FR","CH","IT","DE","MD"]).optional().parse(c.req.query("country"));
+  return c.json({ data: await catalog.getProviders(region??profile.country), source: catalog.mode });
 });
 
 app.get("/api/search", async (c) => {
@@ -86,6 +89,7 @@ app.get("/api/search", async (c) => {
   const userId = c.get("authSession").user.id;
   const state = await users.getRecommendationState(userId);
   const intent = detectSearchIntent(q);
+  if(c.req.query("mode")==="title") { intent.intent="TITLE_LOOKUP";intent.availabilityScope="all_providers";intent.query=q; }
   const results = intent.intent === "DISCOVERY"
     ? rankCandidates(await generateCandidates(catalog,state,intent),intent,{...state,viewerIds:[userId],temporaryMoods:intent.moods}).map(r=>r.item)
     : await catalog.search({ query: intent.query, region: state.country, page });
@@ -99,6 +103,15 @@ app.get("/api/title/:mediaType/:tmdbId", async (c) => {
   const item = await catalog.getTitle(params.mediaType, params.tmdbId, state.country, state.ownedProviderIds);
   if (!item) throw new HTTPException(404, { message: "Title not found." });
   return c.json({ data: item });
+});
+
+app.get("/api/discovery", async c => {
+  const userId=c.get("authSession").user.id;
+  const rows=await discoverHome(catalog,await users.getRecommendationState(userId),userId);
+  // Record only the lead shelf, not hundreds of titles below the fold.
+  await users.recordRecommendations(userId,rows[0]?.items??[],"discovery-lead");
+  c.header("Cache-Control","private, no-store");
+  return c.json({data:rows});
 });
 
 app.post("/api/recommend", async (c) => {
@@ -134,7 +147,7 @@ app.post("/api/onboarding/analyze", async (c) => {
   if (!await users.incrementAiUsage(userId, config.AI_DAILY_MESSAGE_LIMIT)) return c.json({ error: { code: "AI_DAILY_LIMIT", message: "Daily AI limit reached. Browse and search still work." } }, 429);
   const analysis = await ai.extractTaste(body.description, body.favorites).catch(() => new AiService("").extractTaste(body.description,body.favorites));
   const explicit = [...body.genres.map((key) => ({ dimension: "genre", key, score: 0.85, confidence: 0.8, evidenceCount: 1, source: "onboarding_explicit" })), ...body.moods.map((key) => ({ dimension: "mood", key, score: 0.85, confidence: 0.8, evidenceCount: 1, source: "onboarding_explicit" }))];
-  const signals = [...analysis.signals, ...explicit];
+  const signals = [...analysis.signals, ...explicit, ...body.concepts.map(key=>({dimension:"keyword",key,score:.85,confidence:.8,evidenceCount:1,source:"onboarding_explicit"}))];
   await users.upsertTaste(userId, signals);
   const state = await users.getRecommendationState(userId);
   for (const favorite of body.favorites) {

@@ -21,6 +21,13 @@ class NexApiClient {
           if (token != null) options.headers['Authorization'] = 'Bearer $token';
           handler.next(options);
         },
+        onResponse: (response, handler) async {
+          final renewed = response.headers.value('set-auth-token');
+          if (renewed != null && renewed.isNotEmpty) {
+            await _storage.write(key: _tokenKey, value: renewed);
+          }
+          handler.next(response);
+        },
       ),
     );
   }
@@ -32,6 +39,10 @@ class NexApiClient {
   static const _tokenKey = 'nex.auth.bearer';
   final FlutterSecureStorage _storage;
   late final Dio _dio;
+  CancelToken? _searchCancel;
+  void cancelSearch() {
+    _searchCancel?.cancel();
+  }
 
   Future<bool> hasStoredSession() async =>
       (await _storage.read(key: _tokenKey))?.isNotEmpty ?? false;
@@ -76,9 +87,12 @@ class NexApiClient {
   }
 
   Future<List<ContentItem>> search(String query) async {
+    cancelSearch();
+    _searchCancel = CancelToken();
     final response = await _dio.get<Map<String, dynamic>>(
       '/api/search',
-      queryParameters: {'q': query},
+      queryParameters: {'q': query, 'mode': 'title'},
+      cancelToken: _searchCancel,
     );
     return ((response.data?['data'] as List?) ?? [])
         .map(

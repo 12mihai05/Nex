@@ -120,8 +120,10 @@ class _AvailabilityPill extends StatelessWidget {
           : '${availability.providerName} · not owned',
       maxLines: 1,
       overflow: TextOverflow.ellipsis,
-      style: const TextStyle(
-        color: Colors.white,
+      style: TextStyle(
+        color: availability.owned && availability.access == 'included'
+            ? const Color(0xFF172016)
+            : Colors.white,
         fontSize: 10.5,
         fontWeight: FontWeight.w700,
       ),

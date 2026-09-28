@@ -20,5 +20,12 @@ it("coalesces public lookups, keys by country and refreshes expired entries",asy
     fetcher.mockImplementationOnce(async()=>new Response("",{status:503}));
     await expect(catalog.discover({...request,region:"FR"})).rejects.toThrow();
     await catalog.discover({...request,region:"FR"});expect(fetcher).toHaveBeenCalledTimes(5);
+    fetcher.mockImplementation(async()=>new Response(JSON.stringify({id:42,title:"Shared metadata",genres:[],keywords:{keywords:[]},"watch/providers":{results:{RO:{flatrate:[{provider_id:8,provider_name:"Netflix"}]}}}}),{status:200,headers:{"content-type":"application/json"}}));
+    const [owner,nonOwner]=await Promise.all([catalog.getTitle("movie",42,"RO",[8]),catalog.getTitle("movie",42,"RO",[])]);
+    expect(fetcher).toHaveBeenCalledTimes(6);
+    expect(owner!.availability[0]!.owned).toBe(true);
+    expect(nonOwner!.availability[0]!.owned).toBe(false);
+    expect((await catalog.getTitle("movie",42,"RO",[]))!.availability[0]!.owned).toBe(false);
+    expect(fetcher).toHaveBeenCalledTimes(6);
   }finally{vi.unstubAllGlobals();client.close();}
 });

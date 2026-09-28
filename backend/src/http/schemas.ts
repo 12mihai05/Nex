@@ -6,7 +6,7 @@ export const searchQuerySchema = paginationSchema.extend({ q: z.string().trim().
 export const titleParamsSchema = z.object({ mediaType: mediaTypeSchema, tmdbId: z.coerce.number().int().positive() });
 export const recommendBodySchema = z.object({ viewerIds: z.array(z.string()).max(5).optional(), filter: filterQuerySchema.partial().default({}) });
 export const surpriseBodySchema = z.object({ maxRuntimeMinutes: z.number().int().positive().max(600).nullable().default(null), mood: z.string().max(40).nullable().default(null), excludedIds: z.array(z.number().int()).max(50).default([]) });
-export const onboardingBodySchema = z.object({ description: z.string().max(3000), favorites: z.array(z.object({ id: z.number().int(), mediaType: mediaTypeSchema, title: z.string(), genres: z.array(z.string()).optional() })).max(5), genres: z.array(z.string()).max(20).default([]), moods: z.array(z.string()).max(20).default([]) });
+export const onboardingBodySchema = z.object({ description: z.string().max(3000), favorites: z.array(z.object({ id: z.number().int(), mediaType: mediaTypeSchema, title: z.string(), genres: z.array(z.string()).optional() })).max(5), genres: z.array(z.string().max(80)).max(20).default([]), moods: z.array(z.string().max(80)).max(20).default([]), concepts:z.array(z.string().max(80)).max(40).default([]) });
 export const chatBodySchema = z.object({ sessionId: z.string().uuid().optional(), message: z.string().trim().min(1).max(2000) });
 export const settingsBodySchema = z.object({
   country: z.string().regex(/^[a-z]{2}$/i).transform((value) => value.toUpperCase()).refine(value=>Boolean(new Intl.DisplayNames(["en"],{type:"region",fallback:"none"}).of(value)),"Unknown country").optional(),

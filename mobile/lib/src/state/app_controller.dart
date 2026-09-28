@@ -125,9 +125,13 @@ class AppController extends Notifier<AppState> {
 
   List<ContentItem> _liveCatalog = [];
   List<ContentItem> _ranked = [];
+  List<ContentRow> _discoveryRows = [];
+  final _providerCache = <String, Map<int, String>>{};
+  int _countryRequest = 0, _searchRequest = 0;
   List<TvProgram> _liveTv = [];
   List<Map<String, dynamic>> _taste = [];
   Map<int, String> _liveProviders = {};
+  bool providersLoading = false;
   final Map<String, Map<String, dynamic>> _reminders = {};
   Map<int, String> get availableServices => state.demoMode
       ? const {
@@ -146,10 +150,7 @@ class AppController extends Notifier<AppState> {
     final scope = '${state.country}:${state.providers.toList()..sort()}';
     if (!state.busy &&
         !state.demoMode &&
-        (_rankedScope != scope ||
-            _rankedAt == null ||
-            DateTime.now().difference(_rankedAt!) >
-                const Duration(minutes: 5))) {
+        (_rankedScope != scope || _rankedAt == null)) {
       await refreshLive();
     }
   }
@@ -230,7 +231,7 @@ class AppController extends Notifier<AppState> {
         'source': 'explicit_edit',
       },
     ]);
-    await refreshLive();
+    await _refreshTasteAfterMutation();
   }
 
   String reasonFor(ContentItem item) =>
@@ -283,6 +284,17 @@ class AppController extends Notifier<AppState> {
                   .toList(),
             ),
         ].where((row) => row.items.isNotEmpty).take(4).toList()
+      : _discoveryRows.isNotEmpty
+      ? _discoveryRows
+            .map(
+              (r) => ContentRow(
+                r.title,
+                r.subtitle,
+                r.items.where(_isNewToViewer).toList(),
+              ),
+            )
+            .where((r) => r.items.isNotEmpty)
+            .toList()
       : [
           ContentRow(
             'Top picks for you',
@@ -302,6 +314,7 @@ class AppController extends Notifier<AppState> {
         ].where((r) => r.items.isNotEmpty).toList();
 
   Future<void> refreshLive() async {
+    if (state.busy) return;
     if (state.demoMode) {
       recommendationsPending = false;
       state = state.copyWith();
@@ -370,7 +383,37 @@ class AppController extends Notifier<AppState> {
         remindersEnabled: profile['remindersEnabled'] as bool,
         behaviorPersonalization: profile['behaviorPersonalization'] as bool,
       );
-      final ranked = await _api.recommend();
+      List<Map<String, dynamic>> shelves = [];
+      // Old deployments remain usable during a rolling backend/mobile upgrade.
+      try {
+        shelves = await _api.list('/api/discovery');
+      } catch (_) {
+        /* Fall back to the existing endpoint. */
+      }
+      final ranked = shelves.isEmpty
+          ? await _api.recommend()
+          : shelves
+                .expand(
+                  (r) => (r['items'] as List).map(
+                    (i) => (i as Map).cast<String, dynamic>(),
+                  ),
+                )
+                .toList();
+      _discoveryRows = shelves
+          .map(
+            (r) => ContentRow(
+              r['title'] as String,
+              r['subtitle'] as String?,
+              (r['items'] as List)
+                  .map(
+                    (i) => ContentItem.fromJson(
+                      (i['item'] as Map).cast<String, dynamic>(),
+                    ),
+                  )
+                  .toList(),
+            ),
+          )
+          .toList();
       _rankedAt = DateTime.now();
       _rankedScope = '${state.country}:${state.providers.toList()..sort()}';
       recommendationsPending = false;
@@ -500,7 +543,11 @@ class AppController extends Notifier<AppState> {
     genres: genres,
     moods: moods,
   );
-  Future<void> finishOnboarding() async {
+  Future<void> finishOnboarding({
+    void Function(String)? onPhase,
+    List<String> concepts = const [],
+  }) async {
+    onPhase?.call('Saving your choices');
     if (!state.demoMode) {
       await _api.saveSettings({
         'country': state.country,
@@ -508,10 +555,11 @@ class AppController extends Notifier<AppState> {
         'audioLanguages': state.audioLanguages.toList(),
         'subtitleLanguages': state.subtitleLanguages.toList(),
         'preferOriginal': state.audioLanguages.contains('original'),
-        'onboardingComplete': true,
       });
+      onPhase?.call('Finding the threads in your taste');
       await _api.analyzeTaste({
         'description': state.tasteDescription,
+        'concepts': concepts,
         'favorites': demoCatalog
             .where((item) => state.favoriteIds.contains(item.id))
             .map(
@@ -527,8 +575,11 @@ class AppController extends Notifier<AppState> {
         'moods': state.moods.toList(),
       });
     }
-    state = state.copyWith(onboardingComplete: true);
+    onPhase?.call('Curating your opening night');
     if (!state.demoMode) await refreshLive();
+    if (state.error != null) throw StateError(state.error!);
+    if (!state.demoMode) await _api.saveSettings({'onboardingComplete': true});
+    state = state.copyWith(onboardingComplete: true);
   }
 
   List<Map<String, Object?>> _providerPayload() => availableServices.entries
@@ -537,8 +588,10 @@ class AppController extends Notifier<AppState> {
       .toList();
 
   Future<void> search(String query) async {
+    final ticket = ++_searchRequest;
     if (query.trim().isEmpty) {
-      state = state.copyWith(searchResults: const []);
+      _api.cancelSearch();
+      state = state.copyWith(searchResults: const [], clearError: true);
       return;
     }
     if (state.demoMode) {
@@ -557,9 +610,14 @@ class AppController extends Notifier<AppState> {
       return;
     }
     try {
-      state = state.copyWith(searchResults: await _api.search(query));
+      final results = await _api.search(query);
+      if (ticket == _searchRequest) {
+        state = state.copyWith(searchResults: results, clearError: true);
+      }
     } catch (error) {
-      state = state.copyWith(error: readableApiError(error));
+      if (ticket == _searchRequest) {
+        state = state.copyWith(error: readableApiError(error));
+      }
     }
   }
 
@@ -997,6 +1055,7 @@ class AppController extends Notifier<AppState> {
       _liveTv = [];
       _liveCatalog = [];
       _ranked = [];
+      _discoveryRows = [];
       state = state.copyWith(country: country);
       await refreshLive();
     } else {
@@ -1005,14 +1064,29 @@ class AppController extends Notifier<AppState> {
   }
 
   Future<void> updateOnboardingCountry(String country) async {
+    final ticket = ++_countryRequest;
+    _liveProviders = _providerCache[country] ?? {};
+    providersLoading = !state.demoMode && !_providerCache.containsKey(country);
+    state = state.copyWith(country: country, clearError: true);
     if (!state.demoMode) {
-      await _api.saveSettings({'country': country});
-      final providers = await _api.list('/api/providers');
-      _liveProviders = {
-        for (final p in providers) p['id'] as int: p['name'] as String,
-      };
+      if (_providerCache.containsKey(country)) return;
+      try {
+        final providers = await _api.list('/api/providers?country=$country');
+        final available = {
+          for (final p in providers) p['id'] as int: p['name'] as String,
+        };
+        _providerCache[country] = available;
+        if (ticket != _countryRequest) return;
+        _liveProviders = available;
+      } catch (error) {
+        if (ticket == _countryRequest) {
+          state = state.copyWith(error: readableApiError(error));
+        }
+      } finally {
+        if (ticket == _countryRequest) providersLoading = false;
+      }
     }
-    state = state.copyWith(country: country);
+    if (ticket == _countryRequest) state = state.copyWith();
   }
 
   Future<void> saveProviders(Set<int> providers) async {
@@ -1061,7 +1135,7 @@ class AppController extends Notifier<AppState> {
           },
         ),
       ]);
-      await refreshLive();
+      await _refreshTasteAfterMutation();
     }
   }
 
@@ -1104,6 +1178,9 @@ class AppController extends Notifier<AppState> {
   }
 
   void _clearViewerCache() {
+    _discoveryRows = [];
+    _countryRequest++;
+    _searchRequest++;
     _ranked = [];
     _liveCatalog = [];
     _liveTv = [];

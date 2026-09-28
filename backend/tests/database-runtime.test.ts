@@ -53,3 +53,46 @@ it("rejects local database configuration on Vercel before loading SQLite", () =>
   `, "file:./local.db", "1");
   expect(result.status).toBe(0);
 }, 30_000);
+
+it("renews a signed device session and invalidates it on logout", () => {
+  const result = run(`
+    import assert from "node:assert/strict";
+    const { getDatabase, closeDatabase } = await import("./src/db/client.ts");
+    const { migrate } = await import("drizzle-orm/libsql/migrator");
+    const { session } = await import("./src/db/schema.ts");
+    const db = getDatabase();
+    await migrate(db, { migrationsFolder: "./drizzle" });
+    const { auth } = await import("./src/auth.ts");
+    const { default: app } = await import("./src/app.ts");
+    assert.equal((await app.request("http://localhost:8787/api/discovery")).status, 401);
+    assert.equal((await app.request("http://localhost:8787/api/providers?country=FR")).status, 401);
+    const request = (path, method = "GET", headers = {}, body) => auth.handler(new Request(
+      "http://localhost:8787/api/auth/" + path,
+      { method, headers: { "Content-Type": "application/json", ...headers }, ...(body ? { body: JSON.stringify(body) } : {}) }
+    ));
+    const signup = await request("sign-up/email", "POST", {}, {
+      name: "Session test", email: "session@example.test", password: "test-only-password-12345"
+    });
+    assert.equal(signup.status, 200);
+    const token = signup.headers.get("set-auth-token");
+    assert.ok(token);
+    const headers = { Authorization: "Bearer " + token };
+    const initial = (await db.select().from(session))[0];
+    assert.ok(initial.expiresAt.getTime() - Date.now() > 364 * 86400000);
+    // Simulate an active device coming back after the refresh interval.
+    await db.update(session).set({
+      expiresAt: new Date(Date.now() + 360 * 86400000),
+      updatedAt: new Date(Date.now() - 5 * 86400000)
+    });
+    const restored = await request("get-session", "GET", headers);
+    assert.ok((await restored.json()).user);
+    const renewed = (await db.select().from(session))[0];
+    assert.ok(renewed.expiresAt.getTime() - Date.now() > 364 * 86400000);
+    const logout = await request("sign-out", "POST", headers, {});
+    assert.equal(logout.status, 200);
+    assert.equal(await (await request("get-session", "GET", headers)).json(), null);
+    await closeDatabase();
+  `, ":memory:");
+  // Never dump auth responses or tokens on failure.
+  expect(result.status, "Device session renewal/revocation subprocess failed").toBe(0);
+}, 30_000);

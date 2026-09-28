@@ -79,6 +79,9 @@ export class LiveTmdbRepository implements TmdbRepository {
   private readonly imageBaseUrl = "https://image.tmdb.org/t/p";
   private readonly inFlight=new Map<string,Promise<unknown>>();
   private lastPrune=0;
+  private readonly titleInFlight=new Map<string,Promise<ContentItem|null>>();
+  private activeRequests=0;
+  private readonly requestWaiters:Array<()=>void>=[];
 
   constructor(private readonly token: string, private readonly db: NexDatabase = getDatabase()) {}
 
@@ -129,6 +132,15 @@ export class LiveTmdbRepository implements TmdbRepository {
   }
 
   async getTitle(mediaType: MediaType, id: number, region: string, ownedProviderIds: number[] = []): Promise<ContentItem | null> {
+    const key = `title:${mediaType}:${id}:${region}`;
+    let pending=this.titleInFlight.get(key);
+    if(!pending) {pending=this.loadTitle(mediaType,id,region);this.titleInFlight.set(key,pending);}
+    try {const item=await pending;return item?this.markOwned(item,ownedProviderIds):null;}
+    finally {if(this.titleInFlight.get(key)===pending)this.titleInFlight.delete(key);}
+  }
+
+  private async loadTitle(mediaType: MediaType,id:number,region:string):Promise<ContentItem|null> {
+    const ownedProviderIds:number[]=[];
     const key = `title:${mediaType}:${id}:${region}`;
     const cached = await this.readCache(key);
     if (cached) {
@@ -242,11 +254,18 @@ export class LiveTmdbRepository implements TmdbRepository {
   }
 
   private async fetchRequest<T>(path: string, params: Record<string,string>):Promise<T>{
+    if(this.activeRequests>=8) await new Promise<void>(resolve=>this.requestWaiters.push(resolve));
+    else this.activeRequests++;
+    try {
     const url = new URL(`${this.baseUrl}${path}`);
     Object.entries(params).forEach(([key, value]) => url.searchParams.set(key, value));
     const response = await fetch(url, { headers: { Authorization: `Bearer ${this.token}`, Accept: "application/json" }, signal: AbortSignal.timeout(12000) });
     if (!response.ok) throw new TmdbError(response.status);
     return await response.json() as T;
+    } finally {
+      const next=this.requestWaiters.shift();
+      if(next)next();else this.activeRequests--;
+    }
   }
 
   private async readCache(key: string): Promise<unknown | null> {
