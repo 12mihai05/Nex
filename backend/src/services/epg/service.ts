@@ -1,4 +1,5 @@
-import { and, eq, gt, lt, or, sql, desc } from "drizzle-orm";
+import { and, eq, gt, lt, or, sql, desc, inArray, isNull } from "drizzle-orm";
+import type { ContentItem } from "../../domain/types.js";
 import { randomUUID } from "node:crypto";
 import { getConfig } from "../../config.js";
 import { channels, channelFavorites, epgPrograms, epgSyncRuns, epgTmdbMatches } from "../../db/schema.js";
@@ -10,6 +11,21 @@ import { normalizeEpgTitle, type NormalizedProgram } from "./xmltv.js";
 
 export class EpgService {
   constructor(private readonly db: NexDatabase = getDatabase(), private readonly provider: EpgProvider = createEpgProvider(), private readonly catalog: TmdbRepository = createTmdbRepository()) {}
+
+  async broadcastsForTitle(item: ContentItem, country: string, now = new Date()) {
+    // Lookup all matching channels, not the first 100 programmes in the TV feed.
+    const aliases=[...new Set([item.title,item.originalTitle,...await this.catalog.titleAliases?.(item.mediaType,item.id)??[]].filter((v):v is string=>Boolean(v)))];
+    const rows=await this.db.select({program:epgPrograms,channel:{id:channels.id,name:channels.displayName}}).from(epgPrograms).innerJoin(channels,eq(channels.id,epgPrograms.channelId)).where(and(
+      eq(channels.country,country),eq(channels.active,true),gt(epgPrograms.endAt,now),lt(epgPrograms.startAt,new Date(+now+14*86400000)),
+      or(and(eq(epgPrograms.matchedTmdbId,item.id),eq(epgPrograms.matchedMediaType,item.mediaType)),and(isNull(epgPrograms.matchedTmdbId),inArray(epgPrograms.title,aliases)))
+    )).orderBy(epgPrograms.startAt,channels.displayName,epgPrograms.id).limit(100);
+    return rows.filter(({program:p})=>{
+      if(p.matchedTmdbId===item.id&&p.matchedMediaType===item.mediaType&&(p.matchConfidence??0)>=.72)return true;
+      // Exact translated title AND year protect against remakes and sequels.
+      if(!p.year||p.year!==item.year)return false;
+      return aliases.some(title=>bestEpgMatch({...p,channelExternalId:p.channelId},[{...item,title}])!==null);
+    }).map(({program:p,channel})=>({...p,channel}));
+  }
 
   async sync(now = new Date()): Promise<{ sourceId: string; importedRows: number; deletedRows: number }> {
     const config = getConfig();

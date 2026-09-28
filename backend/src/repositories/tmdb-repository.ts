@@ -31,6 +31,7 @@ export interface DiscoverOptions {
 }
 
 export interface TmdbRepository {
+  titleAliases?(mediaType: MediaType, id: number): Promise<string[]>;
   readonly mode: "live" | "fixture";
   search(options: CatalogSearchOptions): Promise<ContentItem[]>;
   discover(options: DiscoverOptions): Promise<ContentItem[]>;
@@ -77,6 +78,15 @@ export class FixtureTmdbRepository implements TmdbRepository {
 const tmdbResultSchema = contentItemSchema.partial().passthrough();
 
 export class LiveTmdbRepository implements TmdbRepository {
+  async titleAliases(mediaType: MediaType, id: number): Promise<string[]> {
+    const key=`aliases:${mediaType}:${id}`;
+    const cached=await this.readCache(key);
+    if(Array.isArray(cached)) return cached.filter((v):v is string=>typeof v==="string");
+    const data=await this.request<{translations?:Array<{data?:{title?:string;name?:string}}>}>(`/${mediaType==="series"?"tv":"movie"}/${id}/translations`,{});
+    const titles=[...new Set((data.translations??[]).flatMap(t=>[t.data?.title,t.data?.name]).filter((v):v is string=>Boolean(v)))].slice(0,80);
+    await this.writeCache(key,"metadata",titles,getConfig().TMDB_METADATA_CACHE_TTL_SECONDS);
+    return titles;
+  }
   readonly mode = "live" as const;
   private readonly baseUrl = "https://api.themoviedb.org/3";
   private readonly imageBaseUrl = "https://image.tmdb.org/t/p";

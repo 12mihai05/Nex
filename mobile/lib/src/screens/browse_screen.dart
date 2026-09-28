@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 
 import '../core/theme.dart';
 import '../models/content.dart';
+import '../models/discovery_rows.dart';
 
 import '../state/app_controller.dart';
 import '../widgets/artwork.dart';
@@ -27,12 +28,69 @@ class _BrowseScreenState extends ConsumerState<BrowseScreen> {
   int generation = 0;
   List<ContentRow> filteredRows = [];
   final snapshots = <String, List<ContentRow>>{};
+  final batchPositions = <String, int>{};
+  int nextBatch = 1;
+  bool loadingMore = false;
+  String? moreError;
+
+  Future<void> loadMore() async {
+    if (!hasFilters) {
+      await ref.read(appControllerProvider.notifier).loadMoreHome();
+      return;
+    }
+    if (filtering ||
+        loadingMore ||
+        nextBatch >= 6 ||
+        ref.read(appControllerProvider).demoMode) {
+      return;
+    }
+    final ticket = generation;
+    final key = filterKey;
+    setState(() {
+      loadingMore = true;
+      moreError = null;
+    });
+    try {
+      final query = Uri(
+        queryParameters: {
+          'batch': '$nextBatch',
+          'mediaType': type,
+          'genre': ?genre,
+          'minMinutes': ?minimum?.toString(),
+          'maxMinutes': ?maximum?.toString(),
+        },
+      ).query;
+      final data = await ref
+          .read(nexApiClientProvider)
+          .list('/api/discovery?$query');
+      if (!mounted || ticket != generation) return;
+      setState(() {
+        filteredRows = appendDiscoveryRows(
+          filteredRows,
+          parseDiscoveryRows(data),
+        );
+        nextBatch++;
+        snapshots[key] = filteredRows;
+        batchPositions[key] = nextBatch;
+      });
+    } catch (e) {
+      if (mounted && ticket == generation) {
+        setState(() => moreError = readableApiError(e));
+      }
+    } finally {
+      if (mounted && ticket == generation) setState(() => loadingMore = false);
+    }
+  }
+
   bool get hasFilters =>
       type != 'any' || genre != null || minimum != null || maximum != null;
   String get filterKey => '$type:$genre:$minimum:$maximum';
 
   Future<void> loadFilters({bool force = false}) async {
     final ticket = ++generation;
+    loadingMore = false;
+    moreError = null;
+    nextBatch = 1;
     if (!hasFilters) {
       setState(() {
         filtering = false;
@@ -44,6 +102,7 @@ class _BrowseScreenState extends ConsumerState<BrowseScreen> {
     if (!force && snapshots.containsKey(key)) {
       setState(() {
         filteredRows = snapshots[key]!;
+        nextBatch = batchPositions[key] ?? 1;
         filtering = false;
         filterError = null;
       });
@@ -85,6 +144,7 @@ class _BrowseScreenState extends ConsumerState<BrowseScreen> {
         final query = Uri(
           queryParameters: {
             'mediaType': type,
+            'batch': '0',
             'genre': ?genre,
             'minMinutes': ?minimum?.toString(),
             'maxMinutes': ?maximum?.toString(),
@@ -110,8 +170,12 @@ class _BrowseScreenState extends ConsumerState<BrowseScreen> {
             .toList();
       }
       if (!mounted || ticket != generation) return;
-      if (snapshots.length >= 8) snapshots.remove(snapshots.keys.first);
+      if (snapshots.length >= 8) {
+        batchPositions.remove(snapshots.keys.first);
+        snapshots.remove(snapshots.keys.first);
+      }
       snapshots[key] = rows;
+      batchPositions[key] = 1;
       setState(() => filteredRows = rows);
     } catch (e) {
       if (mounted && ticket == generation) {
@@ -161,6 +225,7 @@ class _BrowseScreenState extends ConsumerState<BrowseScreen> {
       (previous, next) {
         if (previous != next) {
           snapshots.clear();
+          batchPositions.clear();
           loadFilters();
         }
       },
@@ -174,115 +239,160 @@ class _BrowseScreenState extends ConsumerState<BrowseScreen> {
       appBar: const NexTopBar(),
       body: RefreshIndicator(
         onRefresh: () => _confirmRefresh(context, ref),
-        child: CustomScrollView(
-          key: const PageStorageKey('streaming-feed'),
-          physics: const AlwaysScrollableScrollPhysics(),
-          slivers: [
-            SliverToBoxAdapter(
-              child: Padding(
-                padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
-                child: Wrap(
-                  spacing: 8,
-                  children: [
-                    for (final entry in [
-                      ('any', 'All'),
-                      ('movie', 'Movies'),
-                      ('series', 'Series'),
-                    ])
-                      ChoiceChip(
-                        label: Text(entry.$2),
-                        selected: type == entry.$1,
-                        onSelected: (_) {
-                          setState(() {
-                            type = entry.$1;
-                            genre = null;
-                            minimum = null;
-                            maximum = null;
-                          });
-                          loadFilters();
-                        },
-                      ),
-                    ActionChip(
-                      avatar: const Icon(Icons.tune, size: 18),
-                      label: const Text('Filters'),
-                      onPressed: editFilters,
-                    ),
-                    if (genre != null)
-                      InputChip(
-                        label: Text(genre!),
-                        onDeleted: () {
-                          setState(() => genre = null);
-                          loadFilters();
-                        },
-                      ),
-                    if (minimum != null || maximum != null)
-                      InputChip(
-                        label: Text('${minimum ?? 1}–${maximum ?? 'any'} min'),
-                        onDeleted: () {
-                          setState(() {
-                            minimum = null;
-                            maximum = null;
-                          });
-                          loadFilters();
-                        },
-                      ),
-                  ],
-                ),
-              ),
-            ),
-            if (filtering || (state.busy && hero == null))
-              const SliverToBoxAdapter(child: HomeSkeleton()),
-            if (filterError != null)
-              SliverToBoxAdapter(
-                child: Column(
-                  children: [
-                    Text(filterError!),
-                    TextButton(
-                      onPressed: () => loadFilters(force: true),
-                      child: const Text('Retry'),
-                    ),
-                  ],
-                ),
-              ),
-            if (state.error != null)
+        child: NotificationListener<ScrollNotification>(
+          onNotification: (event) {
+            if (event.depth == 0 &&
+                event.metrics.axis == Axis.vertical &&
+                event.metrics.extentAfter < 600 &&
+                (hasFilters
+                    ? moreError == null
+                    : controller.homeBatchError == null)) {
+              loadMore();
+            }
+            return false;
+          },
+          child: CustomScrollView(
+            key: const PageStorageKey('streaming-feed'),
+            physics: const AlwaysScrollableScrollPhysics(),
+            slivers: [
               SliverToBoxAdapter(
                 child: Padding(
-                  padding: const EdgeInsets.all(20),
-                  child: Text(state.error!),
-                ),
-              ),
-            if (hero != null)
-              SliverToBoxAdapter(
-                child: _Hero(
-                  item: hero,
-                  onPick: () => _showPickSheet(context, ref),
-                ),
-              )
-            else if (!filtering && !state.busy && filterError == null)
-              const SliverToBoxAdapter(
-                child: Padding(
-                  padding: EdgeInsets.all(24),
-                  child: Text(
-                    'No matching picks. Try a broader genre or duration range.',
+                  padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
+                  child: Wrap(
+                    spacing: 8,
+                    children: [
+                      for (final entry in [
+                        ('any', 'All'),
+                        ('movie', 'Movies'),
+                        ('series', 'Series'),
+                      ])
+                        ChoiceChip(
+                          label: Text(entry.$2),
+                          selected: type == entry.$1,
+                          onSelected: (_) {
+                            setState(() {
+                              type = entry.$1;
+                              genre = null;
+                              minimum = null;
+                              maximum = null;
+                            });
+                            loadFilters();
+                          },
+                        ),
+                      ActionChip(
+                        avatar: const Icon(Icons.tune, size: 18),
+                        label: const Text('Filters'),
+                        onPressed: editFilters,
+                      ),
+                      if (genre != null)
+                        InputChip(
+                          label: Text(genre!),
+                          onDeleted: () {
+                            setState(() => genre = null);
+                            loadFilters();
+                          },
+                        ),
+                      if (minimum != null || maximum != null)
+                        InputChip(
+                          label: Text(
+                            '${minimum ?? 1}–${maximum ?? 'any'} min',
+                          ),
+                          onDeleted: () {
+                            setState(() {
+                              minimum = null;
+                              maximum = null;
+                            });
+                            loadFilters();
+                          },
+                        ),
+                    ],
                   ),
                 ),
               ),
-
-            if (controller.recommendationsPending)
-              SliverToBoxAdapter(
-                child: TextButton.icon(
-                  onPressed: state.busy
-                      ? null
-                      : () => _confirmRefresh(context, ref),
-                  icon: const Icon(Icons.refresh),
-                  label: const Text('Taste updated · Refresh picks'),
+              if (filtering || (state.busy && hero == null))
+                const SliverToBoxAdapter(child: HomeSkeleton()),
+              if (filterError != null)
+                SliverToBoxAdapter(
+                  child: Column(
+                    children: [
+                      Text(filterError!),
+                      TextButton(
+                        onPressed: () => loadFilters(force: true),
+                        child: const Text('Retry'),
+                      ),
+                    ],
+                  ),
                 ),
+              if (state.error != null)
+                SliverToBoxAdapter(
+                  child: Padding(
+                    padding: const EdgeInsets.all(20),
+                    child: Text(state.error!),
+                  ),
+                ),
+              if (hero != null)
+                SliverToBoxAdapter(
+                  child: _Hero(
+                    item: hero,
+                    onPick: () => _showPickSheet(context, ref),
+                  ),
+                )
+              else if (!filtering && !state.busy && filterError == null)
+                const SliverToBoxAdapter(
+                  child: Padding(
+                    padding: EdgeInsets.all(24),
+                    child: Text(
+                      'No matching picks. Try a broader genre or duration range.',
+                    ),
+                  ),
+                ),
+
+              if (controller.recommendationsPending)
+                SliverToBoxAdapter(
+                  child: TextButton.icon(
+                    onPressed: state.busy
+                        ? null
+                        : () => _confirmRefresh(context, ref),
+                    icon: const Icon(Icons.refresh),
+                    label: const Text('Taste updated · Refresh picks'),
+                  ),
+                ),
+              SliverList.builder(
+                itemCount: rows.length,
+                itemBuilder: (_, index) => ContentShelf(row: rows[index]),
               ),
-            ...rows.map(
-              (row) => SliverToBoxAdapter(child: ContentShelf(row: row)),
-            ),
-            const SliverToBoxAdapter(child: SizedBox(height: 20)),
-          ],
+              if (hasFilters ? loadingMore : controller.homeBatchLoading)
+                const SliverToBoxAdapter(child: HomeSkeleton(showHero: false))
+              else if (!state.demoMode &&
+                  !filtering &&
+                  !state.busy &&
+                  (hasFilters ? nextBatch < 6 : controller.hasMoreHome))
+                SliverToBoxAdapter(
+                  child: Column(
+                    children: [
+                      if ((hasFilters ? moreError : controller.homeBatchError)
+                          case final String error)
+                        Padding(
+                          padding: const EdgeInsets.all(16),
+                          child: Text(error),
+                        ),
+                      TextButton(
+                        onPressed: loadMore,
+                        child: Text(
+                          (hasFilters
+                                      ? moreError
+                                      : controller.homeBatchError) ==
+                                  null
+                              ? 'More to explore'
+                              : 'Retry',
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              const SliverToBoxAdapter(child: SizedBox(height: 20)),
+            ],
+          ),
         ),
       ),
     );
@@ -330,6 +440,7 @@ class _BrowseScreenState extends ConsumerState<BrowseScreen> {
     );
     if (confirmed == true && context.mounted) {
       snapshots.clear();
+      batchPositions.clear();
       if (hasFilters) {
         await loadFilters(force: true);
       } else {

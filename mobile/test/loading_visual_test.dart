@@ -7,6 +7,8 @@ import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:nex/src/core/theme.dart';
 import 'package:nex/src/widgets/skeleton.dart';
+import 'package:nex/src/widgets/reminder_sheet.dart';
+import 'package:nex/src/models/tv_program.dart';
 
 import 'visual_review_test.dart' show VisualBinding;
 
@@ -30,7 +32,19 @@ void main() {
           'sans-serif',
         )..addFont(font.readAsBytes().then(ByteData.sublistView))).load();
       }
+      await (FontLoader(
+        'MaterialIcons',
+      )..addFont(rootBundle.load('fonts/MaterialIcons-Regular.otf'))).load();
       for (final entry in <String, Widget>{
+        'reminder': ReminderSheet(
+          program: TvProgram(
+            id: 'visual',
+            title: 'Maze Runner: The Death Cure',
+            channel: 'Antena 1',
+            startsAt: DateTime.now().add(const Duration(hours: 3)),
+            endsAt: DateTime.now().add(const Duration(hours: 5)),
+          ),
+        ),
         'posters': const PosterSkeletons(),
         'home': const SingleChildScrollView(child: HomeSkeleton()),
         'tv': const SingleChildScrollView(

@@ -147,18 +147,20 @@ class PosterCardSkeleton extends StatelessWidget {
 }
 
 class HomeSkeleton extends StatelessWidget {
-  const HomeSkeleton({super.key});
+  const HomeSkeleton({super.key, this.showHero = true});
+  final bool showHero;
   @override
   Widget build(BuildContext context) => NexSkeleton(
     child: Column(
       children: [
-        const Padding(
-          padding: EdgeInsets.fromLTRB(16, 8, 16, 32),
-          child: AspectRatio(
-            aspectRatio: .86,
-            child: SkeletonBlock(radius: 28),
+        if (showHero)
+          const Padding(
+            padding: EdgeInsets.fromLTRB(16, 8, 16, 32),
+            child: AspectRatio(
+              aspectRatio: .86,
+              child: SkeletonBlock(radius: 28),
+            ),
           ),
-        ),
         for (
           var i = 0;
           i < (MediaQuery.sizeOf(context).height / 350).ceil();

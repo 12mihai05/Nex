@@ -26,7 +26,7 @@ class _AuthScreenState extends ConsumerState<AuthScreen> {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) async {
       final controller = ref.read(appControllerProvider.notifier);
-      if (await controller.restoreSession() && mounted) {
+      if (await controller.restoreSession(background: true) && mounted) {
         context.go(
           ref.read(appControllerProvider).onboardingComplete
               ? '/home'

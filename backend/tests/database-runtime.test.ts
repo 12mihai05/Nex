@@ -65,6 +65,7 @@ it("renews a signed device session and invalidates it on logout", () => {
     const { auth } = await import("./src/auth.ts");
     const { default: app } = await import("./src/app.ts");
     assert.equal((await app.request("http://localhost:8787/api/discovery")).status, 401);
+    assert.equal((await app.request("http://localhost:8787/api/title/movie/329865/broadcasts")).status, 401);
     assert.equal((await app.request("http://localhost:8787/api/catalog?mediaType=movie")).status, 401);
     assert.equal((await app.request("http://localhost:8787/api/providers?country=FR")).status, 401);
     const request = (path, method = "GET", headers = {}, body) => auth.handler(new Request(
@@ -78,6 +79,9 @@ it("renews a signed device session and invalidates it on logout", () => {
     const token = signup.headers.get("set-auth-token");
     assert.ok(token);
     const headers = { Authorization: "Bearer " + token };
+    assert.equal((await app.request("http://localhost:8787/api/discovery?batch=0", {headers})).status, 200);
+    assert.equal((await app.request("http://localhost:8787/api/discovery?batch=6", {headers})).status, 400);
+    assert.equal((await app.request("http://localhost:8787/api/discovery?batch=1&mediaType=movie&minMinutes=90&maxMinutes=60", {headers})).status, 400);
     assert.equal((await app.request("http://localhost:8787/api/catalog?mediaType=series&minMinutes=20", {headers})).status, 400);
     const catalog = await app.request("http://localhost:8787/api/catalog?mediaType=movie&minMinutes=70&maxMinutes=90", {headers});
     assert.equal(catalog.status, 200);

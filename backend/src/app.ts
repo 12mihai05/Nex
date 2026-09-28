@@ -112,13 +112,24 @@ app.get("/api/title/:mediaType/:tmdbId", async (c) => {
   return c.json({ data: item });
 });
 
+app.get("/api/title/:mediaType/:tmdbId/broadcasts", async c=>{
+  const params=titleParamsSchema.parse(c.req.param());
+  const {profile}=await users.getSettings(c.get("authSession").user.id);
+  const item=await catalog.getTitle(params.mediaType,params.tmdbId,profile.country);
+  if(!item)throw new HTTPException(404,{message:"Title not found."});
+  c.header("Cache-Control","private, no-store");
+  return c.json({data:await epg.broadcastsForTitle(item,profile.country)});
+});
+
 app.get("/api/discovery", async c => {
   const userId=c.get("authSession").user.id;
-  const input=catalogFilterSchema.parse(c.req.query());
-  const filters=Object.keys(c.req.query()).length?{mediaType:input.mediaType,genres:input.genre?[input.genre]:[],minRuntimeMinutes:input.minMinutes??null,maxRuntimeMinutes:input.maxMinutes??null}:{};
-  const rows=await discoverHome(catalog,await users.getRecommendationState(userId),userId,filters);
+  const {batch:rawBatch,...query}=c.req.query();
+  const input=catalogFilterSchema.parse(query);
+  const filters=Object.keys(query).length?{mediaType:input.mediaType,genres:input.genre?[input.genre]:[],minRuntimeMinutes:input.minMinutes??null,maxRuntimeMinutes:input.maxMinutes??null}:{};
+  const batch=rawBatch===undefined?undefined:z.coerce.number().int().min(0).max(5).parse(rawBatch);
+  const rows=await discoverHome(catalog,await users.getRecommendationState(userId),userId,filters,batch);
   // Record only the lead shelf, not hundreds of titles below the fold.
-  await users.recordRecommendations(userId,rows[0]?.items??[],"discovery-lead");
+  if(batch===undefined||batch===0) await users.recordRecommendations(userId,rows[0]?.items??[],"discovery-lead");
   c.header("Cache-Control","private, no-store");
   return c.json({data:rows});
 });

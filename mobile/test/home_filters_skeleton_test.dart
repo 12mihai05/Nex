@@ -14,7 +14,8 @@ class ShelvesApi extends MutableApi {
   final requests = <String, Completer<List<Map<String, dynamic>>>>{};
   @override
   Future<List<Map<String, dynamic>>> list(String path) {
-    if (path.startsWith('/api/discovery?')) {
+    if (path.startsWith('/api/discovery?') &&
+        path != '/api/discovery?batch=0') {
       return (requests[path] = Completer()).future;
     }
     return super.list(path);

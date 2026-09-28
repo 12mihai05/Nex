@@ -6,6 +6,7 @@ import * as schema from "../src/db/schema.js";
 import {EpgService} from "../src/services/epg/service.js";
 import {FixtureTmdbRepository} from "../src/repositories/tmdb-repository.js";
 import {rankTv,tvPreview} from "../src/services/epg/tv-ranking.js";
+import {fixtureCatalog} from "../src/fixtures/catalog.js";
 let client:ReturnType<typeof createClient>;let epg:EpgService;
 const now=new Date("2030-01-01T12:00:00Z");
 beforeEach(async()=>{
@@ -25,6 +26,23 @@ beforeEach(async()=>{
   epg=new EpgService(db,{sourceId:"fixture",load:async()=>({channels:[],programs:[],sourceTimestamp:null})},new FixtureTmdbRepository());
 });
 afterEach(()=>client.close());
+it("title broadcasts include non-favorites, translated titles and live shows, but not remakes, expired or foreign entries",async()=>{
+  const db=drizzle(client,{schema});
+  const item={...fixtureCatalog[0]!,id:336843,mediaType:"movie" as const,title:"Maze Runner: The Death Cure",originalTitle:"Maze Runner: The Death Cure",year:2018};
+  const catalog=new FixtureTmdbRepository() as FixtureTmdbRepository & {titleAliases:()=>Promise<string[]>};
+  catalog.titleAliases=async()=>["Labirintul: Tratament letal"];
+  const service=new EpgService(db,undefined,catalog);
+  await db.insert(schema.epgPrograms).values([
+    {id:"live-match",channelId:"c1",year:2018,startAt:new Date(+now-60000),endAt:new Date(+now+60000)},
+    {id:"upcoming-match",channelId:"c0",year:2018,startAt:new Date(+now+86400000),endAt:new Date(+now+90000000)},
+    {id:"wrong-year",channelId:"c1",year:2020,startAt:now,endAt:new Date(+now+60000)},
+    {id:"wrong-country",channelId:"c22",year:2018,startAt:now,endAt:new Date(+now+60000)},
+    {id:"expired-match",channelId:"c1",year:2018,startAt:new Date(+now-120000),endAt:new Date(+now-1)},
+  ].map(p=>({...p,title:"Labirintul: Tratament letal",category:"Film",sourceId:"fixture",sourceProgramId:p.id})));
+  const rows=await service.broadcastsForTitle(item,"RO",now);
+  expect(rows.map(p=>p.id)).toEqual(["live-match","upcoming-match"]);
+  expect(await service.broadcastsForTitle({...item,id:111,title:"Other sequel",originalTitle:"Other sequel",year:2015},"RO",now)).toEqual([]);
+});
 it("pages through a busy favorites-only window without hiding other viewers' channels",async()=>{
   await epg.setChannelFavorite("alice","RO","c0",true);
   const db=drizzle(client,{schema});

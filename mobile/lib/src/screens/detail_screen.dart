@@ -5,6 +5,7 @@ import '../models/content.dart';
 import '../state/app_controller.dart';
 import '../widgets/artwork.dart';
 import '../widgets/title_feedback.dart';
+import '../widgets/title_broadcasts.dart';
 
 class DetailScreen extends ConsumerWidget {
   const DetailScreen({super.key, required this.item});
@@ -189,14 +190,7 @@ class DetailScreen extends ConsumerWidget {
                   const SizedBox(height: 22),
                   Text('On TV', style: Theme.of(context).textTheme.titleLarge),
                   const SizedBox(height: 8),
-                  const ListTile(
-                    contentPadding: EdgeInsets.zero,
-                    leading: Icon(Icons.tv_outlined),
-                    title: Text('No upcoming matched broadcasts'),
-                    subtitle: Text(
-                      'Nex only shows high-confidence EPG matches.',
-                    ),
-                  ),
+                  TitleBroadcasts(item: item),
                 ],
               ),
             ),

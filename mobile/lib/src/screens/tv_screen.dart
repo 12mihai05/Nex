@@ -1,6 +1,9 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+
+import '../widgets/reminder_sheet.dart';
+
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 
@@ -249,25 +252,8 @@ class _TvScreenState extends ConsumerState<TvScreen> {
     final minutes = await showModalBottomSheet<int>(
       context: context,
       showDragHandle: true,
-      builder: (sheet) => SafeArea(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            for (final offset in [0, 5, 10])
-              ListTile(
-                title: Text(
-                  offset == 0 ? 'At start' : '$offset minutes before',
-                ),
-                onTap: () => Navigator.pop(sheet, offset),
-              ),
-            if (saved)
-              ListTile(
-                title: const Text('Cancel reminder'),
-                onTap: () => Navigator.pop(sheet, -1),
-              ),
-          ],
-        ),
-      ),
+      isScrollControlled: true,
+      builder: (_) => ReminderSheet(program: p, saved: saved),
     );
     if (minutes == null || !mounted) return;
     setState(() => savingReminders.add(p.id));

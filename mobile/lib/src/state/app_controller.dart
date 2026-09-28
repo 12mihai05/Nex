@@ -1,4 +1,5 @@
 import 'dart:math';
+import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -7,6 +8,7 @@ import '../data/api_client.dart';
 import '../data/demo_data.dart';
 import '../models/chat_message.dart';
 import '../models/content.dart';
+import '../models/discovery_rows.dart';
 import '../models/tv_program.dart';
 import '../services/notification_service.dart';
 
@@ -134,6 +136,37 @@ class AppController extends Notifier<AppState> {
   List<ContentItem> _liveCatalog = [];
   List<ContentItem> _ranked = [];
   List<ContentRow> _discoveryRows = [];
+  int _homeGeneration = 0, _nextHomeBatch = 1;
+  bool homeBatchLoading = false;
+  String? homeBatchError;
+  bool get hasMoreHome => !state.demoMode && _nextHomeBatch < 6;
+
+  Future<void> loadMoreHome() async {
+    if (!hasMoreHome || homeBatchLoading || state.busy) return;
+    final ticket = _homeGeneration;
+    homeBatchLoading = true;
+    homeBatchError = null;
+    state = state.copyWith();
+    try {
+      final data = await _api.list('/api/discovery?batch=$_nextHomeBatch');
+      if (!ref.mounted || ticket != _homeGeneration) return;
+      _discoveryRows = appendDiscoveryRows(
+        _discoveryRows,
+        parseDiscoveryRows(data),
+      );
+      _nextHomeBatch++;
+    } catch (e) {
+      if (ref.mounted && ticket == _homeGeneration) {
+        homeBatchError = readableApiError(e);
+      }
+    } finally {
+      if (ref.mounted && ticket == _homeGeneration) {
+        homeBatchLoading = false;
+        state = state.copyWith();
+      }
+    }
+  }
+
   final _providerCache = <String, Map<int, String>>{};
   int _countryRequest = 0, _searchRequest = 0;
   List<TvProgram> _liveTv = [];
@@ -321,7 +354,7 @@ class AppController extends Notifier<AppState> {
           ),
         ].where((r) => r.items.isNotEmpty).toList();
 
-  Future<void> refreshLive() async {
+  Future<void> refreshLive({Map<String, dynamic>? restoredSettings}) async {
     if (state.busy) return;
     if (state.demoMode) {
       recommendationsPending = false;
@@ -329,8 +362,13 @@ class AppController extends Notifier<AppState> {
       return;
     }
     state = state.copyWith(busy: true, clearError: true);
+    final ticket = ++_homeGeneration;
+    _nextHomeBatch = 1;
+    homeBatchLoading = false;
+    homeBatchError = null;
     try {
-      final settings = await _api.settings();
+      final settings = restoredSettings ?? await _api.settings();
+      if (!ref.mounted || ticket != _homeGeneration) return;
       final profile = settings['profile'] as Map;
       state = state.copyWith(
         displayName: ((settings['user'] as Map?)?['name'] as String? ?? '')
@@ -347,6 +385,7 @@ class AppController extends Notifier<AppState> {
         ].map(_api.list),
       );
       final providers = lists[0];
+      if (!ref.mounted || ticket != _homeGeneration) return;
       _liveProviders = {
         for (final p in providers) p['id'] as int: p['name'] as String,
       };
@@ -398,7 +437,7 @@ class AppController extends Notifier<AppState> {
       List<Map<String, dynamic>> shelves = [];
       // Old deployments remain usable during a rolling backend/mobile upgrade.
       try {
-        shelves = await _api.list('/api/discovery');
+        shelves = await _api.list('/api/discovery?batch=0');
       } catch (_) {
         /* Fall back to the existing endpoint. */
       }
@@ -411,6 +450,7 @@ class AppController extends Notifier<AppState> {
                   ),
                 )
                 .toList();
+      if (!ref.mounted || ticket != _homeGeneration) return;
       _discoveryRows = shelves
           .map(
             (r) => ContentRow(
@@ -439,6 +479,9 @@ class AppController extends Notifier<AppState> {
       for (var i = 0; i < _ranked.length; i++) {
         _reasons[_ranked[i].key] = ranked[i]['reason'] as String;
       }
+      // Publish Home now; library artwork and TV are not startup dependencies.
+      _liveCatalog = [..._ranked];
+      state = state.copyWith(busy: false);
       final library = await Future.wait(
         [...saved, ...history].take(30).map((r) async {
           try {
@@ -451,6 +494,7 @@ class AppController extends Notifier<AppState> {
           }
         }),
       );
+      if (!ref.mounted || ticket != _homeGeneration) return;
       _liveCatalog = {
         for (final r in [...saved, ...history])
           '${r['mediaType']}:${r['tmdbId']}': ContentItem.fromJson({
@@ -468,6 +512,7 @@ class AppController extends Notifier<AppState> {
       final tv = await _api
           .list('/api/tv/upcoming')
           .catchError((_) => <Map<String, dynamic>>[]);
+      if (!ref.mounted || ticket != _homeGeneration) return;
       _liveTv = tv
           .map(
             (i) => TvProgram(
@@ -479,13 +524,14 @@ class AppController extends Notifier<AppState> {
             ),
           )
           .toList();
-      state = state.copyWith(busy: false);
+      state = state.copyWith();
     } catch (error) {
+      if (!ref.mounted || ticket != _homeGeneration) return;
       state = state.copyWith(busy: false, error: readableApiError(error));
     }
   }
 
-  Future<bool> restoreSession() async {
+  Future<bool> restoreSession({bool background = false}) async {
     try {
       if (!await _api.hasStoredSession()) return false;
       // Validate with the server before exposing authenticated state.
@@ -498,7 +544,11 @@ class AppController extends Notifier<AppState> {
         onboardingComplete:
             (settings['profile'] as Map)['onboardingComplete'] as bool,
       );
-      await refreshLive();
+      if (background) {
+        unawaited(refreshLive(restoredSettings: settings));
+      } else {
+        await refreshLive(restoredSettings: settings);
+      }
       return true;
     } catch (_) {
       return false;
@@ -1230,6 +1280,10 @@ class AppController extends Notifier<AppState> {
   }
 
   void _clearViewerCache() {
+    _homeGeneration++;
+    _nextHomeBatch = 1;
+    homeBatchLoading = false;
+    homeBatchError = null;
     _discoveryRows = [];
     _countryRequest++;
     _searchRequest++;

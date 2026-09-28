@@ -9,6 +9,15 @@ const catalog=createTmdbRepository();
 const state={country:"RO",timezone:"Europe/Bucharest",ownedProviderIds:[8,119,1899],taste:[],watchedIds:new Set<number>(),watchlistIds:new Set<number>(),watchedKeys:new Set<string>(),watchlistKeys:new Set<string>(),ratedKeys:new Set<string>(),rejectedKeys:new Set<string>(),recentlyShown:new Map<string,number>(),wantHints:[],seenHints:[],behaviorPersonalization:true,favorites:[],saved:[]};
 try {
   assert.equal(catalog.mode,"live");
+  let totalRows=0;const uniqueTitles=new Set<string>();
+  for(let batch=0;batch<6;batch++) {
+    const start=Date.now();const rows=await discoverHome(catalog,state,"synthetic-batch-check",{},batch);
+    totalRows+=rows.length;
+    for(const row of rows)for(const {item} of row.items)uniqueTitles.add(`${item.mediaType}:${item.id}`);
+    assert.ok(rows.every(r=>r.items.every(({item:i})=>i.availability.some(a=>a.owned&&a.access==="included"))));
+    console.log(JSON.stringify({batch,rows:rows.length,titles:rows.map(r=>r.title),milliseconds:Date.now()-start}));
+  }
+  assert.ok(totalRows>10);console.log(JSON.stringify({totalRows,uniqueTitles:uniqueTitles.size}));
   for(const filter of [{mediaType:"movie" as const,minRuntimeMinutes:60,maxRuntimeMinutes:90},{mediaType:"series" as const}]) {
     const start=Date.now();
     const rows=await discoverHome(catalog,state,"synthetic-shelves-check",filter);
