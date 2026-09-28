@@ -2,6 +2,8 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 
+import 'nex_mark.dart';
+
 /// An editorial intermission, not a made-up percentage or timer promise.
 class PreparationScreen extends StatefulWidget {
   const PreparationScreen({super.key, required this.phase});
@@ -42,6 +44,8 @@ class _PreparationScreenState extends State<PreparationScreen> {
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
+                  const NexMark(size: 48),
+                  const SizedBox(height: 12),
                   Text(
                     'NEX  /  OPENING NIGHT',
                     style: Theme.of(context).textTheme.labelLarge

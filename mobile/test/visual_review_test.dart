@@ -23,6 +23,7 @@ import 'package:nex/src/screens/library_screen.dart';
 import 'package:nex/src/screens/detail_screen.dart';
 import 'package:nex/src/state/app_controller.dart';
 import 'package:nex/src/widgets/preparation_screen.dart';
+import 'package:nex/src/widgets/delete_account_sheet.dart';
 
 class VisualBinding extends LiveTestWidgetsFlutterBinding {
   @override
@@ -133,6 +134,13 @@ void main() {
         for (final path in routes.keys) {
           router.go(path);
           await capture(path == '/' ? 'auth' : path.substring(1));
+          if (path == '/') {
+            await tester.ensureVisible(
+              find.text('New here? Create an account'),
+            );
+            await tester.tap(find.text('New here? Create an account'));
+            await capture('register');
+          }
           if (path == '/onboarding') {
             for (var step = 2; step <= 6; step++) {
               await tester.tap(find.text('Continue'));
@@ -144,6 +152,16 @@ void main() {
             await capture('country-selector');
             expect(find.text('Romania'), findsWidgets);
             Navigator.of(tester.element(find.text('Romania').last)).pop();
+            await tester.pump(const Duration(milliseconds: 400));
+            showModalBottomSheet<void>(
+              context: tester.element(find.byType(SettingsScreen)),
+              isScrollControlled: true,
+              useSafeArea: true,
+              builder: (_) =>
+                  DeleteAccountSheet(controller: controller, demo: false),
+            );
+            await capture('delete-account');
+            Navigator.of(tester.element(find.text('Keep my account'))).pop();
             await tester.pump(const Duration(milliseconds: 400));
           }
           if (path == '/home') {

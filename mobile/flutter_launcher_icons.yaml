@@ -1,0 +1,13 @@
+flutter_launcher_icons:
+  android: true
+  ios: true
+  image_path: assets/branding/nex-icon.png
+  remove_alpha_ios: true
+  adaptive_icon_background: '#681C32'
+  adaptive_icon_foreground: assets/branding/nex-icon.png
+  adaptive_icon_foreground_inset: 12
+  web:
+    generate: true
+    image_path: assets/branding/nex-icon.png
+    background_color: '#090A0C'
+    theme_color: '#681C32'

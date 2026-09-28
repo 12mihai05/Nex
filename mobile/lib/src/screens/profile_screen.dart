@@ -29,7 +29,11 @@ class ProfileScreen extends ConsumerWidget {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(
-                          state.demoMode ? 'Demo viewer' : 'Nex viewer',
+                          state.demoMode
+                              ? 'Demo viewer'
+                              : (state.displayName.isNotEmpty
+                                    ? state.displayName
+                                    : 'Your profile'),
                           style: Theme.of(context).textTheme.titleLarge,
                         ),
                         Text(

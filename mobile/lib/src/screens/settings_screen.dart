@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 
 import '../state/app_controller.dart';
 import '../data/countries.dart';
+import '../widgets/delete_account_sheet.dart';
 
 class SettingsScreen extends ConsumerWidget {
   const SettingsScreen({super.key});
@@ -138,15 +139,18 @@ class SettingsScreen extends ConsumerWidget {
                     ),
                   ),
                   onTap: () async {
-                    final yes = await _confirm(
-                      context,
-                      'Delete this account?',
-                      'This permanently deletes your Nex data.',
+                    final deleted = await showModalBottomSheet<bool>(
+                      context: context,
+                      isScrollControlled: true,
+                      isDismissible: false,
+                      enableDrag: false,
+                      useSafeArea: true,
+                      builder: (_) => DeleteAccountSheet(
+                        controller: controller,
+                        demo: state.demoMode,
+                      ),
                     );
-                    if (yes == true) {
-                      await controller.deleteAccount();
-                      if (context.mounted) context.go('/');
-                    }
+                    if (deleted == true && context.mounted) context.go('/');
                   },
                 ),
               ],

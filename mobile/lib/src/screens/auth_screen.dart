@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 import '../core/theme.dart';
 import '../state/app_controller.dart';
 import '../widgets/preparation_screen.dart';
+import '../widgets/nex_mark.dart';
 
 class AuthScreen extends ConsumerStatefulWidget {
   const AuthScreen({super.key});
@@ -19,6 +20,7 @@ class _AuthScreenState extends ConsumerState<AuthScreen> {
       invite = TextEditingController();
   var create = false;
   bool restoring = true;
+  bool showPassword = false, showInvite = false;
   @override
   void initState() {
     super.initState();
@@ -92,31 +94,30 @@ class _AuthScreenState extends ConsumerState<AuthScreen> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
-                      Text(
-                        'Nex',
-                        style: TextStyle(
-                          color: Theme.of(context).colorScheme.onSurface,
-                          fontSize: 34,
-                          fontWeight: FontWeight.w800,
-                          letterSpacing: -1.5,
-                        ),
+                      Row(
+                        children: [
+                          const NexMark(size: 46),
+                          const SizedBox(width: 10),
+                          Text(
+                            'Nex',
+                            style: TextStyle(
+                              color: Theme.of(context).colorScheme.onSurface,
+                              fontSize: 34,
+                              fontWeight: FontWeight.w800,
+                              letterSpacing: -1.5,
+                            ),
+                          ),
+                        ],
                       ),
-                      const SizedBox(height: 58),
+                      const SizedBox(height: 28),
                       Text(
-                        'Your next great watch,\nwithout the hunt.',
-                        style: Theme.of(context).textTheme.displayLarge
+                        create ? 'Make Nex yours.' : 'Welcome back.',
+                        style: Theme.of(context).textTheme.displaySmall
                             ?.copyWith(
                               color: Theme.of(context).colorScheme.onSurface,
                             ),
                       ),
-                      const SizedBox(height: 14),
-                      Text(
-                        'Streaming, Romanian TV and recommendations that understand what you mean.',
-                        style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                          color: Theme.of(context).colorScheme.onSurfaceVariant,
-                        ),
-                      ),
-                      const SizedBox(height: 38),
+                      const SizedBox(height: 28),
                       if (create) ...[
                         TextField(
                           controller: name,
@@ -134,18 +135,46 @@ class _AuthScreenState extends ConsumerState<AuthScreen> {
                       const SizedBox(height: 12),
                       TextField(
                         controller: password,
-                        obscureText: true,
-                        decoration: const InputDecoration(
+                        obscureText: !showPassword,
+                        autocorrect: false,
+                        enableSuggestions: false,
+                        decoration: InputDecoration(
                           labelText: 'Password',
+                          suffixIcon: IconButton(
+                            tooltip: showPassword
+                                ? 'Hide password'
+                                : 'Show password',
+                            onPressed: () =>
+                                setState(() => showPassword = !showPassword),
+                            icon: Icon(
+                              showPassword
+                                  ? Icons.visibility_off_outlined
+                                  : Icons.visibility_outlined,
+                            ),
+                          ),
                         ),
                       ),
                       if (create) ...[
                         const SizedBox(height: 12),
                         TextField(
                           controller: invite,
-                          obscureText: true,
-                          decoration: const InputDecoration(
+                          obscureText: !showInvite,
+                          autocorrect: false,
+                          enableSuggestions: false,
+                          decoration: InputDecoration(
                             labelText: 'Private invite code',
+                            suffixIcon: IconButton(
+                              tooltip: showInvite
+                                  ? 'Hide invite code'
+                                  : 'Show invite code',
+                              onPressed: () =>
+                                  setState(() => showInvite = !showInvite),
+                              icon: Icon(
+                                showInvite
+                                    ? Icons.visibility_off_outlined
+                                    : Icons.visibility_outlined,
+                              ),
+                            ),
                           ),
                         ),
                       ],
@@ -196,7 +225,11 @@ class _AuthScreenState extends ConsumerState<AuthScreen> {
                               ),
                       ),
                       TextButton(
-                        onPressed: () => setState(() => create = !create),
+                        onPressed: () => setState(() {
+                          create = !create;
+                          showPassword = false;
+                          showInvite = false;
+                        }),
                         child: Text(
                           create
                               ? 'Already have an account? Sign in'
@@ -236,15 +269,6 @@ class _AuthScreenState extends ConsumerState<AuthScreen> {
                         },
                         icon: const Icon(Icons.play_circle_outline),
                         label: const Text('Explore demo mode'),
-                      ),
-                      const SizedBox(height: 12),
-                      Text(
-                        'Demo mode keeps all data on this device and never uses paid services.',
-                        textAlign: TextAlign.center,
-                        style: TextStyle(
-                          color: Theme.of(context).colorScheme.onSurfaceVariant,
-                          fontSize: 12,
-                        ),
                       ),
                     ],
                   ),

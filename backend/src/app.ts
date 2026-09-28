@@ -199,7 +199,10 @@ app.get("/api/tv/upcoming", async (c) => {
   return c.json({ data: await epg.listWindow(now, new Date(now.getTime() + hours * 3_600_000),country,c.get("authSession").user.id), meta: { country, coverage:country==="MD"?"limited":"source-dependent", sync: await epg.status(country) } });
 });
 
-app.get("/api/me/settings", async (c) => c.json({ data: await users.getSettings(c.get("authSession").user.id) }));
+app.get("/api/me/settings", async (c) => {
+  const viewer = c.get("authSession").user;
+  return c.json({ data: { ...await users.getSettings(viewer.id), user: { name: viewer.name } } });
+});
 app.put("/api/me/settings", async (c) => {
   const body = settingsBodySchema.parse(await c.req.json()); const userId = c.get("authSession").user.id;
   const { services, audioLanguages, subtitleLanguages, preferOriginal, ...profile } = body;

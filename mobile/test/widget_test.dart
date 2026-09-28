@@ -12,7 +12,7 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.text('Nex'), findsOneWidget);
     expect(
-      find.text('Your next great watch,\nwithout the hunt.'),
+      find.text('Welcome back.'),
       findsOneWidget,
     );
     await tester.ensureVisible(find.text('Explore demo mode'));

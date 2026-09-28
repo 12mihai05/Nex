@@ -86,8 +86,11 @@ class NexApiClient {
     }
   }
 
-  Future<void> deleteAccount() async {
-    await _dio.post<void>('/api/auth/delete-user', data: <String, dynamic>{});
+  Future<void> deleteAccount({String? password}) async {
+    await _dio.post<void>(
+      '/api/auth/delete-user',
+      data: <String, dynamic>{'password': ?password},
+    );
     await _storage.delete(key: _tokenKey);
   }
 
@@ -243,6 +246,12 @@ String readableApiError(Object error) {
     if (body is Map && body['error'] is Map) {
       return (body['error']['message'] as String?) ??
           'Nex could not complete that request.';
+    }
+    if (body is Map && body['code'] == 'INVALID_PASSWORD') {
+      return 'That password is incorrect. Your account has not been deleted.';
+    }
+    if (body is Map && body['code'] == 'SESSION_EXPIRED') {
+      return 'Please confirm your current password or sign in again to delete your account.';
     }
     if (error.type == DioExceptionType.connectionError ||
         error.type == DioExceptionType.connectionTimeout) {

@@ -21,6 +21,7 @@ class AppState {
     this.error,
     this.appearance = ThemeMode.system,
     this.country = 'RO',
+    this.displayName = '',
     this.providers = const {8, 1899, 119},
     this.audioLanguages = const {'original', 'en'},
     this.subtitleLanguages = const {'ro', 'en'},
@@ -44,7 +45,7 @@ class AppState {
       behaviorPersonalization;
   final String? error, chatSessionId;
   final ThemeMode appearance;
-  final String country, tasteDescription;
+  final String country, tasteDescription, displayName;
   final Set<int> providers, favoriteIds;
   final Set<String> audioLanguages,
       subtitleLanguages,
@@ -68,6 +69,7 @@ class AppState {
     bool clearError = false,
     ThemeMode? appearance,
     String? country,
+    String? displayName,
     Set<int>? providers,
     Set<String>? audioLanguages,
     Set<String>? subtitleLanguages,
@@ -93,6 +95,7 @@ class AppState {
     error: clearError ? null : error ?? this.error,
     appearance: appearance ?? this.appearance,
     country: country ?? this.country,
+    displayName: displayName ?? this.displayName,
     providers: providers ?? this.providers,
     audioLanguages: audioLanguages ?? this.audioLanguages,
     subtitleLanguages: subtitleLanguages ?? this.subtitleLanguages,
@@ -116,6 +119,7 @@ final appControllerProvider = NotifierProvider<AppController, AppState>(
 final nexApiClientProvider = Provider<NexApiClient>((ref) => NexApiClient());
 
 class AppController extends Notifier<AppState> {
+  bool get isAuthenticated => state.authenticated;
   late final NexApiClient _api;
   @override
   AppState build() {
@@ -324,6 +328,10 @@ class AppController extends Notifier<AppState> {
     try {
       final settings = await _api.settings();
       final profile = settings['profile'] as Map;
+      state = state.copyWith(
+        displayName: ((settings['user'] as Map?)?['name'] as String? ?? '')
+            .trim(),
+      );
       final lists = await Future.wait(
         [
           '/api/providers',
@@ -481,6 +489,8 @@ class AppController extends Notifier<AppState> {
       state = state.copyWith(
         authenticated: true,
         demoMode: false,
+        displayName: ((settings['user'] as Map?)?['name'] as String? ?? '')
+            .trim(),
         onboardingComplete:
             (settings['profile'] as Map)['onboardingComplete'] as bool,
       );
@@ -1169,12 +1179,16 @@ class AppController extends Notifier<AppState> {
     state = const AppState();
   }
 
-  Future<void> deleteAccount() async {
-    if (!state.demoMode) await _api.deleteAccount();
-    await NotificationService.instance.cancelAll();
-    _reminders.clear();
-    _clearViewerCache();
-    state = const AppState();
+  Future<void> deleteAccount({String? password}) async {
+    if (!state.demoMode) await _api.deleteAccount(password: password);
+    try {
+      await NotificationService.instance.cancelAll();
+    } finally {
+      // Remote deletion is final even if a device notification plugin fails.
+      _reminders.clear();
+      _clearViewerCache();
+      state = const AppState();
+    }
   }
 
   void _clearViewerCache() {

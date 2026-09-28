@@ -8,6 +8,7 @@ import '../data/taste_options.dart';
 import '../state/app_controller.dart';
 import '../widgets/artwork.dart';
 import '../widgets/preparation_screen.dart';
+import '../widgets/nex_mark.dart';
 import '../data/api_client.dart';
 
 class OnboardingScreen extends ConsumerStatefulWidget {
@@ -248,6 +249,8 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
               padding: const EdgeInsets.fromLTRB(20, 12, 20, 4),
               child: Row(
                 children: [
+                  const NexMark(size: 28),
+                  const SizedBox(width: 8),
                   Text('Nex', style: Theme.of(context).textTheme.titleLarge),
                   const Spacer(),
                   Text(

@@ -77,6 +77,8 @@ it("renews a signed device session and invalidates it on logout", () => {
     const token = signup.headers.get("set-auth-token");
     assert.ok(token);
     const headers = { Authorization: "Bearer " + token };
+    const settings = await app.request("http://localhost:8787/api/me/settings", { headers });
+    assert.equal((await settings.json()).data.user.name, "Session test");
     const initial = (await db.select().from(session))[0];
     assert.ok(initial.expiresAt.getTime() - Date.now() > 364 * 86400000);
     // Simulate an active device coming back after the refresh interval.
@@ -91,6 +93,15 @@ it("renews a signed device session and invalidates it on logout", () => {
     const logout = await request("sign-out", "POST", headers, {});
     assert.equal(logout.status, 200);
     assert.equal(await (await request("get-session", "GET", headers)).json(), null);
+    const login = await request("sign-in/email", "POST", {}, { email: "session@example.test", password: "test-only-password-12345" });
+    assert.equal(login.status, 200);
+    const deletionHeaders = { Authorization: "Bearer " + login.headers.get("set-auth-token") };
+    await db.update(session).set({ createdAt: new Date(Date.now() - 2 * 86400000) });
+    assert.equal((await request("delete-user", "POST", deletionHeaders, {})).status, 400);
+    assert.equal((await request("delete-user", "POST", deletionHeaders, { password: "incorrect-test-password" })).status, 400);
+    assert.ok((await (await request("get-session", "GET", deletionHeaders)).json()).user);
+    assert.equal((await request("delete-user", "POST", deletionHeaders, { password: "test-only-password-12345" })).status, 200);
+    assert.equal(await (await request("get-session", "GET", deletionHeaders)).json(), null);
     await closeDatabase();
   `, ":memory:");
   // Never dump auth responses or tokens on failure.
