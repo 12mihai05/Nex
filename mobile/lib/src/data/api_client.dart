@@ -11,7 +11,12 @@ class NexApiClient {
         baseUrl: baseUrl,
         connectTimeout: const Duration(seconds: 10),
         receiveTimeout: const Duration(seconds: 120),
-        headers: {'Accept': 'application/json'},
+        // Native clients do not add Origin automatically. Better Auth requires
+        // a trusted origin for production credential/session mutations.
+        headers: {
+          'Accept': 'application/json',
+          'Origin': Uri.parse(baseUrl).origin,
+        },
       ),
     );
     _dio.interceptors.add(
