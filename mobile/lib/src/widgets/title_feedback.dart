@@ -13,16 +13,7 @@ class TitleFeedback extends ConsumerStatefulWidget {
 }
 
 class _TitleFeedbackState extends ConsumerState<TitleFeedback> {
-  bool saving = false;
-  Future<void> save(Future<void> Function() action) async {
-    if (saving) return;
-    setState(() => saving = true);
-    try {
-      await action();
-    } finally {
-      if (mounted) setState(() => saving = false);
-    }
-  }
+  Future<void> save(Future<void> Function() action) => action();
 
   @override
   Widget build(BuildContext context) {
@@ -41,13 +32,11 @@ class _TitleFeedbackState extends ConsumerState<TitleFeedback> {
             size: 18,
           ),
           selected: seen,
-          onSelected: saving
-              ? null
-              : (value) => save(
-                  () => value
-                      ? controller.markWatched(item)
-                      : controller.removeWatched(item),
-                ),
+          onSelected: (value) => save(
+            () => value
+                ? controller.markWatched(item)
+                : controller.removeWatched(item),
+          ),
         ),
         const SizedBox(height: 6),
         Text(
@@ -70,31 +59,21 @@ class _TitleFeedbackState extends ConsumerState<TitleFeedback> {
               ChoiceChip(
                 label: Text(entry.value),
                 selected: reaction == entry.key,
-                onSelected: saving
-                    ? null
-                    : (selected) => save(
-                        () =>
-                            controller.react(item, selected ? entry.key : null),
-                      ),
+                onSelected: (selected) => save(
+                  () => controller.react(item, selected ? entry.key : null),
+                ),
               ),
           ],
         ),
         if (reaction != null)
           TextButton(
-            onPressed: saving
-                ? null
-                : () => save(() => controller.react(item, null)),
+            onPressed: () => save(() => controller.react(item, null)),
             child: const Text('Clear opinion'),
           ),
         if (state.error != null)
           Text(
             state.error!,
             style: TextStyle(color: Theme.of(context).colorScheme.error),
-          ),
-        if (saving)
-          const Padding(
-            padding: EdgeInsets.only(top: 8),
-            child: Text('Saving…'),
           ),
       ],
     );

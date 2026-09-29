@@ -61,6 +61,21 @@ try {
     assert.equal(Date.parse(record.startsAt)-Date.parse(record.notifyAt),17*60000);
     console.log(JSON.stringify({customReminderMinutes:17,persistedAndTimeVerified:true}));
   } else {console.log('Custom reminder live test skipped: no future EPG programme in the window.');}
+  const titleAction={tmdbId:336843,mediaType:"movie",title:"Maze Runner: The Death Cure"};
+  for(const [path,method,body,expected] of [
+    ['/api/me/watchlist','POST',titleAction,201],
+    ['/api/me/history','POST',titleAction,201],
+    ['/api/me/feedback','PUT',{...titleAction,reaction:'like'},200],
+  ] as const) {
+    const start=Date.now();assert.equal((await request(path,method,body)).status,expected);
+    console.log(JSON.stringify({titleAction:path,milliseconds:Date.now()-start,saved:true}));
+  }
+  for(const path of ['/api/me/watchlist','/api/me/history','/api/me/feedback']) {
+    const response=await request(path);assert.equal(response.status,200);
+    const payload=await response.json() as {data:Array<{tmdbId:number;mediaType:string}>};
+    assert.ok(payload.data.some(i=>i.tmdbId===336843&&i.mediaType==='movie'));
+  }
+  console.log(JSON.stringify({titleFlagsPersisted:true}));
   const search=await request("/api/search?q=The%20Truman%20Show&mode=onboarding");
   assert.equal(search.status,200);
   const titles=await search.json() as {data:Array<{title:string;metadataOnly:boolean}>};

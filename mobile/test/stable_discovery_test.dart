@@ -141,6 +141,8 @@ void main() {
     expect(api.recommendations, 1);
     expect(controller.browseHero?.id, 101);
     await controller.react(items[0], 'dislike');
+    // Taste summaries refresh independently after the durable save.
+    await Future<void>.delayed(Duration.zero);
     expect(controller.tasteLikes, contains('underdog'));
     expect(controller.browseHero?.id, 102);
     expect(api.recommendations, 1);

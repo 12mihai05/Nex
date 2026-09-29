@@ -197,19 +197,29 @@ class AppController extends Notifier<AppState> {
   }
 
   Future<void> _refreshTasteAfterMutation() async {
+    final epoch = _mutationEpoch;
+    final revision = ++_tasteRevision;
     recommendationsPending = true;
     if (!state.demoMode) {
       try {
-        _taste = await _api.list('/api/me/taste');
+        final taste = await _api.list('/api/me/taste');
+        if (!ref.mounted ||
+            epoch != _mutationEpoch ||
+            revision != _tasteRevision) {
+          return;
+        }
+        _taste = taste;
       } catch (_) {
         /* Saved flags remain authoritative; retry stats on refresh. */
       }
     }
-    state = state.copyWith();
+    if (ref.mounted && epoch == _mutationEpoch) state = state.copyWith();
   }
 
   Future<void> refreshPersonalState() async {
     if (state.demoMode) return;
+    await Future.wait(_titleWrites.values.toList());
+    if (!ref.mounted || !state.authenticated) return;
     final lists = await Future.wait(
       [
         '/api/me/watchlist',
@@ -699,43 +709,111 @@ class AppController extends Notifier<AppState> {
     }
   }
 
-  Future<void> toggleWatchlist(ContentItem item) async {
-    if (!_pendingWatchlist.add(item.key)) return;
-    final adding = !state.watchlist.contains(item.key);
-    try {
-      if (!state.demoMode && adding) {
-        await _api.saveWatchlist(item);
-      } else if (!state.demoMode) {
-        await _api.removeWatchlist(item);
-      }
-      _rememberTitle(item);
-      final next = {...state.watchlist};
-      if (adding) {
-        next.add(item.key);
-      } else {
-        next.remove(item.key);
-      }
-      state = state.copyWith(watchlist: next, clearError: true);
-      await _refreshTasteAfterMutation();
-    } catch (error) {
-      state = state.copyWith(error: readableApiError(error));
-    } finally {
-      _pendingWatchlist.remove(item.key);
+  int _mutationEpoch = 0, _mutationRevision = 0, _tasteRevision = 0;
+  final _titleWrites = <String, Future<void>>{};
+  final _titleVersions = <String, int>{};
+  final _confirmedTitleValues = <String, Object?>{};
+
+  Future<void> _saveTitleChange({
+    required String key,
+    required Object? previous,
+    required Object? desired,
+    required void Function(Object?) apply,
+    required Future<void> Function() persist,
+  }) {
+    final epoch = _mutationEpoch;
+    final revision = ++_mutationRevision;
+    _titleVersions[key] = revision;
+    if (!_confirmedTitleValues.containsKey(key)) {
+      _confirmedTitleValues[key] = previous;
     }
+    apply(desired);
+    state = state.copyWith(clearError: true);
+    final predecessor = _titleWrites[key] ?? Future<void>.value();
+    late final Future<void> operation;
+    operation = () async {
+      await predecessor;
+      if (!ref.mounted || epoch != _mutationEpoch) return;
+      try {
+        await persist();
+        if (!ref.mounted || epoch != _mutationEpoch) return;
+        _confirmedTitleValues[key] = desired;
+        recommendationsPending = true;
+        unawaited(_refreshTasteAfterMutation());
+      } catch (error) {
+        if (!ref.mounted || epoch != _mutationEpoch) return;
+        if (_titleVersions[key] == revision) {
+          apply(_confirmedTitleValues[key]);
+          state = state.copyWith(error: readableApiError(error));
+        }
+      } finally {
+        if (ref.mounted &&
+            epoch == _mutationEpoch &&
+            identical(_titleWrites[key], operation)) {
+          _titleWrites.remove(key);
+          _confirmedTitleValues.remove(key);
+          _titleVersions.remove(key);
+        }
+      }
+    }();
+    _titleWrites[key] = operation;
+    return operation;
   }
 
-  final _pendingWatchlist = <String>{};
+  Future<void> toggleWatchlist(ContentItem item) {
+    _rememberTitle(item);
+    final previous = state.watchlist.contains(item.key);
+    final desired = !previous;
+    return _saveTitleChange(
+      key: 'watchlist:${item.key}',
+      previous: previous,
+      desired: desired,
+      apply: (value) {
+        final next = {...state.watchlist};
+        if (value == true) {
+          next.add(item.key);
+        } else {
+          next.remove(item.key);
+        }
+        state = state.copyWith(watchlist: next);
+      },
+      persist: () async {
+        if (state.demoMode) return;
+        if (desired) {
+          await _api.saveWatchlist(item);
+        } else {
+          await _api.removeWatchlist(item);
+        }
+      },
+    );
+  }
 
-  Future<void> markWatched(ContentItem item) async {
-    state = state.copyWith(clearError: true);
-    try {
-      if (!state.demoMode) await _api.markWatched(item);
-      _rememberTitle(item);
-      state = state.copyWith(watched: {...state.watched, item.key});
-      await _refreshTasteAfterMutation();
-    } catch (error) {
-      state = state.copyWith(error: readableApiError(error));
-    }
+  Future<void> markWatched(ContentItem item) => _setWatched(item, true);
+  Future<void> removeWatched(ContentItem item) => _setWatched(item, false);
+  Future<void> _setWatched(ContentItem item, bool desired) {
+    _rememberTitle(item);
+    return _saveTitleChange(
+      key: 'seen:${item.key}',
+      previous: state.watched.contains(item.key),
+      desired: desired,
+      apply: (value) {
+        final next = {...state.watched};
+        if (value == true) {
+          next.add(item.key);
+        } else {
+          next.remove(item.key);
+        }
+        state = state.copyWith(watched: next);
+      },
+      persist: () async {
+        if (state.demoMode) return;
+        if (desired) {
+          await _api.markWatched(item);
+        } else {
+          await _api.removeWatched(item);
+        }
+      },
+    );
   }
 
   void _rememberTitle(ContentItem item) {
@@ -744,39 +822,30 @@ class AppController extends Notifier<AppState> {
     }.values.toList();
   }
 
-  Future<void> removeWatched(ContentItem item) async {
-    state = state.copyWith(clearError: true);
-    try {
-      if (!state.demoMode) await _api.removeWatched(item);
-      state = state.copyWith(watched: {...state.watched}..remove(item.key));
-      await _refreshTasteAfterMutation();
-    } catch (error) {
-      state = state.copyWith(error: readableApiError(error));
-    }
-  }
-
-  Future<void> react(ContentItem item, String? reaction) async {
-    state = state.copyWith(clearError: true);
-    try {
-      if (!state.demoMode) {
+  Future<void> react(ContentItem item, String? reaction) {
+    _rememberTitle(item);
+    return _saveTitleChange(
+      key: 'opinion:${item.key}',
+      previous: state.reactions[item.key],
+      desired: reaction,
+      apply: (value) {
+        final next = {...state.reactions};
+        if (value == null) {
+          next.remove(item.key);
+        } else {
+          next[item.key] = value as String;
+        }
+        state = state.copyWith(reactions: next);
+      },
+      persist: () async {
+        if (state.demoMode) return;
         if (reaction == null) {
           await _api.clearReaction(item);
         } else {
           await _api.react(item, reaction);
         }
-      }
-      _rememberTitle(item);
-      final next = {...state.reactions};
-      if (reaction == null) {
-        next.remove(item.key);
-      } else {
-        next[item.key] = reaction;
-      }
-      state = state.copyWith(reactions: next);
-      await _refreshTasteAfterMutation();
-    } catch (error) {
-      state = state.copyWith(error: readableApiError(error));
-    }
+      },
+    );
   }
 
   Future<void> sendChat(String text) async {
@@ -900,6 +969,8 @@ class AppController extends Notifier<AppState> {
       return;
     }
     try {
+      await Future.wait(_titleWrites.values.toList());
+      if (!ref.mounted || !state.authenticated) return;
       final response = await _api.chat(text, sessionId: state.chatSessionId);
       final blocks = <NexChatBlock>[];
       for (final raw in (response['blocks'] as List? ?? [])) {
@@ -1066,6 +1137,10 @@ class AppController extends Notifier<AppState> {
         mood: mood,
         excluded: excluded,
       );
+    }
+    await Future.wait(_titleWrites.values.toList());
+    if (!ref.mounted || !state.authenticated) {
+      throw StateError('Sign in to continue.');
     }
     final result = await _api.surprise(
       maxMinutes: maxMinutes,
@@ -1280,6 +1355,10 @@ class AppController extends Notifier<AppState> {
   }
 
   void _clearViewerCache() {
+    _mutationEpoch++;
+    _titleWrites.clear();
+    _titleVersions.clear();
+    _confirmedTitleValues.clear();
     _homeGeneration++;
     _nextHomeBatch = 1;
     homeBatchLoading = false;
