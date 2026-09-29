@@ -35,7 +35,7 @@ void showChatHelp(BuildContext context) => showModalBottomSheet<void>(
         const _HelpItem(
           Icons.tune_rounded,
           'Update your taste',
-          'Tell me lasting likes and dislikes: “I generally love underdog stories, but dislike gore.” Wishes just for tonight stay temporary.',
+          'Tell me lasting likes and dislikes: “I like mysteries, but dislike graphic violence.” Wishes just for tonight stay temporary.',
         ),
         const _HelpItem(
           Icons.bookmark_border_rounded,

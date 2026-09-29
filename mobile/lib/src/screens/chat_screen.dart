@@ -49,17 +49,53 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     }
   }
 
+  Future<void> clearChat() async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Clear chat?'),
+        content: const Text(
+          'This deletes your chat history and resets the conversation. Your watchlist, Seen titles, ratings, saved taste and reminders stay as they are.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Keep chat'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('Clear chat'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !mounted) return;
+    final cleared = await ref.read(appControllerProvider.notifier).clearChat();
+    if (!mounted) return;
+    if (cleared) input.clear();
+    showNexNotice(
+      context,
+      cleared ? 'Chat cleared' : 'Could not clear chat. Please try again.',
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final state = ref.watch(appControllerProvider);
     return Scaffold(
       appBar: NexTopBar(
         title: 'Ask Nex',
+        showSearch: false,
         extraActions: [
           IconButton(
             tooltip: 'What can Nex do?',
             onPressed: () => showChatHelp(context),
             icon: const Icon(Icons.help_outline_rounded),
+          ),
+          IconButton(
+            tooltip: 'Clear chat',
+            onPressed: state.busy ? null : clearChat,
+            icon: const Icon(Icons.delete_outline_rounded),
           ),
         ],
       ),

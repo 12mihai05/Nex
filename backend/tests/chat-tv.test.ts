@@ -1,9 +1,14 @@
 import {expect,it} from 'vitest';
-import {requestedTvScope} from '../src/services/chat-tv.js';
+import {requestedTvScope,tvFollowup} from '../src/services/chat-tv.js';
 import {chatCapabilityReply} from '../src/services/chat-help.js';
 import {isPersistentPreference} from '../src/services/intent.js';
 const channels=[{id:'pro',name:'Pro TV'},{id:'prohd',name:'Pro TV HD'},{id:'int',name:'Pro TV International'},{id:'antena',name:'Antena 1'}];
 const now=new Date('2026-09-29T09:00:00Z');
+it('recognizes bounded follow-ups without swallowing unrelated movie titles or actions',()=>{
+ for(const text of ['after Observator what will be','what is after Observator?','and after Observator?','după Observator ce urmează?'])expect(tvFollowup(text)).toBe('observator');
+ for(const text of ['and after that?','what comes next?','ce urmează?'])expect(tvFollowup(text)).toBe('');
+ for(const text of ['Recommend The Day After Tomorrow','Add After to my watchlist','What is on ProTV tomorrow at 8pm?'])expect(tvFollowup(text)).toBeNull();
+});
 it('resolves ProTV at 8pm to only that channel and the exact Romania instant',()=>{
  const s=requestedTvScope('what is today at 8pm on protv',channels,'Europe/Bucharest',now)!;
  expect(s).toMatchObject({channelIds:['pro','prohd'],start:new Date('2026-09-29T17:00:00Z'),end:new Date('2026-09-29T17:00:00.001Z')});
@@ -23,4 +28,6 @@ it('capability questions are factual and cannot become taste mutations',()=>{
  expect(isPersistentPreference('If I like horror, could I tell you?')).toBe(false);
  expect(isPersistentPreference('I like underdog stories but dislike gore')).toBe(true);
  expect(isPersistentPreference('I like a thriller tonight')).toBe(false);
+ for(const phrase of ["I don't like Korean movies",'I dont like Korean series','I do not enjoy gore','I don’t like musicals'])expect(isPersistentPreference(phrase)).toBe(true);
+ for(const phrase of ["I don't like horror tonight","If I don't like horror, can you update my taste?"])expect(isPersistentPreference(phrase)).toBe(false);
 });

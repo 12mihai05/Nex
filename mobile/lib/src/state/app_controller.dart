@@ -10,6 +10,7 @@ import '../models/chat_message.dart';
 import '../models/content.dart';
 import '../models/discovery_rows.dart';
 import '../models/tv_program.dart';
+import '../models/taste_label.dart';
 import '../services/notification_service.dart';
 
 class AppState {
@@ -87,6 +88,7 @@ class AppState {
     Map<String, String>? reactions,
     List<ChatMessage>? chatMessages,
     String? chatSessionId,
+    bool clearChatSession = false,
     List<ContentItem>? searchResults,
     Set<String>? reminderProgramIds,
   }) => AppState(
@@ -113,7 +115,9 @@ class AppState {
     watched: watched ?? this.watched,
     reactions: reactions ?? this.reactions,
     chatMessages: chatMessages ?? this.chatMessages,
-    chatSessionId: chatSessionId ?? this.chatSessionId,
+    chatSessionId: clearChatSession
+        ? null
+        : chatSessionId ?? this.chatSessionId,
     searchResults: searchResults ?? this.searchResults,
     reminderProgramIds: reminderProgramIds ?? this.reminderProgramIds,
   );
@@ -258,18 +262,48 @@ class AppController extends Notifier<AppState> {
 
   List<ContentItem> get catalog => state.demoMode ? demoCatalog : _liveCatalog;
   List<TvProgram> get tvPrograms => state.demoMode ? demoTvPrograms() : _liveTv;
-  List<String> get tasteLikes => _taste
+  List<String> get tasteLikes => tasteEntries
       .where((s) => (s['score'] as num) > 0 && (s['confidence'] as num) >= .5)
-      .map((s) => s['key'] as String)
-      .take(12)
+      .map(tasteLabel)
       .toList();
-  List<String> get tasteDislikes => _taste
+  List<String> get tasteDislikes => tasteEntries
       .where((s) => (s['score'] as num) < 0 && (s['confidence'] as num) >= .5)
-      .map((s) => s['key'] as String)
-      .take(12)
+      .map(tasteLabel)
       .toList();
-  List<Map<String, dynamic>> get tasteEntries =>
-      _taste.where((s) => (s['confidence'] as num) >= .35).take(30).toList();
+  List<Map<String, dynamic>> get tasteEntries {
+    final entries = [..._taste];
+    bool direct(Map<String, dynamic> s) => const [
+      'chat_explicit',
+      'explicit_edit',
+      'onboarding_explicit',
+      'onboarding_text',
+    ].contains(s['source']);
+    entries.sort((a, b) {
+      if (direct(a) != direct(b)) return direct(a) ? -1 : 1;
+      final recent = (b['lastEvidenceAt'] ?? b['updatedAt'] ?? '')
+          .toString()
+          .compareTo((a['lastEvidenceAt'] ?? a['updatedAt'] ?? '').toString());
+      return recent != 0
+          ? recent
+          : '${a['dimension']}:${a['key']}'.compareTo(
+              '${b['dimension']}:${b['key']}',
+            );
+    });
+    return entries;
+  }
+
+  Future<void> refreshTasteView() async {
+    if (state.demoMode) return;
+    final epoch = _mutationEpoch;
+    final revision = ++_tasteRevision;
+    final entries = await _api.list('/api/me/taste');
+    if (!ref.mounted || epoch != _mutationEpoch || revision != _tasteRevision) {
+      return;
+    }
+    _taste = entries;
+    state = state.copyWith();
+  }
+
   Future<void> correctTaste(String dimension, String key, double score) async {
     if (state.demoMode) return;
     await _api.saveTasteSignals([
@@ -931,6 +965,26 @@ class AppController extends Notifier<AppState> {
         }
       },
     );
+  }
+
+  Future<bool> clearChat() async {
+    if (state.busy) return false;
+    state = state.copyWith(busy: true, clearError: true);
+    try {
+      if (!state.demoMode) await _api.clearChat();
+      state = state.copyWith(
+        busy: false,
+        chatMessages: [],
+        clearChatSession: true,
+      );
+      return true;
+    } catch (_) {
+      state = state.copyWith(
+        busy: false,
+        error: 'Could not clear chat. Your conversation is unchanged. Please try again.',
+      );
+      return false;
+    }
   }
 
   Future<void> sendChat(String text) async {

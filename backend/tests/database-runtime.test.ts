@@ -65,6 +65,7 @@ it("renews a signed device session and invalidates it on logout", () => {
     const { auth } = await import("./src/auth.ts");
     const { default: app } = await import("./src/app.ts");
     assert.equal((await app.request("http://localhost:8787/api/discovery")).status, 401);
+    assert.equal((await app.request("http://localhost:8787/api/chat", {method:"DELETE"})).status, 401);
     assert.equal((await app.request("http://localhost:8787/api/title/movie/27205/extras")).status, 401);
     assert.equal((await app.request("http://localhost:8787/api/title/series/1396/seasons/1")).status, 401);
     assert.equal((await app.request("http://localhost:8787/api/title/movie/329865/broadcasts")).status, 401);

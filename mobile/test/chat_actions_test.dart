@@ -3,6 +3,10 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:nex/src/screens/chat_screen.dart';
 import 'package:nex/src/state/app_controller.dart';
+import 'package:nex/src/screens/taste_screen.dart';
+import 'package:nex/src/widgets/skeleton.dart';
+
+import 'dart:async';
 
 import 'stable_discovery_test.dart' show MutableApi;
 
@@ -10,6 +14,17 @@ const command = 'Confirm changes 12345678-1234-1234-1234-123456789abc';
 
 class ChatActionsApi extends MutableApi {
   final messages = <String>[];
+  final sessions = <String?>[];
+  bool clearFails = false;
+  int clears = 0;
+  Completer<void>? clearPending;
+  @override
+  Future<void> clearChat() async {
+    clears++;
+    if (clearPending != null) await clearPending!.future;
+    if (clearFails) throw StateError('Unavailable');
+  }
+
   Map<String, dynamic> cards(bool saved) => {
     'type': 'library_changes',
     'status': saved ? 'saved' : 'preview',
@@ -38,6 +53,7 @@ class ChatActionsApi extends MutableApi {
   @override
   Future<Map<String, dynamic>> chat(String message, {String? sessionId}) async {
     messages.add(message);
+    sessions.add(sessionId);
     if (message == command) {
       saved.add(101);
       seen.add(102);
@@ -64,7 +80,221 @@ class ChatActionsApi extends MutableApi {
   }
 }
 
+class TasteChatApi extends ChatActionsApi {
+  bool learned = false;
+  int tasteReads = 0;
+  @override
+  Future<Map<String, dynamic>> chat(String message, {String? sessionId}) async {
+    learned = true;
+    return {
+      'sessionId': 'taste-session',
+      'blocks': [
+        {
+          'type': 'confirmation',
+          'content': 'I’ve saved that as a long-term taste preference.',
+        },
+      ],
+    };
+  }
+
+  @override
+  Future<List<Map<String, dynamic>>> list(String path) async {
+    if (path != '/api/me/taste') return super.list(path);
+    tasteReads++;
+    return [
+      for (var i = 0; i < 40; i++)
+        {
+          'dimension': 'genre',
+          'key': 'inferred $i',
+          'score': -.8,
+          'confidence': .7,
+          'source': 'dislike',
+        },
+      if (learned) ...[
+        {
+          'dimension': 'language',
+          'key': 'ko',
+          'score': -.9,
+          'confidence': .75,
+          'source': 'chat_explicit',
+        },
+        {
+          'dimension': 'keyword',
+          'key': 'kpop',
+          'score': -.9,
+          'confidence': .75,
+          'source': 'chat_explicit',
+        },
+        {
+          'dimension': 'keyword',
+          'key': 'kdrama',
+          'score': -.9,
+          'confidence': .75,
+          'source': 'chat_explicit',
+        },
+      ],
+    ];
+  }
+}
+
+class LoadingTasteApi extends ChatActionsApi {
+  Completer<List<Map<String, dynamic>>>? pendingTaste;
+  @override
+  Future<List<Map<String, dynamic>>> list(String path) {
+    if (path == '/api/me/taste' && pendingTaste != null)
+      return pendingTaste!.future;
+    return super.list(path);
+  }
+}
+
 void main() {
+  testWidgets(
+    'uncached taste shows matching skeletons, retry handles failure',
+    (tester) async {
+      final api = LoadingTasteApi();
+      final container = ProviderContainer(
+        overrides: [nexApiClientProvider.overrideWithValue(api)],
+      );
+      addTearDown(container.dispose);
+      await container.read(appControllerProvider.notifier).restoreSession();
+      api.pendingTaste = Completer<List<Map<String, dynamic>>>();
+      await tester.pumpWidget(
+        UncontrolledProviderScope(
+          container: container,
+          child: const MaterialApp(home: TasteScreen()),
+        ),
+      );
+      await tester.pump();
+      expect(find.byType(NexSkeleton), findsWidgets);
+      api.pendingTaste!.completeError(StateError('Offline'));
+      await tester.pumpAndSettle();
+      expect(find.textContaining('Tap to retry'), findsOneWidget);
+      api.pendingTaste = Completer<List<Map<String, dynamic>>>();
+      await tester.tap(find.textContaining('Tap to retry'));
+      await tester.pump();
+      api.pendingTaste!.complete([
+        {
+          'dimension': 'language',
+          'key': 'ko',
+          'score': -.9,
+          'confidence': .75,
+          'source': 'chat_explicit',
+        },
+      ]);
+      await tester.pumpAndSettle();
+      expect(find.text('Korean-language titles'), findsOneWidget);
+      expect(find.byType(NexSkeleton), findsNothing);
+    },
+  );
+  test('clear chat preserves saved flags, handles failures and blocks concurrent sends', () async {
+    final api = ChatActionsApi();
+    final container = ProviderContainer(
+      overrides: [nexApiClientProvider.overrideWithValue(api)],
+    );
+    addTearDown(container.dispose);
+    final controller = container.read(appControllerProvider.notifier);
+    await controller.restoreSession();
+    await controller.sendChat(command);
+    api.clearFails = true;
+    expect(await controller.clearChat(), false);
+    expect(container.read(appControllerProvider).chatSessionId, 'test-session');
+    expect(container.read(appControllerProvider).chatMessages, isNotEmpty);
+    api.clearFails = false;
+    api.clearPending = Completer<void>();
+    final clearing = controller.clearChat();
+    await controller.sendChat('must not send');
+    expect(api.messages, hasLength(1));
+    api.clearPending!.complete();
+    expect(await clearing, true);
+    final state = container.read(appControllerProvider);
+    expect(state.chatMessages, isEmpty);
+    expect(state.chatSessionId, isNull);
+    expect(state.watchlist, contains('movie:101'));
+    expect(state.watched, contains('movie:102'));
+    await controller.sendChat('New conversation');
+    expect(api.sessions.last, isNull);
+  });
+  testWidgets('clear chat requires confirmation and returns to empty state', (
+    tester,
+  ) async {
+    final api = ChatActionsApi();
+    final container = ProviderContainer(
+      overrides: [nexApiClientProvider.overrideWithValue(api)],
+    );
+    addTearDown(container.dispose);
+    final controller = container.read(appControllerProvider.notifier);
+    await controller.restoreSession();
+    await controller.sendChat('Add Inception');
+    await tester.pumpWidget(
+      UncontrolledProviderScope(
+        container: container,
+        child: const MaterialApp(home: ChatScreen()),
+      ),
+    );
+    await tester.tap(find.byTooltip('Clear chat'));
+    await tester.pumpAndSettle();
+    expect(
+      find.textContaining('saved taste and reminders stay'),
+      findsOneWidget,
+    );
+    await tester.tap(find.text('Keep chat'));
+    await tester.pumpAndSettle();
+    expect(api.clears, 0);
+    await tester.tap(find.byTooltip('Clear chat'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.widgetWithText(FilledButton, 'Clear chat'));
+    await tester.pumpAndSettle();
+    expect(api.clears, 1);
+    expect(container.read(appControllerProvider).chatMessages, isEmpty);
+    await tester.pump(const Duration(seconds: 6));
+  });
+  testWidgets(
+    'chat preferences refresh Your Taste and stay visible beyond old list limits',
+    (tester) async {
+      final api = TasteChatApi();
+      final container = ProviderContainer(
+        overrides: [nexApiClientProvider.overrideWithValue(api)],
+      );
+      addTearDown(container.dispose);
+      final controller = container.read(appControllerProvider.notifier);
+      await controller.restoreSession();
+      await controller.sendChat(
+        "I don't like kpop kdrama or Korean movies and series",
+      );
+      expect(
+        controller.tasteDislikes,
+        containsAll(['Korean-language titles', 'K-pop', 'K-drama']),
+      );
+      expect(
+        controller.tasteEntries
+            .take(3)
+            .every((e) => e['source'] == 'chat_explicit'),
+        true,
+      );
+      await tester.pumpWidget(
+        UncontrolledProviderScope(
+          container: container,
+          child: const MaterialApp(home: TasteScreen()),
+        ),
+      );
+      expect(find.text('Korean-language titles'), findsWidgets);
+      expect(find.text('K-pop'), findsWidgets);
+      expect(find.text('K-drama'), findsWidgets);
+      expect(controller.tasteEntries, hasLength(43));
+      final reads = api.tasteReads;
+      await tester.scrollUntilVisible(
+        find.text('inferred 39'),
+        500,
+        scrollable: find.byType(Scrollable).first,
+        maxScrolls: 40,
+      );
+      expect(find.text('inferred 39'), findsOneWidget);
+      expect(
+        api.tasteReads,
+        reads,
+      ); // Scrolling consumes cached batches, not duplicate network reads.
+    },
+  );
   testWidgets(
     'oversized pasted title lists are retained, never silently truncated or sent',
     (tester) async {
@@ -137,7 +367,11 @@ void main() {
       );
       await tester.pump(const Duration(milliseconds: 100));
       await tester.pumpAndSettle();
-      await tester.scrollUntilVisible(find.text('Library updated'), 180, scrollable: find.byType(Scrollable).first);
+      await tester.scrollUntilVisible(
+        find.text('Library updated'),
+        180,
+        scrollable: find.byType(Scrollable).first,
+      );
       expect(find.text('Library updated'), findsOneWidget);
       expect(find.text('Saved 2 of 2 titles.'), findsNothing);
     },

@@ -137,6 +137,8 @@ class NexApiClient {
     queryParameters: filters,
   )).data!;
 
+  Future<void> clearChat() => _dio.delete<void>('/api/chat');
+
   Future<Map<String, dynamic>> chat(String message, {String? sessionId}) async {
     final data = <String, dynamic>{'message': message};
     if (sessionId case final value?) data['sessionId'] = value;

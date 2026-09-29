@@ -171,7 +171,7 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
             ),
             const SizedBox(height: 8),
             const Text(
-              'Love an underdog, whatever the genre? Choose the ideas that pull you in. Everything is optional.',
+              'Choose the stories and ideas that pull you in, whatever the genre. Everything is optional.',
             ),
             const SizedBox(height: 12),
             _toggleChips(

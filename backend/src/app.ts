@@ -200,6 +200,11 @@ app.post("/api/onboarding/analyze", async (c) => {
   return c.json({ data: { ...analysis, signals } });
 });
 
+app.delete('/api/chat',async(c)=>{
+  await users.clearConversations(c.get('authSession').user.id);
+  return c.json({data:{cleared:true}});
+});
+
 app.post("/api/chat", async (c) => {
   const body = chatBodySchema.parse(await c.req.json());
   const userId = c.get("authSession").user.id;

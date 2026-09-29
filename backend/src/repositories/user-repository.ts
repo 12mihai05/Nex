@@ -310,6 +310,16 @@ export class UserRepository {
     return id;
   }
 
+  async clearConversations(userId:string):Promise<void>{
+    // Foreign-key cascades remove messages, displayed references and temporary
+    // context/proposals. Explicitly saved library/taste/reminders are independent.
+    await this.db.transaction(async tx=>{
+      await tx.delete(userEvents).where(and(eq(userEvents.userId,userId),eq(userEvents.eventType,'shown'),
+        inArray(sql<string>`json_extract(${userEvents.metadataJson}, '$.context')`,tx.select({id:conversationSessions.id}).from(conversationSessions).where(eq(conversationSessions.userId,userId)))));
+      await tx.delete(conversationSessions).where(eq(conversationSessions.userId,userId));
+    });
+  }
+
   async assertConversation(userId: string, sessionId: string): Promise<boolean> {
     const row = await this.db.select({ id: conversationSessions.id }).from(conversationSessions).where(and(eq(conversationSessions.id, sessionId), eq(conversationSessions.userId, userId))).limit(1);
     return row.length === 1;

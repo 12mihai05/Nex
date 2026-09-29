@@ -13,6 +13,18 @@ const context = {
 };
 
 describe("recommendation scoring", () => {
+  it('explicit Korean-language dislike lowers otherwise equivalent movies and series without banning exact lookup',()=>{
+    for(const mediaType of ['movie','series'] as const){
+      const base={...fixtureCatalog[0]!,mediaType,genres:[],keywords:[],moods:[],countries:[]};
+      const korean={...base,id:7001,title:'Korean candidate',originalLanguage:'ko'};
+      const english={...base,id:7002,title:'English candidate',originalLanguage:'en'};
+      const withDislike={...context,taste:[{dimension:'language',key:'ko',score:-.9,confidence:.75,evidenceCount:1,source:'chat_explicit'}]};
+      const ranked=rankCandidates([korean,english],detectSearchIntent('what should I watch?'),withDislike);
+      expect(ranked[0]?.item.id).toBe(7002);
+      expect(ranked.find(r=>r.item.id===7001)?.evidence.some(e=>e.code==='negative:language')).toBe(true);
+      expect(rankCandidates([korean],detectSearchIntent('Korean candidate'),withDislike)).toHaveLength(1);
+    }
+  });
   it("prioritizes strong taste and owned included availability", () => {
     const ranked = rankCandidates(fixtureCatalog, detectSearchIntent("what should I watch?"), context);
     expect(ranked[0]?.item.moods).toContain("cerebral");

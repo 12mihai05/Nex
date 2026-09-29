@@ -35,6 +35,52 @@ beforeEach(async()=>{
 });
 afterEach(()=>{vi.restoreAllMocks();client.close();});
 
+it('routes contracted dislikes to durable taste, persists them and confirms their actual meaning',async()=>{
+ const extract=vi.spyOn(ai,'extractTaste').mockResolvedValue({summary:'Dislikes',mode:'live',signals:[{dimension:'language',key:'ko',score:-.9,confidence:.9,evidenceCount:1,source:'onboarding_text'}]});
+ const parse=vi.spyOn(ai,'parseIntent');
+ const reply=await new ChatService(users,catalog,ai,new EpgService(db)).respond('alice',"I don't like kpop kdrama or Korean movies and series.",session);
+ expect(extract).toHaveBeenCalled();expect(parse).not.toHaveBeenCalled();
+ expect(reply.blocks[0]?.type).toBe('confirmation');expect(JSON.stringify(reply.blocks)).toContain('Korean-language titles');
+ expect(await users.getTaste('alice')).toEqual([expect.objectContaining({dimension:'language',key:'ko',score:-.9,source:'chat_explicit'})]);
+});
+
+it('keeps Antena 1 broadcast context across named and pronoun follow-ups, including midnight',async()=>{
+ const day=new Intl.DateTimeFormat('en-CA',{timeZone:'Europe/Bucharest',year:'numeric',month:'2-digit',day:'2-digit'}).format(new Date());
+ const at=localClockTime(day,20,0,'Europe/Bucharest');
+ await db.insert(schema.channels).values([{id:'antena',sourceId:'test',externalId:'antena',displayName:'Antena 1',country:'RO'},{id:'other',sourceId:'test',externalId:'other',displayName:'Other',country:'RO'}]);
+ await db.insert(schema.epgPrograms).values([
+  {id:'obs',title:'Observator',startAt:new Date(+at-3600000),endAt:new Date(+at+1800000),channelId:'antena'},
+  {id:'next',title:'Next show',startAt:new Date(+at+1800000),endAt:new Date(+at+4*3600000),channelId:'antena'},
+  {id:'midnight',title:'Midnight show',startAt:new Date(+at+4*3600000),endAt:new Date(+at+5*3600000),channelId:'antena'},
+  {id:'wrong',title:'Wrong channel',startAt:new Date(+at+1800000),endAt:new Date(+at+3600000),channelId:'other'},
+ ].map(p=>({...p,sourceId:'test',sourceProgramId:p.id})));
+ const chat=new ChatService(users,catalog,ai,new EpgService(db));
+ const ids=(r:Awaited<ReturnType<ChatService['respond']>>)=>r.blocks.flatMap(b=>b.type==='tv_carousel'?b.items.map(p=>p.id):[]);
+ expect(ids(await chat.respond('alice','what is on antena 1 around 8pm tonight',session))).toEqual(['obs']);
+ expect(ids(await chat.respond('alice','after observator what will be',session))).toEqual(['next']);
+ expect(ids(await chat.respond('alice','and after that?',session))).toEqual(['midnight']);
+ const missing=await chat.respond('alice','what comes next?',session);expect(ids(missing)).toEqual([]);expect(JSON.stringify(missing)).toContain('No next listing');
+ const fresh=await users.createConversation('alice');expect(ids(await chat.respond('alice','after Observator?',fresh))).toEqual([]);
+ await chat.respond('alice','what is on antena 1 around 8pm tonight',session);
+ await db.delete(schema.epgPrograms).where(eq(schema.epgPrograms.id,'obs'));
+ expect(JSON.stringify(await chat.respond('alice','after that?',session))).toContain('changed or expired');
+});
+
+it('clear chat cascades private messages/references/plans without touching another user or saved taste/library',async()=>{
+ const bob=await users.createConversation('bob');await users.addConversationMessage('bob',bob,'user','Keep this');
+ const id=await users.addConversationMessage('alice',session,'assistant','Private');await users.saveDisplayedItems('alice',session,id,[items[0]!]);
+ await users.setSessionContext('alice',session,{chatPlan:{id:'pending'},tv:{programs:[]}});
+ await users.addWatchlist('alice',items[0]!);await users.markWatched('alice',items[0]!);await users.applyFeedback('alice',items[0]!,'like');
+ const taste=await users.getTaste('alice');
+ await users.clearConversations('alice');await users.clearConversations('alice');
+ expect(await users.assertConversation('alice',session)).toBe(false);expect(await users.assertConversation('bob',bob)).toBe(true);
+ expect(await db.select().from(schema.conversationDisplayedItems)).toHaveLength(0);expect(await db.select().from(schema.sessionContext)).toHaveLength(0);
+ expect((await db.select().from(schema.conversationMessages)).map(m=>m.sessionId)).toEqual([bob]);
+ expect(await users.listWatchlist('alice')).toHaveLength(1);expect(await users.listHistory('alice')).toHaveLength(1);expect(await users.listFeedback('alice')).toHaveLength(1);
+ expect((await users.getTaste('alice')).map(t=>t.key)).toEqual(taste.map(t=>t.key));
+ await expect(users.getSessionContext('alice',session)).rejects.toThrow('CONVERSATION_NOT_FOUND');
+});
+
 it('answers a channel/time query with only overlapping shows from that channel, not the global first page',async()=>{
  const date=new Intl.DateTimeFormat('en-CA',{timeZone:'Europe/Bucharest',year:'numeric',month:'2-digit',day:'2-digit'}).format(new Date());
  const at=localClockTime(date,20,0,'Europe/Bucharest');

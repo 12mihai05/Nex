@@ -1,4 +1,16 @@
 import {localDayWindow,localClockTime} from './tv-window.js';
+import {z} from 'zod';
+
+export const tvContextSchema=z.object({country:z.string(),timezone:z.string(),programs:z.array(z.object({id:z.string(),title:z.string(),startAt:z.string()})).max(12)});
+export function tvFollowup(message:string){
+  const plain=words(message);
+  if (/^(?:and |si )?(?:what s next|what is next|what comes next|what will be next|what follows|then what|next|ce urmeaza)(?: on tv)?$/.test(plain))return '';
+  const match=plain.match(/^(?:(?:and|si) )?(?:(?:what (?:is|s|comes|will be) |what will be on |ce (?:este|e|urmeaza) )?)(?:after|dupa) (.+)$/);
+  if(!match)return null;
+  const title=match[1]!.replace(/ (?:what (?:will be|is|s|comes)(?: on)?(?: next)?|ce (?:urmeaza|va fi))$/,'').trim();
+  return /^(that|this|it|asta|aceea)$/.test(title)?'':title;
+}
+export function tvReferenceMatches(title:string,reference:string){return words(title)===words(reference);}
 
 const words=(s:string)=>s.normalize('NFKD').replace(/[\u0300-\u036f]/g,'').toLowerCase().replace(/[^a-z0-9]+/g,' ').trim();
 export function requestedTvScope(message:string,channels:Array<{id:string;name:string}>,timezone:string,now=new Date()){

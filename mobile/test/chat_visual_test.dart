@@ -8,9 +8,10 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:nex/src/core/theme.dart';
 import 'package:nex/src/screens/chat_screen.dart';
+import 'package:nex/src/screens/taste_screen.dart';
 import 'package:nex/src/state/app_controller.dart';
 
-import 'chat_actions_test.dart' show ChatActionsApi;
+import 'chat_actions_test.dart' show ChatActionsApi, TasteChatApi;
 
 void main() {
   LiveTestWidgetsFlutterBinding();
@@ -71,6 +72,37 @@ void main() {
       await tester.tap(find.byTooltip('What can Nex do?'));
       await tester.pumpAndSettle();
       await capture('help');
+      await tester.tap(find.byTooltip('Close help'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.byTooltip('Clear chat'));
+      await tester.pumpAndSettle();
+      await capture('clear');
+      await tester.tap(find.text('Keep chat'));
+      await tester.pumpAndSettle();
+      final tasteContainer = ProviderContainer(
+        overrides: [nexApiClientProvider.overrideWithValue(TasteChatApi())],
+      );
+      addTearDown(tasteContainer.dispose);
+      await tasteContainer
+          .read(appControllerProvider.notifier)
+          .restoreSession();
+      await tasteContainer
+          .read(appControllerProvider.notifier)
+          .sendChat('I dislike Korean movies and series');
+      await tester.pumpWidget(
+        RepaintBoundary(
+          key: key,
+          child: UncontrolledProviderScope(
+            container: tasteContainer,
+            child: MaterialApp(
+              theme: dark ? NexTheme.dark : NexTheme.light,
+              home: const TasteScreen(),
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      await capture('taste');
     }, skip: Platform.environment['NEX_VISUAL_QA'] != '1');
   }
 }

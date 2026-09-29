@@ -17,6 +17,16 @@ export class EpgService {
     return this.db.select({id:channels.id,name:channels.displayName}).from(channels).where(and(eq(channels.country,country),eq(channels.active,true)));
   }
 
+  async nextBroadcast(anchor:{id:string;title:string;startAt:string},country:string,userId:string){
+    const [row]=await this.db.select({program:epgPrograms}).from(epgPrograms)
+      .innerJoin(channels,eq(channels.id,epgPrograms.channelId))
+      .where(and(eq(epgPrograms.id,anchor.id),eq(channels.country,country),eq(channels.active,true))).limit(1);
+    if(!row||row.program.title!==anchor.title||row.program.startAt.toISOString()!==anchor.startAt)return {stale:true as const,programs:[]};
+    const p=row.program;
+    const programs=await this.listWindow(p.endAt,new Date(+p.endAt+48*3600000),country,userId,{channelId:p.channelId});
+    return {stale:false as const,programs:programs.filter(next=>+next.startAt>=+p.endAt).sort((a,b)=>+a.startAt-+b.startAt||a.id.localeCompare(b.id)).slice(0,1)};
+  }
+
   async reminderCandidates(country:string,date:string,timezone:string) {
     const window=localDayWindow(date,timezone);
     // Complete country/day query, independent of favorites and the 100-card TV page.

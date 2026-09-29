@@ -8,9 +8,11 @@ class NexTopBar extends StatelessWidget implements PreferredSizeWidget {
     super.key,
     this.title = 'Nex',
     this.extraActions = const [],
+    this.showSearch = true,
   });
   final String title;
   final List<Widget> extraActions;
+  final bool showSearch;
   @override
   Size get preferredSize => const Size.fromHeight(64);
   @override
@@ -39,11 +41,12 @@ class NexTopBar extends StatelessWidget implements PreferredSizeWidget {
     ),
     actions: [
       ...extraActions,
-      IconButton(
-        tooltip: 'Search',
-        onPressed: () => context.push('/search'),
-        icon: const Icon(Icons.search_rounded),
-      ),
+      if (showSearch)
+        IconButton(
+          tooltip: 'Search',
+          onPressed: () => context.push('/search'),
+          icon: const Icon(Icons.search_rounded),
+        ),
       IconButton(
         tooltip: 'Profile',
         onPressed: () => context.push('/profile'),
