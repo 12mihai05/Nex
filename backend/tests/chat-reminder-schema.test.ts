@@ -21,6 +21,10 @@ describe("chat protocol, references and reminders", () => {
     expect(calculateReminderTime(start, 10).toISOString()).toBe("2026-09-26T17:50:00.000Z");
     expect(() => calculateReminderTime(start, -1)).toThrow();
   });
+  it("preserves channel information through the Chat reminder action schema",()=>{
+    const block=chatBlockSchema.parse({type:"confirmation",content:"Saved",action:{type:"setReminder",id:"r",epgProgramId:"p",title:"Movie",channelName:"Antena 1",startsAt:"2026-09-30T18:00:00Z",offsetMinutes:17}});
+    expect(block).toMatchObject({action:{channelName:"Antena 1"}});
+  });
 
   it("rejects arbitrary chat UI blocks and invalid reminder offsets", () => {
     expect(chatBlockSchema.safeParse({ type: "arbitrary_widget", code: "evil" }).success).toBe(false);

@@ -5,7 +5,7 @@ import { getDatabase } from "../db/client.js";
 import {
   aiUsage, conversationDisplayedItems, conversationMessages, conversationSessions, epgPrograms, profiles, reminders,
   sessionContext, userEvents, userLanguagePreferences, userStreamingServices, userTastePreferences, userTitleFeedback,
-  watchHistory, watchlist,
+  watchHistory, watchlist, channels,
 } from "../db/schema.js";
 import type { ContentItem, TasteSignal } from "../domain/types.js";
 import { calculateReminderTime } from "../services/reminder.js";
@@ -211,12 +211,13 @@ export class UserRepository {
     const id = randomUUID();
     await this.db.insert(reminders).values({ id, userId, epgProgramId, offsetMinutes, notifyAt }).onConflictDoUpdate({ target: [reminders.userId, reminders.epgProgramId], set: { offsetMinutes, notifyAt, active: true, updatedAt: new Date() } });
     const saved = (await this.db.select().from(reminders).where(and(eq(reminders.userId,userId),eq(reminders.epgProgramId,epgProgramId))).limit(1))[0]!;
-    return { id: saved.id, epgProgramId, title: program.title, startsAt: program.startAt, notifyAt, offsetMinutes };
+    const channel=(await this.db.select().from(channels).where(eq(channels.id,program.channelId)).limit(1))[0];
+    return { id: saved.id, epgProgramId, title: program.title, channelName:channel?.displayName??null, startsAt: program.startAt, notifyAt, offsetMinutes };
   }
 
   async listReminders(userId: string) {
-    return this.db.select({ id: reminders.id, epgProgramId: reminders.epgProgramId, notifyAt: reminders.notifyAt, offsetMinutes: reminders.offsetMinutes, active: reminders.active, title: epgPrograms.title, startsAt: epgPrograms.startAt })
-      .from(reminders).innerJoin(epgPrograms, eq(reminders.epgProgramId, epgPrograms.id)).where(eq(reminders.userId, userId)).orderBy(reminders.notifyAt);
+    return this.db.select({ id: reminders.id, epgProgramId: reminders.epgProgramId, notifyAt: reminders.notifyAt, offsetMinutes: reminders.offsetMinutes, active: reminders.active, title: epgPrograms.title, channelName:channels.displayName, startsAt: epgPrograms.startAt })
+      .from(reminders).innerJoin(epgPrograms, eq(reminders.epgProgramId, epgPrograms.id)).leftJoin(channels,eq(channels.id,epgPrograms.channelId)).where(eq(reminders.userId, userId)).orderBy(reminders.notifyAt);
   }
 
   async deleteReminder(userId: string, id: string): Promise<boolean> {

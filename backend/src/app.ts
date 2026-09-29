@@ -15,7 +15,7 @@ import { EpgService } from "./services/epg/service.js";
 import { detectSearchIntent } from "./services/intent.js";
 import { rankCandidates } from "./services/recommendation.js";
 import { generateCandidates } from "./services/candidates.js";
-import { discoverHome } from "./services/discovery.js";
+import { discoverHome, discoveryShelves } from "./services/discovery.js";
 import { catalogFilterSchema, filteredCatalog } from "./services/filtered-catalog.js";
 import { createEpgProvider } from "./services/epg/provider.js";
 import { getDatabase } from "./db/client.js";
@@ -112,6 +112,15 @@ app.get("/api/title/:mediaType/:tmdbId", async (c) => {
   return c.json({ data: item });
 });
 
+app.get("/api/title/:mediaType/:tmdbId/extras", async c=>{
+  const p=titleParamsSchema.parse(c.req.param());
+  return c.json({data:await catalog.extras?.(p.mediaType,p.tmdbId)??{videos:[],seasons:[]}});
+});
+app.get("/api/title/series/:tmdbId/seasons/:season", async c=>{
+  const id=z.coerce.number().int().positive().parse(c.req.param("tmdbId"));
+  const season=z.coerce.number().int().min(0).max(1000).parse(c.req.param("season"));
+  return c.json({data:await catalog.season?.(id,season)??{videos:[],episodes:[]}});
+});
 app.get("/api/title/:mediaType/:tmdbId/broadcasts", async c=>{
   const params=titleParamsSchema.parse(c.req.param());
   const {profile}=await users.getSettings(c.get("authSession").user.id);
@@ -123,15 +132,19 @@ app.get("/api/title/:mediaType/:tmdbId/broadcasts", async c=>{
 
 app.get("/api/discovery", async c => {
   const userId=c.get("authSession").user.id;
-  const {batch:rawBatch,...query}=c.req.query();
+  const {batch:rawBatch,plan:rawPlan,...query}=c.req.query();
   const input=catalogFilterSchema.parse(query);
   const filters=Object.keys(query).length?{mediaType:input.mediaType,genres:input.genre?[input.genre]:[],minRuntimeMinutes:input.minMinutes??null,maxRuntimeMinutes:input.maxMinutes??null}:{};
   const batch=rawBatch===undefined?undefined:z.coerce.number().int().min(0).max(5).parse(rawBatch);
-  const rows=await discoverHome(catalog,await users.getRecommendationState(userId),userId,filters,batch);
+  const state=await users.getRecommendationState(userId);
+  let decoded:unknown;
+  try{decoded=rawPlan?JSON.parse(rawPlan):undefined;}catch{throw new HTTPException(400,{message:"Invalid discovery plan."});}
+  const plan=decoded===undefined?discoveryShelves(state).map(s=>s.id):z.array(z.string().max(160)).max(36).parse(decoded);
+  const rows=await discoverHome(catalog,state,userId,filters,batch,plan);
   // Record only the lead shelf, not hundreds of titles below the fold.
   if(batch===undefined||batch===0) await users.recordRecommendations(userId,rows[0]?.items??[],"discovery-lead");
   c.header("Cache-Control","private, no-store");
-  return c.json({data:rows});
+  return c.json({data:rows,meta:{plan}});
 });
 
 app.get("/api/catalog", async c => {

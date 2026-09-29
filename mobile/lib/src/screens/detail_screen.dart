@@ -6,6 +6,7 @@ import '../state/app_controller.dart';
 import '../widgets/artwork.dart';
 import '../widgets/title_feedback.dart';
 import '../widgets/title_broadcasts.dart';
+import '../widgets/title_extras.dart';
 
 class DetailScreen extends ConsumerWidget {
   const DetailScreen({super.key, required this.item});
@@ -83,6 +84,8 @@ class DetailScreen extends ConsumerWidget {
                   ),
                   const SizedBox(height: 14),
                   TitleFeedback(item: item),
+                  const SizedBox(height: 24),
+                  TitleExtras(item: item),
                   const SizedBox(height: 28),
                   Text(
                     'The premise',

@@ -46,12 +46,16 @@ void main() {
       await service.schedule(
         id: id,
         title: 'Test programme',
+        channelName: 'Antena 1',
         startsAt: start,
         offsetMinutes: 10,
       );
       final args =
           calls.firstWhere((c) => c.method == 'zonedSchedule').arguments as Map;
       expect(args['id'], id);
+      expect(args['title'], 'Test programme');
+      expect(args['body'], contains('Antena 1'));
+      expect(args['body'], contains('In 10 min'));
       expect(
         DateTime.parse('${args['scheduledDateTime']}Z')
             .difference(start.subtract(const Duration(minutes: 10)))

@@ -7,6 +7,7 @@ import { tmdbCache } from "../db/schema.js";
 import {conceptTerms} from "../services/concepts.js";
 import {createHash} from "node:crypto";
 import {lt} from "drizzle-orm";
+import { normalizeVideos, seasonSummarySchema, episodeSchema, type TitleExtras, type SeasonExtras } from "../domain/title-extras.js";
 
 export interface CatalogSearchOptions {
   query: string;
@@ -31,6 +32,8 @@ export interface DiscoverOptions {
 }
 
 export interface TmdbRepository {
+  extras?(mediaType: MediaType,id:number):Promise<TitleExtras>;
+  season?(id:number,number:number):Promise<SeasonExtras>;
   titleAliases?(mediaType: MediaType, id: number): Promise<string[]>;
   readonly mode: "live" | "fixture";
   search(options: CatalogSearchOptions): Promise<ContentItem[]>;
@@ -78,6 +81,21 @@ export class FixtureTmdbRepository implements TmdbRepository {
 const tmdbResultSchema = contentItemSchema.partial().passthrough();
 
 export class LiveTmdbRepository implements TmdbRepository {
+  async extras(mediaType:MediaType,id:number):Promise<TitleExtras> {
+    const root=`/${mediaType==="series"?"tv":"movie"}/${id}`;
+    const data=await this.request<Record<string,unknown>>(root,{append_to_response:"videos",language:"en-US",include_video_language:"en,null"});
+    const seasons=Array.isArray(data.seasons)?data.seasons.flatMap(s=>{const parsed=seasonSummarySchema.safeParse(s);return parsed.success?[{number:parsed.data.season_number,name:parsed.data.name,episodeCount:parsed.data.episode_count}]:[];}):[];
+    let videos=normalizeVideos(data.videos);
+    if(!videos.length)videos=normalizeVideos(await this.request(`${root}/videos`,{language:""}));
+    return {videos,seasons};
+  }
+  async season(id:number,number:number):Promise<SeasonExtras> {
+    const data=await this.request<Record<string,unknown>>(`/tv/${id}/season/${number}`,{append_to_response:"videos",language:"en-US",include_video_language:"en,null"});
+    const episodes=Array.isArray(data.episodes)?data.episodes.flatMap(e=>{const p=episodeSchema.safeParse(e);return p.success?[{number:p.data.episode_number,name:p.data.name,runtimeMinutes:p.data.runtime||null,rating:p.data.vote_count?p.data.vote_average??null:null,airDate:p.data.air_date||null}]:[];}):[];
+    let videos=normalizeVideos(data.videos);
+    if(!videos.length)videos=normalizeVideos(await this.request(`/tv/${id}/season/${number}/videos`,{language:""}));
+    return {videos,episodes};
+  }
   async titleAliases(mediaType: MediaType, id: number): Promise<string[]> {
     const key=`aliases:${mediaType}:${id}`;
     const cached=await this.readCache(key);
@@ -254,14 +272,14 @@ export class LiveTmdbRepository implements TmdbRepository {
   }
 
   private async request<T>(path: string, params: Record<string, string>): Promise<T> {
-    const cacheable=/^\/(genre\/|search\/|discover\/)|\/recommendations$/.test(path);
+    const cacheable=/^\/(genre\/|search\/|discover\/)|\/(recommendations|videos)$/.test(path)||params.append_to_response==="videos";
     const key=`request:${createHash("sha256").update(JSON.stringify([path,Object.entries(params).sort()])).digest("hex")}`;
     if(!cacheable)return this.fetchRequest<T>(path,params);
     const pending=this.inFlight.get(key);if(pending)return pending as Promise<T>;
     const task=(async()=>{
       const cached=await this.readCache(key);if(cached)return cached as T;
       const value=await this.fetchRequest<T>(path,params);
-      const ttl=path.startsWith("/genre/")||path==="/search/keyword"?86400:path.endsWith("/recommendations")?3600:300;
+      const ttl=params.append_to_response==="videos"?getConfig().TMDB_METADATA_CACHE_TTL_SECONDS:path.startsWith("/genre/")||path==="/search/keyword"?86400:path.endsWith("/recommendations")?3600:300;
       await this.writeCache(key,"public_request",value,ttl);return value;
     })();
     if(this.inFlight.size<128)this.inFlight.set(key,task);

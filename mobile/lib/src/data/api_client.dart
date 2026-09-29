@@ -1,4 +1,7 @@
 import 'package:dio/dio.dart';
+
+import 'dart:convert';
+
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 
 import '../models/content.dart';
@@ -58,6 +61,7 @@ class NexApiClient {
     required String password,
     required String inviteCode,
   }) async {
+    _resetHomePlans();
     final response = await _dio.post<Map<String, dynamic>>(
       '/api/auth/sign-up/email',
       data: {
@@ -71,6 +75,7 @@ class NexApiClient {
   }
 
   Future<void> signIn({required String email, required String password}) async {
+    _resetHomePlans();
     final response = await _dio.post<Map<String, dynamic>>(
       '/api/auth/sign-in/email',
       data: {'email': email, 'password': password},
@@ -82,6 +87,7 @@ class NexApiClient {
     try {
       await _dio.post<void>('/api/auth/sign-out', data: <String, dynamic>{});
     } finally {
+      _resetHomePlans();
       await _storage.delete(key: _tokenKey);
     }
   }
@@ -91,6 +97,7 @@ class NexApiClient {
       '/api/auth/delete-user',
       data: <String, dynamic>{'password': ?password},
     );
+    _resetHomePlans();
     await _storage.delete(key: _tokenKey);
   }
 
@@ -196,10 +203,47 @@ class NexApiClient {
       ((await _dio.get<Map<String, dynamic>>('/api/me/settings')).data!['data']
               as Map)
           .cast<String, dynamic>();
-  Future<List<Map<String, dynamic>>> list(String path) async =>
-      (((await _dio.get<Map<String, dynamic>>(path)).data!['data'] as List).map(
-        (r) => (r as Map).cast<String, dynamic>(),
-      )).toList();
+  final _homePlans = <String, String>{};
+  final _planVersions = <String, int>{};
+  int _planSerial = 0, _planEpoch = 0;
+  void _resetHomePlans() {
+    _homePlans.clear();
+    _planVersions.clear();
+    _planEpoch++;
+  }
+
+  Future<Map<String, dynamic>> object(String path) async =>
+      ((await _dio.get<Map<String, dynamic>>(path)).data!['data'] as Map)
+          .cast<String, dynamic>();
+  Future<List<Map<String, dynamic>>> list(String path) async {
+    final epoch = _planEpoch;
+    var uri = Uri.parse(path);
+    final params = Map<String, String>.from(uri.queryParameters);
+    final discovery = uri.path == '/api/discovery';
+    final keyEntries = params.entries.where((e) => e.key != 'batch').toList()
+      ..sort((a, b) => a.key.compareTo(b.key));
+    final key = keyEntries.map((e) => '${e.key}=${e.value}').join('&');
+    final version = discovery && params['batch'] == '0' ? ++_planSerial : null;
+    if (version != null) _planVersions[key] = version;
+    if (discovery && params['batch'] != '0' && _homePlans.containsKey(key)) {
+      params['plan'] = _homePlans[key]!;
+      uri = uri.replace(queryParameters: params);
+    }
+    final response = (await _dio.get<Map<String, dynamic>>(uri.toString()))
+        .data!;
+    if (discovery &&
+        epoch == _planEpoch &&
+        _planVersions[key] == version &&
+        params['batch'] == '0' &&
+        response['meta']?['plan'] is List) {
+      if (_homePlans.length >= 16) _homePlans.clear();
+      _homePlans[key] = jsonEncode(response['meta']['plan']);
+    }
+    return (response['data'] as List)
+        .map((r) => (r as Map).cast<String, dynamic>())
+        .toList();
+  }
+
   Future<Map<String, dynamic>> tvDiscover() async =>
       ((await _dio.get<Map<String, dynamic>>('/api/tv/discover')).data!['data']
               as Map)

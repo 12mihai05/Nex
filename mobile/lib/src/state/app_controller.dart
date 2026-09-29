@@ -1170,6 +1170,7 @@ class AppController extends Notifier<AppState> {
             'id': program.id,
             'epgProgramId': program.id,
             'title': program.title,
+            'channelName': program.channel,
             'startsAt': program.startsAt.toIso8601String(),
             'offsetMinutes': offsetMinutes,
           }
@@ -1184,6 +1185,7 @@ class AppController extends Notifier<AppState> {
       await NotificationService.instance.schedule(
         id: NotificationService.idFor(programId),
         title: record['title'] as String,
+        channelName: record['channelName'] as String?,
         startsAt: DateTime.parse(record['startsAt'] as String),
         offsetMinutes: record['offsetMinutes'] as int,
       );

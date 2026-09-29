@@ -80,7 +80,7 @@ export const chatBlockSchema = z.discriminatedUnion("type", [
   z.object({ type: z.literal("availability_block"), item: contentItemSchema }),
   z.object({ type: z.literal("quick_actions"), actions: z.array(z.string()).max(6) }),
   z.object({ type: z.literal("confirmation"), content: z.string(), action: z.discriminatedUnion("type",[
-    z.object({ type: z.literal("setReminder"), id: z.string(), epgProgramId:z.string(), title: z.string(), startsAt: z.string(), offsetMinutes: z.number().int() }),
+    z.object({ type: z.literal("setReminder"), id: z.string(), epgProgramId:z.string(), title: z.string(), channelName:z.string().nullable().optional(), startsAt: z.string(), offsetMinutes: z.number().int() }),
     z.object({ type:z.literal("cancelReminder"), id:z.string(), epgProgramId:z.string() }),
   ]).optional() }),
   z.object({ type: z.literal("empty_state"), title: z.string(), message: z.string() }),

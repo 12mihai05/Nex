@@ -108,7 +108,7 @@ export class ChatService {
         const offsetMatch = lower.match(/(\d+)\s*minutes? before/);
         const offsetMinutes = offsetMatch ? Number(offsetMatch[1]) : 10;
         const reminder = await this.users.createReminder(userId, reference.externalId, offsetMinutes);
-        return { type: "confirmation", content: `Reminder saved for ${reminder.title}; your device will confirm notification scheduling.`, action: { type: "setReminder", id: reminder.id, epgProgramId:reminder.epgProgramId, title: reminder.title, startsAt: reminder.startsAt.toISOString(), offsetMinutes } };
+        return { type: "confirmation", content: `Reminder saved for ${reminder.title}; your device will confirm notification scheduling.`, action: { type: "setReminder", id: reminder.id, epgProgramId:reminder.epgProgramId, title: reminder.title, channelName:reminder.channelName, startsAt: reminder.startsAt.toISOString(), offsetMinutes } };
       }
       const mediaType = reference.contentType === "series" ? "series" : "movie";
       const state = await this.users.getRecommendationState(userId);

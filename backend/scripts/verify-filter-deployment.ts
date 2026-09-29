@@ -17,9 +17,15 @@ try {
   assert.equal((await request("/api/health")).status,200);
   assert.equal((await request("/api/catalog?mediaType=movie")).status,401);
   assert.equal((await request("/api/title/movie/336843/broadcasts")).status,401);
+  assert.equal((await request("/api/title/movie/27205/extras")).status,401);
   const signup=await request("/api/auth/sign-up/email","POST",{name:"Nex filter verification",email:`nex-filter-${randomUUID()}@example.test`,password});
   assert.equal(signup.status,200);created=true;
   token=signup.headers.get("set-auth-token");assert.ok(token);
+  const extras=await request('/api/title/movie/27205/extras');assert.equal(extras.status,200);
+  const videoData=(await extras.json() as {data:{videos:unknown[]}}).data;assert.ok(videoData.videos.length>0);
+  const season=await request('/api/title/series/1396/seasons/1');assert.equal(season.status,200);
+  const seasonData=(await season.json() as {data:{episodes:unknown[];videos:unknown[]}}).data;assert.ok(seasonData.episodes.length>0);
+  console.log(JSON.stringify({deployedTrailers:videoData.videos.length,deployedEpisodes:seasonData.episodes.length,seasonTrailers:seasonData.videos.length}));
   assert.equal((await request("/api/me/settings","PUT",{country:"RO",services:[{providerId:8,providerName:"Netflix"},{providerId:119,providerName:"Prime Video"},{providerId:1899,providerName:"Max"}]})).status,200);
   const start=Date.now();
   const filtered=await request("/api/catalog?mediaType=movie&minMinutes=60&maxMinutes=90");
@@ -56,7 +62,8 @@ try {
   if(next) {
     const saved=await request('/api/me/reminders','POST',{epgProgramId:next.id,offsetMinutes:17});
     assert.equal(saved.status,201);
-    const record=(await saved.json() as {data:{offsetMinutes:number;notifyAt:string;startsAt:string}}).data;
+    const record=(await saved.json() as {data:{offsetMinutes:number;notifyAt:string;startsAt:string;channelName:string}}).data;
+    assert.ok(record.channelName);
     assert.equal(record.offsetMinutes,17);
     assert.equal(Date.parse(record.startsAt)-Date.parse(record.notifyAt),17*60000);
     console.log(JSON.stringify({customReminderMinutes:17,persistedAndTimeVerified:true}));

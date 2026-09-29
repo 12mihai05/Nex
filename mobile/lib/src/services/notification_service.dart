@@ -2,6 +2,7 @@ import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:flutter/foundation.dart';
 import 'package:timezone/data/latest.dart' as tz_data;
 import 'package:timezone/timezone.dart' as tz;
+import 'package:intl/intl.dart';
 
 class NotificationService {
   NotificationService();
@@ -56,6 +57,7 @@ class NotificationService {
   Future<void> schedule({
     required int id,
     required String title,
+    String? channelName,
     required DateTime startsAt,
     required int offsetMinutes,
   }) async {
@@ -71,8 +73,8 @@ class NotificationService {
     }
     await _plugin.zonedSchedule(
       id: id,
-      title: 'Starting ${offsetMinutes == 0 ? 'now' : 'soon'}',
-      body: '$title is about to start.',
+      title: title,
+      body: reminderBody(channelName, startsAt, offsetMinutes),
       scheduledDate: tz.TZDateTime.from(when, tz.local),
       notificationDetails: const NotificationDetails(
         android: AndroidNotificationDetails(
@@ -94,6 +96,12 @@ class NotificationService {
         TargetPlatform.android,
         TargetPlatform.iOS,
       ].contains(defaultTargetPlatform);
+  static String reminderBody(
+    String? channelName,
+    DateTime startsAt,
+    int offsetMinutes,
+  ) =>
+      '${channelName ?? "TV reminder"} · ${DateFormat.Hm().format(startsAt.toLocal())} · ${offsetMinutes == 0 ? "Starting now" : "In $offsetMinutes min"}';
   Future<void> cancel(int id) async {
     if (_supported && await initialize()) await _plugin.cancel(id: id);
   }
