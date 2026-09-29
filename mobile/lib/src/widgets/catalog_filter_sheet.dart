@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import '../data/taste_options.dart';
+import 'streaming_service_chips.dart';
 
 const seriesGenres = [
   'Action & Adventure',
@@ -22,6 +23,14 @@ const seriesGenres = [
   'Western',
 ];
 
+typedef CatalogFilters = ({
+  String? genre,
+  int? min,
+  int? max,
+  String watchStatus,
+  Set<int>? providers,
+});
+
 class CatalogFilterSheet extends StatefulWidget {
   const CatalogFilterSheet({
     super.key,
@@ -29,16 +38,26 @@ class CatalogFilterSheet extends StatefulWidget {
     this.genre,
     this.min,
     this.max,
+    this.watchStatus = 'new',
+    this.services = const {},
+    this.providers,
   });
   final String type;
   final String? genre;
   final int? min, max;
+  final String watchStatus;
+  final Map<int, String> services;
+  final Set<int>? providers;
   @override
   State<CatalogFilterSheet> createState() => _CatalogFilterSheetState();
 }
 
 class _CatalogFilterSheetState extends State<CatalogFilterSheet> {
   late String? genre = widget.genre;
+  late String watchStatus = widget.watchStatus;
+  late Set<int> providers = Set.of(
+    widget.providers ?? widget.services.keys.toSet(),
+  );
   late final minimum = TextEditingController(
     text: widget.min?.toString() ?? '',
   );
@@ -129,6 +148,38 @@ class _CatalogFilterSheetState extends State<CatalogFilterSheet> {
                 ],
               ),
             ],
+            const SizedBox(height: 24),
+            const Text('Viewing'),
+            const SizedBox(height: 8),
+            Wrap(
+              spacing: 8,
+              children: [
+                for (final option in [
+                  ('new', 'New to me'),
+                  ('again', 'Watch again'),
+                  ('either', 'Either'),
+                ])
+                  ChoiceChip(
+                    label: Text(option.$2),
+                    selected: watchStatus == option.$1,
+                    onSelected: (_) => setState(() => watchStatus = option.$1),
+                  ),
+              ],
+            ),
+            if (widget.services.isNotEmpty) ...[
+              const SizedBox(height: 20),
+              const Text('Your streaming services'),
+              const Text('Only for this view. Your profile stays the same.'),
+              const SizedBox(height: 8),
+              StreamingServiceChips(
+                services: widget.services,
+                selected: providers,
+                onChanged: (next) => setState(() {
+                  providers = next;
+                  error = null;
+                }),
+              ),
+            ],
             if (error != null)
               Padding(
                 padding: const EdgeInsets.only(top: 12),
@@ -140,6 +191,12 @@ class _CatalogFilterSheetState extends State<CatalogFilterSheet> {
             const SizedBox(height: 24),
             FilledButton(
               onPressed: () {
+                if (widget.services.isNotEmpty && providers.isEmpty) {
+                  setState(
+                    () => error = 'Select at least one streaming service.',
+                  );
+                  return;
+                }
                 final min = int.tryParse(minimum.text),
                     max = int.tryParse(maximum.text);
                 if ((min != null && (min < 1 || min > 1440)) ||
@@ -158,13 +215,26 @@ class _CatalogFilterSheetState extends State<CatalogFilterSheet> {
                   );
                   return;
                 }
-                Navigator.pop(context, (genre: genre, min: min, max: max));
+                Navigator.pop(context, (
+                  genre: genre,
+                  min: min,
+                  max: max,
+                  watchStatus: watchStatus,
+                  providers: providers.length == widget.services.length
+                      ? null
+                      : Set<int>.of(providers),
+                ));
               },
               child: const Text('Show titles'),
             ),
             TextButton(
-              onPressed: () =>
-                  Navigator.pop(context, (genre: null, min: null, max: null)),
+              onPressed: () => Navigator.pop(context, (
+                genre: null,
+                min: null,
+                max: null,
+                watchStatus: 'new',
+                providers: null,
+              )),
               child: const Text('Clear filters'),
             ),
           ],

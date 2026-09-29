@@ -7,7 +7,8 @@ import {
   sessionContext, userEvents, userLanguagePreferences, userStreamingServices, userTastePreferences, userTitleFeedback,
   watchHistory, watchlist, channels,
 } from "../db/schema.js";
-import type { ContentItem, TasteSignal } from "../domain/types.js";
+import type { ContentItem, TasteSignal, ChatBlock } from "../domain/types.js";
+import type {ChatActionPlan} from '../services/chat-action-types.js';
 import { calculateReminderTime } from "../services/reminder.js";
 import { aggregateEvidence, evidenceWeight, signalStrength, titleDimensions, type TasteEvidence } from "../services/taste.js";
 import type { RankedContent } from "../domain/types.js";
@@ -200,6 +201,84 @@ export class UserRepository {
     if (!await this.assertConversation(userId,conversationSessionId)) throw new Error("CONVERSATION_NOT_FOUND");
     const row = (await this.db.select().from(sessionContext).where(and(eq(sessionContext.userId,userId),eq(sessionContext.conversationSessionId,conversationSessionId),gt(sessionContext.expiresAt,new Date()))).limit(1))[0];
     return row ? JSON.parse(row.contextJson) as Record<string,unknown> : {};
+  }
+
+  async commitChatPlan(userId:string,sessionId:string,planId:string|undefined,cancel=false):Promise<ChatBlock[]>{
+    return this.db.transaction(async tx=>{
+      const repo=new UserRepository(tx);
+      const context=await repo.getSessionContext(userId,sessionId);
+      const receipt=context.chatReceipt as {id:string;blocks:ChatBlock[]}|undefined;
+      if(planId&&receipt?.id===planId){
+        for(const block of receipt.blocks){
+          if(block.type==='confirmation'&&block.action?.type==='setReminder'){
+            const action=block.action;
+            const existing=(await repo.listReminders(userId)).find(r=>r.id===action.id);
+            if(!existing||!existing.active||existing.title!==action.title||existing.channelName!==action.channelName||existing.offsetMinutes!==action.offsetMinutes||existing.startsAt.toISOString()!==action.startsAt||+existing.notifyAt<=Date.now())throw new Error('REMINDER_RECEIPT_STALE');
+          }
+        }
+        return receipt.blocks;
+      }
+      const plan=context.chatPlan as ChatActionPlan|undefined;
+      if(!plan||plan.expiresAt<Date.now()||(planId&&plan.id!==planId))throw new Error('CHAT_PLAN_EXPIRED');
+      if(cancel){delete context.chatPlan;await repo.setSessionContext(userId,sessionId,context);return [{type:'text',content:'Cancelled. Nothing changed.'}];}
+      const blocks:ChatBlock[]=[];
+      if(plan.reminder){
+        const expected=plan.reminder;
+        const current=(await tx.select({startAt:epgPrograms.startAt,title:epgPrograms.title,channelName:channels.displayName,country:channels.country,active:channels.active})
+          .from(epgPrograms).innerJoin(channels,eq(channels.id,epgPrograms.channelId)).where(eq(epgPrograms.id,expected.id)).limit(1))[0];
+        if(!current||!current.active||current.country!==plan.country||current.startAt.toISOString()!==expected.startAt||current.title!==expected.title||current.channelName!==expected.channelName)throw new Error('EPG_CHANGED');
+        const r=await repo.createReminder(userId,expected.id,expected.offsetMinutes);
+        blocks.push({type:'confirmation',content:`Reminder saved for ${r.title} on ${r.channelName}; your device must confirm notification scheduling.`,
+          action:{type:'setReminder',id:r.id,epgProgramId:r.epgProgramId,title:r.title,channelName:r.channelName,startsAt:r.startsAt.toISOString(),offsetMinutes:r.offsetMinutes}});
+      }else{
+        if(!plan.entries.length||plan.entries.length>50)throw new Error('INVALID_CHAT_PLAN');
+        // Each operation and its taste evidence are committed with the receipt.
+        // Cache taste rows once for the entire list, not once per title/trait.
+        const opinions=plan.entries.filter(e=>e.change.rating!=='keep');
+        const tasteRows=opinions.length?await tx.select().from(userTastePreferences).where(eq(userTastePreferences.userId,userId)):[];
+        const taste=new Map<string,{dimension:string;key:string;entries:TasteEvidence[];row?:typeof userTastePreferences.$inferSelect}>(tasteRows.map(r=>[`${r.dimension}:${r.key}`,{dimension:r.dimension,key:r.key,entries:JSON.parse(r.evidenceJson) as TasteEvidence[],row:r}]));
+        const touched=new Set<string>();const now=new Date();
+        for(const {item,change} of plan.entries){
+          if(change.watchlist==='add')await repo.addWatchlist(userId,item);
+          if(change.watchlist==='remove')await repo.removeWatchlist(userId,item.mediaType,item.id);
+          if(change.seen==='seen')await repo.markWatched(userId,item);
+          if(change.seen==='unseen')await repo.removeWatched(userId,item.mediaType,item.id);
+          if(change.rating==='keep')continue;
+          if(change.rating==='clear')await tx.delete(userTitleFeedback).where(and(eq(userTitleFeedback.userId,userId),eq(userTitleFeedback.mediaType,item.mediaType),eq(userTitleFeedback.tmdbId,item.id)));
+          else await repo.setFeedback(userId,item.mediaType,item.id,change.rating);
+          const evidenceId=`reaction:${item.mediaType}:${item.id}`;
+          for(const [key,value] of taste){const filtered=value.entries.filter(e=>e.id!==evidenceId&&e.id!==`watchlist:${item.mediaType}:${item.id}`);
+            if(filtered.length!==value.entries.length){value.entries=filtered;touched.add(key);}}
+          if(change.rating==='clear'||change.rating==='meh')continue;
+          const reliability:Record<string,number>={genre:.75,keyword:.5,mood:.5,director:.3,actor:.2,language:.1,decade:.1,format:.1,country:.1,franchise:.5};
+          for(const d of titleDimensions(item)){
+            let key=d.key.trim().toLowerCase();let dimension=d.dimension;
+            if(['sci-fi','scifi'].includes(key))key='science fiction';if(key==='musicals')key='musical';
+            if(dimension==='theme'||dimension==='genre'&&key==='musical')dimension='keyword';
+            const mapKey=`${dimension}:${key}`;let value=taste.get(mapKey);
+            if(!value){value={dimension,key,entries:[]};taste.set(mapKey,value);}
+            if(value.row&&!value.entries.length&&!touched.has(mapKey))value.entries=[{id:'legacy',source:value.row.source,score:value.row.score,weight:Math.max(.1,value.row.confidence),explicit:/explicit|onboarding/.test(value.row.source),at:value.row.updatedAt.toISOString()}];
+            value.entries=value.entries.filter(e=>e.id!==evidenceId);
+            value.entries.push({id:evidenceId,source:change.rating,score:signalStrength[change.rating],weight:evidenceWeight(change.rating)*(reliability[dimension]??.1),explicit:true,at:now.toISOString()});
+            value.entries=value.entries.slice(-64);touched.add(mapKey);
+          }
+        }
+        const upserts=[];
+        for(const key of touched){const value=taste.get(key)!;
+          if(!value.entries.length){await tx.delete(userTastePreferences).where(and(eq(userTastePreferences.userId,userId),eq(userTastePreferences.dimension,value.dimension),eq(userTastePreferences.key,value.key)));continue;}
+          const merged=aggregateEvidence(value.dimension,value.key,value.entries);
+          upserts.push({id:randomUUID(),userId,dimension:value.dimension,key:value.key,score:merged.score,confidence:merged.confidence,evidenceCount:merged.evidenceCount,source:merged.source,explicit:merged.explicit??false,evidenceJson:JSON.stringify(value.entries),lastEvidenceAt:now,updatedAt:now});
+        }
+        for(let i=0;i<upserts.length;i+=20)await tx.insert(userTastePreferences).values(upserts.slice(i,i+20)).onConflictDoUpdate({target:[userTastePreferences.userId,userTastePreferences.dimension,userTastePreferences.key],set:{score:sql`excluded.score`,confidence:sql`excluded.confidence`,evidenceCount:sql`excluded.evidence_count`,source:sql`excluded.source`,explicit:sql`excluded.explicit`,evidenceJson:sql`excluded.evidence_json`,lastEvidenceAt:now,updatedAt:now}});
+        blocks.push({type:'confirmation',content:`Saved ${plan.entries.length} of ${plan.entries.length} titles.\n${plan.summary}\nAll other flags and ratings were left unchanged.`});
+        blocks.push({type:'library_changes',status:'saved',items:plan.entries.map(({item,change})=>({id:item.id,mediaType:item.mediaType,title:item.title,year:item.year,posterUrl:item.posterUrl,
+          changes:[change.watchlist==='add'?'Added to Want to see':change.watchlist==='remove'?'Removed from Want to see':null,change.seen==='seen'?'Marked Seen':change.seen==='unseen'?'Seen mark removed':null,change.rating==='keep'?null:change.rating==='clear'?'Rating cleared':`Rated ${change.rating.replace('_',' ')}`].filter((s):s is string=>s!==null)}))});
+      }
+      delete context.chatPlan;
+      context.chatReceipt={id:plan.id,blocks};
+      await repo.setSessionContext(userId,sessionId,context);
+      return blocks;
+    });
   }
 
   async createReminder(userId: string, epgProgramId: string, offsetMinutes: number) {

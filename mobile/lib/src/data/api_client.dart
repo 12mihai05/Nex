@@ -266,6 +266,8 @@ class NexApiClient {
     String? genre,
     String? mood,
     Set<int> excluded = const {},
+    Set<int>? providers,
+    String watchStatus = 'new',
   }) async =>
       ((await _dio.post<Map<String, dynamic>>(
                 '/api/surprise',
@@ -276,6 +278,9 @@ class NexApiClient {
                   'genres': [?genre],
                   'mood': mood,
                   'excludedIds': excluded.toList(),
+                  if (providers != null)
+                    'providerIds': providers.toList()..sort(),
+                  'watchStatus': watchStatus,
                 },
               )).data!['data']
               as Map)

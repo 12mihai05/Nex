@@ -4,6 +4,39 @@ import 'package:nex/src/state/app_controller.dart';
 import 'package:nex/src/models/chat_message.dart';
 
 void main() {
+  test('demo chat never guesses library changes or reminder times', () async {
+    final container = ProviderContainer();
+    addTearDown(container.dispose);
+    final controller = container.read(appControllerProvider.notifier);
+    final before = container.read(appControllerProvider).watchlist;
+    await controller.sendChat('Add the first movie to my watchlist');
+    expect(container.read(appControllerProvider).watchlist, before);
+    final block =
+        container.read(appControllerProvider).chatMessages.last.blocks.single
+            as TextChatBlock;
+    expect(block.text, contains('Nothing changed'));
+    await controller.sendChat('Remind me before the second programme');
+    expect(
+      (container.read(appControllerProvider).chatMessages.last.blocks.single
+              as TextChatBlock)
+          .text,
+      contains('Nothing changed'),
+    );
+  });
+  test(
+    'chat action labels hide identifiers without altering regular prompts',
+    () {
+      expect(
+        chatActionLabel('Confirm changes 12345678-1234-1234-1234-123456789abc'),
+        'Confirm changes',
+      );
+      expect(
+        chatActionLabel('Cancel changes 12345678-1234-1234-1234-123456789abc'),
+        'Cancel changes',
+      );
+      expect(chatActionLabel('Show more movies'), 'Show more movies');
+    },
+  );
   test('seen and every opinion are independently editable', () async {
     final container = ProviderContainer();
     addTearDown(container.dispose);

@@ -16,6 +16,7 @@ import { detectSearchIntent } from "./services/intent.js";
 import { rankCandidates } from "./services/recommendation.js";
 import { generateCandidates } from "./services/candidates.js";
 import { discoverHome, discoveryShelves } from "./services/discovery.js";
+import { pickTitle } from "./services/pick.js";
 import { catalogFilterSchema, filteredCatalog } from "./services/filtered-catalog.js";
 import { createEpgProvider } from "./services/epg/provider.js";
 import { getDatabase } from "./db/client.js";
@@ -134,7 +135,7 @@ app.get("/api/discovery", async c => {
   const userId=c.get("authSession").user.id;
   const {batch:rawBatch,plan:rawPlan,...query}=c.req.query();
   const input=catalogFilterSchema.parse(query);
-  const filters=Object.keys(query).length?{mediaType:input.mediaType,genres:input.genre?[input.genre]:[],minRuntimeMinutes:input.minMinutes??null,maxRuntimeMinutes:input.maxMinutes??null}:{};
+  const filters=Object.keys(query).length?{mediaType:input.mediaType,genres:input.genre?[input.genre]:[],minRuntimeMinutes:input.minMinutes??null,maxRuntimeMinutes:input.maxMinutes??null,...(input.watchStatus?{watchStatus:input.watchStatus}:{}),...(input.providerIds?{providerIds:input.providerIds}:{})}:{};
   const batch=rawBatch===undefined?undefined:z.coerce.number().int().min(0).max(5).parse(rawBatch);
   const state=await users.getRecommendationState(userId);
   let decoded:unknown;
@@ -175,10 +176,10 @@ app.post("/api/surprise", async (c) => {
   filter.minRuntimeMinutes = body.minRuntimeMinutes;
   filter.mediaType = body.mediaType;
   filter.genres = body.genres;
+  filter.providerIds = body.providerIds ?? [];
   filter.intent = "DISCOVERY";
-  const candidates = (await generateCandidates(catalog,state,filter)).filter((item) => !body.excludedIds.includes(item.id));
-  const result = rankCandidates(candidates, filter, { ...state, viewerIds: [userId], temporaryMoods: body.mood ? [body.mood] : [] }, 1)[0];
-  if (!result) throw new HTTPException(404, { message: "No new grounded pick matched those constraints." });
+  const result = await pickTitle(catalog,state,userId,filter,body.watchStatus,body.excludedIds);
+  if (!result) throw new HTTPException(404, { message: "No grounded pick matched those constraints." });
   await users.recordRecommendations(userId,[result],"surprise");
   return c.json({ data: result });
 });
@@ -202,7 +203,8 @@ app.post("/api/onboarding/analyze", async (c) => {
 app.post("/api/chat", async (c) => {
   const body = chatBodySchema.parse(await c.req.json());
   const userId = c.get("authSession").user.id;
-  if (!await users.incrementAiUsage(userId, config.AI_DAILY_MESSAGE_LIMIT)) return c.json({ error: { code: "AI_DAILY_LIMIT", message: "Daily AI limit reached. Browse and search still work." } }, 429);
+  const confirming=/^(confirm|cancel) changes(?: [a-f0-9-]{36})?$/i.test(body.message);
+  if (!confirming && !await users.incrementAiUsage(userId, config.AI_DAILY_MESSAGE_LIMIT)) return c.json({ error: { code: "AI_DAILY_LIMIT", message: "Daily AI limit reached. Browse and search still work." } }, 429);
   return c.json({ data: await chat.respond(userId, body.message, body.sessionId) });
 });
 

@@ -20,6 +20,7 @@ class _AuthScreenState extends ConsumerState<AuthScreen> {
       invite = TextEditingController();
   var create = false;
   bool restoring = true;
+  bool submitting = false;
   bool showPassword = false, showInvite = false;
   @override
   void initState() {
@@ -49,6 +50,7 @@ class _AuthScreenState extends ConsumerState<AuthScreen> {
   @override
   Widget build(BuildContext context) {
     final state = ref.watch(appControllerProvider);
+    final locked = submitting || state.busy;
     if (restoring) return const PreparationScreen(phase: 'Opening your Nex');
     return Scaffold(
       body: Stack(
@@ -139,6 +141,7 @@ class _AuthScreenState extends ConsumerState<AuthScreen> {
                           if (create) ...[
                             TextField(
                               controller: name,
+                              readOnly: locked,
                               textCapitalization: TextCapitalization.words,
                               decoration: const InputDecoration(
                                 labelText: 'Name',
@@ -148,6 +151,7 @@ class _AuthScreenState extends ConsumerState<AuthScreen> {
                           ],
                           TextField(
                             controller: email,
+                            readOnly: locked,
                             keyboardType: TextInputType.emailAddress,
                             autocorrect: false,
                             decoration: const InputDecoration(
@@ -157,6 +161,7 @@ class _AuthScreenState extends ConsumerState<AuthScreen> {
                           const SizedBox(height: 16),
                           TextField(
                             controller: password,
+                            readOnly: locked,
                             obscureText: !showPassword,
                             autocorrect: false,
                             enableSuggestions: false,
@@ -181,6 +186,7 @@ class _AuthScreenState extends ConsumerState<AuthScreen> {
                             const SizedBox(height: 16),
                             TextField(
                               controller: invite,
+                              readOnly: locked,
                               obscureText: !showInvite,
                               autocorrect: false,
                               enableSuggestions: false,
@@ -213,9 +219,12 @@ class _AuthScreenState extends ConsumerState<AuthScreen> {
                             ),
                           const SizedBox(height: 24),
                           FilledButton(
-                            onPressed: state.busy
+                            onPressed: locked
                                 ? null
                                 : () async {
+                                    if (submitting) return;
+                                    setState(() => submitting = true);
+                                    FocusScope.of(context).unfocus();
                                     final ok = await ref
                                         .read(appControllerProvider.notifier)
                                         .authenticate(
@@ -233,9 +242,11 @@ class _AuthScreenState extends ConsumerState<AuthScreen> {
                                             ? '/home'
                                             : '/onboarding',
                                       );
+                                    } else if (mounted) {
+                                      setState(() => submitting = false);
                                     }
                                   },
-                            child: state.busy
+                            child: locked
                                 ? const SizedBox.square(
                                     dimension: 22,
                                     child: CircularProgressIndicator(
@@ -250,11 +261,13 @@ class _AuthScreenState extends ConsumerState<AuthScreen> {
                                   ),
                           ),
                           TextButton(
-                            onPressed: () => setState(() {
-                              create = !create;
-                              showPassword = false;
-                              showInvite = false;
-                            }),
+                            onPressed: locked
+                                ? null
+                                : () => setState(() {
+                                    create = !create;
+                                    showPassword = false;
+                                    showInvite = false;
+                                  }),
                             child: Text(
                               create
                                   ? 'Already have an account? Sign in'
@@ -288,12 +301,14 @@ class _AuthScreenState extends ConsumerState<AuthScreen> {
                                   .colorScheme
                                   .onSurface,
                             ),
-                            onPressed: () {
-                              ref
-                                  .read(appControllerProvider.notifier)
-                                  .enterDemo();
-                              context.go('/onboarding');
-                            },
+                            onPressed: locked
+                                ? null
+                                : () {
+                                    ref
+                                        .read(appControllerProvider.notifier)
+                                        .enterDemo();
+                                    context.go('/onboarding');
+                                  },
                             icon: const Icon(Icons.play_circle_outline),
                             label: const Text('Explore demo mode'),
                           ),

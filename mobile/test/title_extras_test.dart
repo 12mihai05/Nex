@@ -23,6 +23,41 @@ class ExtrasApi extends MutableApi {
 
 void main() {
   testWidgets(
+    'compact trailer state is button-sized and safely handles missing trailers',
+    (tester) async {
+      final api = ExtrasApi();
+      final c = ProviderContainer(
+        overrides: [nexApiClientProvider.overrideWithValue(api)],
+      );
+      addTearDown(c.dispose);
+      await c.read(appControllerProvider.notifier).restoreSession();
+      await tester.pumpWidget(
+        UncontrolledProviderScope(
+          container: c,
+          child: MaterialApp(
+            home: Scaffold(
+              body: TitleExtras(item: demoCatalog.first, trailerOnly: true),
+            ),
+          ),
+        ),
+      );
+      expect(find.byType(SkeletonBlock), findsOneWidget);
+      api.details.complete({
+        'videos': [],
+        'seasons': [
+          {'number': 1, 'name': 'Season 1', 'episodeCount': 5},
+        ],
+      });
+      await tester.pumpAndSettle();
+      expect(find.text('No trailer available'), findsOneWidget);
+      expect(
+        tester.widget<OutlinedButton>(find.byType(OutlinedButton)).onPressed,
+        isNull,
+      );
+      expect(find.byType(DropdownButtonFormField<int>), findsNothing);
+    },
+  );
+  testWidgets(
     'trailers and seasons load separately; episode selection is lazy and cached',
     (tester) async {
       final api = ExtrasApi();

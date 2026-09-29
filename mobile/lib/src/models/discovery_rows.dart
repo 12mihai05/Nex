@@ -12,6 +12,7 @@ List<ContentRow> parseDiscoveryRows(List<Map<String, dynamic>> data) => data
               ),
             )
             .toList(),
+        id: r['id'] as String?,
       ),
     )
     .toList();
@@ -42,7 +43,7 @@ List<ContentRow> appendDiscoveryRows(
         )) {
       continue;
     }
-    result.add(ContentRow(row.title, row.subtitle, items));
+    result.add(ContentRow(row.title, row.subtitle, items, id: row.id));
     for (final item in items) {
       counts.update(item.key, (n) => n + 1, ifAbsent: () => 1);
     }

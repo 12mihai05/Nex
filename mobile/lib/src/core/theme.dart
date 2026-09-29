@@ -57,6 +57,23 @@ abstract final class NexTheme {
       colorScheme: scheme,
       scaffoldBackgroundColor: dark ? NexColors.ink : NexColors.bone,
       fontFamily: 'sans-serif',
+      snackBarTheme: SnackBarThemeData(
+        behavior: SnackBarBehavior.floating,
+        backgroundColor: scheme.surfaceContainerHighest,
+        contentTextStyle: TextStyle(
+          fontFamily: 'sans-serif',
+          color: scheme.onSurface,
+          fontSize: 14,
+          height: 1.4,
+        ),
+        actionTextColor: scheme.primary,
+        elevation: 6,
+        insetPadding: const EdgeInsets.fromLTRB(16, 0, 16, 20),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(24),
+          side: BorderSide(color: scheme.outlineVariant),
+        ),
+      ),
       appBarTheme: AppBarTheme(
         backgroundColor: scheme.surface,
         foregroundColor: scheme.onSurface,

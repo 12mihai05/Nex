@@ -295,6 +295,18 @@ class AppController extends Notifier<AppState> {
   Iterable<ContentItem> get _freshDemo => demoCatalog.where(_isNewToViewer);
   ContentItem? get browseHero =>
       state.demoMode ? _freshDemo.firstOrNull : _freshRanked.firstOrNull;
+  List<ContentItem> get _demoRewatch => demoCatalog
+      .where(
+        (i) =>
+            state.watched.contains(i.key) &&
+            ['like', 'super_like'].contains(state.reactions[i.key]) &&
+            i.availability.any(
+              (a) =>
+                  a.access == 'included' &&
+                  state.providers.contains(a.providerId),
+            ),
+      )
+      .toList();
   List<ContentRow> get browseRows => state.demoMode
       ? [
           ContentRow(
@@ -334,17 +346,38 @@ class AppController extends Notifier<AppState> {
                   .where((item) => state.watchlist.contains(item.key))
                   .toList(),
             ),
-        ].where((row) => row.items.isNotEmpty).take(4).toList()
+          if (_demoRewatch.length >= 3)
+            ContentRow(
+              'Watch again',
+              'Seen and liked, available on your services',
+              _demoRewatch,
+              id: 'rewatch',
+            ),
+        ].where((row) => row.items.isNotEmpty).toList()
       : _discoveryRows.isNotEmpty
       ? _discoveryRows
             .map(
               (r) => ContentRow(
                 r.title,
                 r.subtitle,
-                r.items.where(_isNewToViewer).toList(),
+                r.items
+                    .where(
+                      (i) => r.id == 'rewatch'
+                          ? state.watched.contains(i.key) &&
+                                [
+                                  'like',
+                                  'super_like',
+                                ].contains(state.reactions[i.key])
+                          : _isNewToViewer(i),
+                    )
+                    .toList(),
+                id: r.id,
               ),
             )
-            .where((r) => r.items.isNotEmpty)
+            .where(
+              (r) =>
+                  r.id == 'rewatch' ? r.items.length >= 3 : r.items.isNotEmpty,
+            )
             .toList()
       : [
           ContentRow(
@@ -473,6 +506,7 @@ class AppController extends Notifier<AppState> {
                     ),
                   )
                   .toList(),
+              id: r['id'] as String?,
             ),
           )
           .toList();
@@ -577,26 +611,77 @@ class AppController extends Notifier<AppState> {
     required String password,
     String invite = '',
   }) async {
+    if (_authenticating) return false;
+    _authenticating = true;
     state = state.copyWith(busy: true, clearError: true);
     try {
-      if (create) {
+      final attempt =
+          '${create ? 'register' : 'login'}:${email.trim().toLowerCase()}';
+      if (_pendingAuth != attempt) _pendingAuth = null;
+      if (_pendingAuth != attempt && create) {
         await _api.signUp(
           name: name,
           email: email,
           password: password,
           inviteCode: invite,
         );
-      } else {
+      } else if (_pendingAuth != attempt) {
         await _api.signIn(email: email, password: password);
       }
-      state = state.copyWith(authenticated: true, demoMode: false, busy: false);
-      await refreshLive();
+      _pendingAuth = attempt;
+      // Only the profile is required to choose the destination. Artwork, TV and
+      // recommendations must not hold the user on the credentials screen.
+      final settings = await _api.settings();
+      if (!ref.mounted) return false;
+      final profile = settings['profile'] as Map;
+      final languages = settings['languages'] as List;
+      state = state.copyWith(
+        authenticated: true,
+        demoMode: false,
+        busy: false,
+        onboardingComplete: profile['onboardingComplete'] as bool,
+        displayName: ((settings['user'] as Map?)?['name'] as String? ?? '')
+            .trim(),
+        country: profile['country'] as String,
+        appearance: ThemeMode.values.byName(profile['appearance'] as String),
+        providers: (settings['services'] as List)
+            .map((s) => s['providerId'] as int)
+            .toSet(),
+        audioLanguages: languages
+            .where((l) => l['kind'] == 'audio')
+            .map((l) => l['languageCode'] as String)
+            .toSet(),
+        subtitleLanguages: languages
+            .where((l) => l['kind'] == 'subtitle')
+            .map((l) => l['languageCode'] as String)
+            .toSet(),
+        remindersEnabled: profile['remindersEnabled'] as bool,
+        behaviorPersonalization: profile['behaviorPersonalization'] as bool,
+      );
+      _pendingAuth = null;
+      if (state.onboardingComplete) {
+        unawaited(refreshLive(restoredSettings: settings));
+      } else {
+        unawaited(updateOnboardingCountry(state.country));
+      }
       return true;
     } catch (error) {
-      state = state.copyWith(busy: false, error: readableApiError(error));
+      if (ref.mounted) {
+        state = state.copyWith(
+          busy: false,
+          error: _pendingAuth != null
+              ? 'Your account is signed in, but its profile could not load. Please try again.'
+              : readableApiError(error),
+        );
+      }
       return false;
+    } finally {
+      _authenticating = false;
     }
   }
+
+  bool _authenticating = false;
+  String? _pendingAuth;
 
   void updateOnboarding({
     String? country,
@@ -854,62 +939,30 @@ class AppController extends Notifier<AppState> {
       busy: true,
       chatMessages: [
         ...state.chatMessages,
-        ChatMessage(fromUser: true, blocks: [TextChatBlock(text.trim())]),
+        ChatMessage(
+          fromUser: true,
+          blocks: [TextChatBlock(chatActionLabel(text.trim()))],
+        ),
       ],
     );
     if (state.demoMode) {
       final lower = text.toLowerCase();
-      if (lower.contains('remind')) {
-        final recentTv = state.chatMessages.reversed
-            .expand(
-              (message) => message.blocks.whereType<TvCarouselChatBlock>(),
-            )
-            .firstOrNull;
-        if (recentTv != null && recentTv.items.isNotEmpty) {
-          final position = lower.contains('third')
-              ? 2
-              : lower.contains('second')
-              ? 1
-              : 0;
-          final program =
-              recentTv.items[position.clamp(0, recentTv.items.length - 1)];
-          try {
-            await setReminder(program, 10);
-            state = state.copyWith(
-              busy: false,
-              chatMessages: [
-                ...state.chatMessages,
-                ChatMessage(
-                  fromUser: false,
-                  blocks: [
-                    ConfirmationChatBlock(
-                      'I’ll remind you about ${program.title} 10 minutes before it starts.',
-                    ),
-                  ],
+      if (RegExp(r'\b(add|put|mark|rate|remove|clear|remind|reminder)\b')
+          .hasMatch(lower)) {
+        state = state.copyWith(
+          chatMessages: [
+            ...state.chatMessages,
+            ChatMessage(
+              fromUser: false,
+              blocks: const [
+                TextChatBlock(
+                  'Chat library and reminder actions require a signed-in account. Nothing changed. You can use the title and TV controls in demo mode.',
                 ),
               ],
-            );
-          } catch (error) {
-            state = state.copyWith(
-              busy: false,
-              chatMessages: [
-                ...state.chatMessages,
-                const ChatMessage(
-                  fromUser: false,
-                  blocks: [
-                    ConfirmationChatBlock(
-                      'I couldn’t schedule that reminder. Check notification permission and try again.',
-                    ),
-                  ],
-                ),
-              ],
-            );
-          }
-          return;
-        }
-      }
-      if (lower.contains('add the first') && state.chatMessages.isNotEmpty) {
-        await toggleWatchlist(demoCatalog.first);
+            ),
+          ],
+        );
+        return;
       }
       final runtimeMatch = RegExp(r'under\s+(\d+)\s*(?:minutes?|mins?)')
           .firstMatch(lower);
@@ -973,25 +1026,43 @@ class AppController extends Notifier<AppState> {
       if (!ref.mounted || !state.authenticated) return;
       final response = await _api.chat(text, sessionId: state.chatSessionId);
       final blocks = <NexChatBlock>[];
+      final hasLibraryCards = (response['blocks'] as List? ?? []).any(
+        (b) => b['type'] == 'library_changes',
+      );
       for (final raw in (response['blocks'] as List? ?? [])) {
         final block = (raw as Map).cast<String, dynamic>();
         switch (block['type']) {
           case 'text':
-            blocks.add(TextChatBlock(block['content'] as String));
+            if (!hasLibraryCards) {
+              blocks.add(TextChatBlock(block['content'] as String));
+            }
+          case 'library_changes':
+            blocks.add(
+              LibraryChangesChatBlock(
+                saved: block['status'] == 'saved',
+                items: (block['items'] as List)
+                    .map(
+                      (i) => LibraryChangeItem.fromJson(
+                        (i as Map).cast<String, dynamic>(),
+                      ),
+                    )
+                    .toList(),
+              ),
+            );
           case 'confirmation':
             final action = block['action'];
             if (action is Map && action['type'] == 'setReminder') {
               try {
                 await _scheduleSavedReminder(action.cast<String, dynamic>());
                 blocks.add(
-                  const ConfirmationChatBlock(
-                    'Reminder scheduled on this device.',
+                  ConfirmationChatBlock(
+                    '${action['title']} on ${action['channelName'] ?? 'the selected channel'}: reminder scheduled on this device ${action['offsetMinutes']} minutes before the programme.',
                   ),
                 );
               } catch (_) {
                 blocks.add(
                   const ConfirmationChatBlock(
-                    'Notification could not be scheduled. Check device permissions; the new reminder was rolled back.',
+                    'Notification scheduling could not be confirmed. Check device permissions and your Reminders list before trying again.',
                   ),
                 );
               }
@@ -1007,7 +1078,9 @@ class AppController extends Notifier<AppState> {
               );
               blocks.add(ConfirmationChatBlock(block['content'] as String));
             } else {
-              blocks.add(ConfirmationChatBlock(block['content'] as String));
+              if (!hasLibraryCards) {
+                blocks.add(ConfirmationChatBlock(block['content'] as String));
+              }
             }
           case 'movie_carousel':
             blocks.add(
@@ -1032,8 +1105,9 @@ class AppController extends Notifier<AppState> {
                     id: item['id'] as String,
                     title: item['title'] as String,
                     channel: channel['name'] as String,
-                    startsAt: DateTime.parse(item['startAt'] as String),
-                    endsAt: DateTime.parse(item['endAt'] as String),
+                    startsAt: DateTime.parse(item['startAt'] as String)
+                        .toLocal(),
+                    endsAt: DateTime.parse(item['endAt'] as String).toLocal(),
                     description: item['description'] as String?,
                     logoUrl: channel['logoUrl'] as String?,
                   );
@@ -1046,7 +1120,11 @@ class AppController extends Notifier<AppState> {
             );
         }
       }
-      if (blocks.any((b) => b is ConfirmationChatBlock)) {
+      if (blocks.any(
+        (b) =>
+            b is ConfirmationChatBlock ||
+            b is LibraryChangesChatBlock && b.saved,
+      )) {
         try {
           await refreshPersonalState();
         } catch (_) {
@@ -1092,6 +1170,8 @@ class AppController extends Notifier<AppState> {
     String? genre,
     String? mood,
     Set<int> excluded = const {},
+    Set<int>? providers,
+    String watchStatus = 'new',
   }) {
     var choices = demoCatalog
         .where(
@@ -1101,7 +1181,16 @@ class AppController extends Notifier<AppState> {
               (genre == null || item.genres.contains(genre)) &&
               (minMinutes == null ||
                   (item.runtimeMinutes ?? 0) >= minMinutes) &&
-              _isNewToViewer(item) &&
+              (watchStatus == 'either' ||
+                  (watchStatus == 'again'
+                      ? state.watched.contains(item.key)
+                      : _isNewToViewer(item))) &&
+              state.reactions[item.key] != 'dislike' &&
+              item.availability.any(
+                (a) =>
+                    a.access == 'included' &&
+                    (providers ?? state.providers).contains(a.providerId),
+              ) &&
               (maxMinutes == null ||
                   (item.runtimeMinutes ?? 999) <= maxMinutes) &&
               (mood == null ||
@@ -1127,6 +1216,8 @@ class AppController extends Notifier<AppState> {
     String? genre,
     String? mood,
     Set<int> excluded = const {},
+    Set<int>? providers,
+    String watchStatus = 'new',
   }) async {
     if (state.demoMode) {
       return pickForMe(
@@ -1136,6 +1227,8 @@ class AppController extends Notifier<AppState> {
         genre: genre,
         mood: mood,
         excluded: excluded,
+        providers: providers,
+        watchStatus: watchStatus,
       );
     }
     await Future.wait(_titleWrites.values.toList());
@@ -1149,6 +1242,8 @@ class AppController extends Notifier<AppState> {
       genre: genre,
       mood: ['Use my taste', 'Surprise me'].contains(mood) ? null : mood,
       excluded: excluded,
+      providers: providers,
+      watchStatus: watchStatus,
     );
     final item = ContentItem.fromJson(
       (result['item'] as Map).cast<String, dynamic>(),
@@ -1247,6 +1342,7 @@ class AppController extends Notifier<AppState> {
       if (_providerCache.containsKey(country)) return;
       try {
         final providers = await _api.list('/api/providers?country=$country');
+        if (!ref.mounted) return;
         final available = {
           for (final p in providers) p['id'] as int: p['name'] as String,
         };
@@ -1254,14 +1350,14 @@ class AppController extends Notifier<AppState> {
         if (ticket != _countryRequest) return;
         _liveProviders = available;
       } catch (error) {
-        if (ticket == _countryRequest) {
+        if (ref.mounted && ticket == _countryRequest) {
           state = state.copyWith(error: readableApiError(error));
         }
       } finally {
         if (ticket == _countryRequest) providersLoading = false;
       }
     }
-    if (ticket == _countryRequest) state = state.copyWith();
+    if (ref.mounted && ticket == _countryRequest) state = state.copyWith();
   }
 
   Future<void> saveProviders(Set<int> providers) async {
@@ -1357,6 +1453,7 @@ class AppController extends Notifier<AppState> {
   }
 
   void _clearViewerCache() {
+    _pendingAuth = null;
     _mutationEpoch++;
     _titleWrites.clear();
     _titleVersions.clear();

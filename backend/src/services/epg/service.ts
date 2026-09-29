@@ -8,9 +8,24 @@ import { createTmdbRepository, type TmdbRepository } from "../../repositories/tm
 import { createEpgProvider, type EpgProvider } from "./provider.js";
 import { bestEpgMatch, type MatchResult } from "./matcher.js";
 import { normalizeEpgTitle, type NormalizedProgram } from "./xmltv.js";
+import {localDayWindow} from '../tv-window.js';
 
 export class EpgService {
   constructor(private readonly db: NexDatabase = getDatabase(), private readonly provider: EpgProvider = createEpgProvider(), private readonly catalog: TmdbRepository = createTmdbRepository()) {}
+
+  async chatChannels(country:string){
+    return this.db.select({id:channels.id,name:channels.displayName}).from(channels).where(and(eq(channels.country,country),eq(channels.active,true)));
+  }
+
+  async reminderCandidates(country:string,date:string,timezone:string) {
+    const window=localDayWindow(date,timezone);
+    // Complete country/day query, independent of favorites and the 100-card TV page.
+    return this.db.select({id:epgPrograms.id,title:epgPrograms.title,startAt:epgPrograms.startAt,
+      channelName:channels.displayName}).from(epgPrograms).innerJoin(channels,eq(channels.id,epgPrograms.channelId))
+      .where(and(eq(channels.country,country),eq(channels.active,true),gt(epgPrograms.startAt,new Date()),
+        sql`${epgPrograms.startAt} >= ${+window.start}`,lt(epgPrograms.startAt,window.end)))
+      .orderBy(epgPrograms.startAt,epgPrograms.id);
+  }
 
   async broadcastsForTitle(item: ContentItem, country: string, now = new Date()) {
     // Lookup all matching channels, not the first 100 programmes in the TV feed.

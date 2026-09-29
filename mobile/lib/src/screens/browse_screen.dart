@@ -12,6 +12,8 @@ import '../widgets/content_row.dart';
 import '../widgets/top_bar.dart';
 import '../widgets/skeleton.dart';
 import '../widgets/catalog_filter_sheet.dart';
+import '../widgets/streaming_service_chips.dart';
+import '../widgets/title_extras.dart';
 import '../data/api_client.dart';
 
 class BrowseScreen extends ConsumerStatefulWidget {
@@ -22,6 +24,10 @@ class BrowseScreen extends ConsumerStatefulWidget {
 
 class _BrowseScreenState extends ConsumerState<BrowseScreen> {
   String type = 'any';
+  String watchStatus = 'new';
+  Set<int>? providers;
+  String? get providerQuery =>
+      providers == null ? null : (providers!.toList()..sort()).join(',');
   String? genre, filterError;
   int? minimum, maximum;
   bool filtering = false;
@@ -55,6 +61,8 @@ class _BrowseScreenState extends ConsumerState<BrowseScreen> {
         queryParameters: {
           'batch': '$nextBatch',
           'mediaType': type,
+          'watchStatus': watchStatus,
+          'providerIds': ?providerQuery,
           'genre': ?genre,
           'minMinutes': ?minimum?.toString(),
           'maxMinutes': ?maximum?.toString(),
@@ -83,8 +91,14 @@ class _BrowseScreenState extends ConsumerState<BrowseScreen> {
   }
 
   bool get hasFilters =>
-      type != 'any' || genre != null || minimum != null || maximum != null;
-  String get filterKey => '$type:$genre:$minimum:$maximum';
+      type != 'any' ||
+      genre != null ||
+      minimum != null ||
+      maximum != null ||
+      watchStatus != 'new' ||
+      providers != null;
+  String get filterKey =>
+      '$type:$genre:$minimum:$maximum:$watchStatus:$providerQuery';
 
   Future<void> loadFilters({bool force = false}) async {
     final ticket = ++generation;
@@ -116,34 +130,60 @@ class _BrowseScreenState extends ConsumerState<BrowseScreen> {
     try {
       List<ContentRow> rows;
       if (ref.read(appControllerProvider).demoMode) {
-        rows = ref
-            .read(appControllerProvider.notifier)
-            .browseRows
-            .map(
-              (r) => ContentRow(
-                r.title,
-                r.subtitle,
-                r.items
-                    .where(
-                      (i) =>
-                          (type == 'any' || i.mediaType.name == type) &&
-                          (genre == null || i.genres.contains(genre)) &&
-                          (minimum == null ||
-                              (i.runtimeMinutes != null &&
-                                  i.runtimeMinutes! >= minimum!)) &&
-                          (maximum == null ||
-                              (i.runtimeMinutes != null &&
-                                  i.runtimeMinutes! <= maximum!)),
-                    )
-                    .toList(),
-              ),
-            )
-            .where((r) => r.items.isNotEmpty)
-            .toList();
+        final viewer = ref.read(appControllerProvider);
+        final catalog = ref.read(appControllerProvider.notifier).catalog;
+        rows =
+            [
+                  ContentRow('For you', 'Your selected titles', catalog),
+                  for (final g in catalog.expand((i) => i.genres).toSet())
+                    ContentRow(
+                      g,
+                      null,
+                      catalog.where((i) => i.genres.contains(g)).toList(),
+                    ),
+                ]
+                .map(
+                  (r) => ContentRow(
+                    r.title,
+                    r.subtitle,
+                    r.items
+                        .where(
+                          (i) =>
+                              (watchStatus == 'either' ||
+                                  (watchStatus == 'again'
+                                      ? viewer.watched.contains(i.key)
+                                      : !viewer.watched.contains(i.key) &&
+                                            !viewer.reactions.containsKey(
+                                              i.key,
+                                            ))) &&
+                              viewer.reactions[i.key] != 'dislike' &&
+                              i.availability.any(
+                                (a) =>
+                                    a.access == 'included' &&
+                                    (providers ?? viewer.providers).contains(
+                                      a.providerId,
+                                    ),
+                              ) &&
+                              (type == 'any' || i.mediaType.name == type) &&
+                              (genre == null || i.genres.contains(genre)) &&
+                              (minimum == null ||
+                                  (i.runtimeMinutes != null &&
+                                      i.runtimeMinutes! >= minimum!)) &&
+                              (maximum == null ||
+                                  (i.runtimeMinutes != null &&
+                                      i.runtimeMinutes! <= maximum!)),
+                        )
+                        .toList(),
+                  ),
+                )
+                .where((r) => r.items.isNotEmpty)
+                .toList();
       } else {
         final query = Uri(
           queryParameters: {
             'mediaType': type,
+            'watchStatus': watchStatus,
+            'providerIds': ?providerQuery,
             'batch': '0',
             'genre': ?genre,
             'minMinutes': ?minimum?.toString(),
@@ -187,24 +227,35 @@ class _BrowseScreenState extends ConsumerState<BrowseScreen> {
   }
 
   Future<void> editFilters() async {
-    final value =
-        await showModalBottomSheet<({String? genre, int? min, int? max})>(
-          context: context,
-          isScrollControlled: true,
-          useSafeArea: true,
-          showDragHandle: true,
-          builder: (_) => CatalogFilterSheet(
-            type: type,
-            genre: genre,
-            min: minimum,
-            max: maximum,
-          ),
-        );
+    final value = await showModalBottomSheet<CatalogFilters>(
+      context: context,
+      isScrollControlled: true,
+      useSafeArea: true,
+      showDragHandle: true,
+      builder: (_) => CatalogFilterSheet(
+        type: type,
+        genre: genre,
+        min: minimum,
+        max: maximum,
+        watchStatus: watchStatus,
+        providers: providers,
+        services: {
+          for (final id in ref.read(appControllerProvider).providers)
+            id:
+                ref
+                    .read(appControllerProvider.notifier)
+                    .availableServices[id] ??
+                'Service $id',
+        },
+      ),
+    );
     if (value == null || !mounted) return;
     setState(() {
       genre = value.genre;
       minimum = value.min;
       maximum = value.max;
+      watchStatus = value.watchStatus;
+      providers = value.providers;
       if (minimum != null || maximum != null) type = 'movie';
     });
     await loadFilters();
@@ -226,12 +277,38 @@ class _BrowseScreenState extends ConsumerState<BrowseScreen> {
         if (previous != next) {
           snapshots.clear();
           batchPositions.clear();
+          providers = null;
+          watchStatus = 'new';
           loadFilters();
         }
       },
     );
     final controller = ref.read(appControllerProvider.notifier);
-    final rows = hasFilters ? filteredRows : controller.browseRows;
+    // Keep cached row order stable, but never retain a newly disliked title or
+    // a title that no longer belongs to the selected viewing mode.
+    final rows = hasFilters
+        ? filteredRows
+              .map(
+                (r) => ContentRow(
+                  r.title,
+                  r.subtitle,
+                  r.items
+                      .where(
+                        (i) =>
+                            state.reactions[i.key] != 'dislike' &&
+                            (watchStatus == 'either' ||
+                                (watchStatus == 'again'
+                                    ? state.watched.contains(i.key)
+                                    : !state.watched.contains(i.key) &&
+                                          !state.reactions.containsKey(i.key))),
+                      )
+                      .toList(),
+                  id: r.id,
+                ),
+              )
+              .where((r) => r.items.isNotEmpty)
+              .toList()
+        : controller.browseRows;
     final hero = hasFilters
         ? rows.firstOrNull?.items.firstOrNull
         : controller.browseHero;
@@ -292,6 +369,24 @@ class _BrowseScreenState extends ConsumerState<BrowseScreen> {
                             loadFilters();
                           },
                         ),
+                      if (watchStatus != 'new')
+                        InputChip(
+                          label: Text(
+                            watchStatus == 'again' ? 'Watch again' : 'Either',
+                          ),
+                          onDeleted: () {
+                            setState(() => watchStatus = 'new');
+                            loadFilters();
+                          },
+                        ),
+                      if (providers != null)
+                        InputChip(
+                          label: Text('${providers!.length} services'),
+                          onDeleted: () {
+                            setState(() => providers = null);
+                            loadFilters();
+                          },
+                        ),
                       if (minimum != null || maximum != null)
                         InputChip(
                           label: Text(
@@ -338,11 +433,13 @@ class _BrowseScreenState extends ConsumerState<BrowseScreen> {
                   ),
                 )
               else if (!filtering && !state.busy && filterError == null)
-                const SliverToBoxAdapter(
+                SliverToBoxAdapter(
                   child: Padding(
-                    padding: EdgeInsets.all(24),
+                    padding: const EdgeInsets.all(24),
                     child: Text(
-                      'No matching picks. Try a broader genre or duration range.',
+                      watchStatus == 'again'
+                          ? 'No matching watched titles on these services. Try broader filters or add titles to your History.'
+                          : 'No matching picks. Try broader filters or more streaming services.',
                     ),
                   ),
                 ),
@@ -451,6 +548,9 @@ class _BrowseScreenState extends ConsumerState<BrowseScreen> {
 
   Future<void> _showPickSheet(BuildContext context, WidgetRef ref) async {
     int? maxMinutes;
+    final savedProviders = ref.read(appControllerProvider).providers;
+    Set<int> pickProviders = Set.of(providers ?? savedProviders);
+    String pickWatchStatus = watchStatus;
     String mood = 'Use my taste';
     final excluded = <int>{};
     ContentItem? pick;
@@ -482,6 +582,8 @@ class _BrowseScreenState extends ConsumerState<BrowseScreen> {
                 genre: genre,
                 mood: mood,
                 excluded: excluded,
+                providers: pickProviders.isEmpty ? null : pickProviders,
+                watchStatus: pickWatchStatus,
               );
               if (context.mounted) setModalState(() => pick = next);
             } catch (_) {
@@ -489,7 +591,7 @@ class _BrowseScreenState extends ConsumerState<BrowseScreen> {
                 ScaffoldMessenger.of(context).showSnackBar(
                   const SnackBar(
                     content: Text(
-                      'No new pick matched. Try widening your filters.',
+                      'No pick matched. Try widening your filters.',
                     ),
                   ),
                 );
@@ -599,8 +701,49 @@ class _BrowseScreenState extends ConsumerState<BrowseScreen> {
                               .toList(),
                     ),
                     const SizedBox(height: 24),
+                    const Text('Viewing'),
+                    const SizedBox(height: 8),
+                    Wrap(
+                      spacing: 8,
+                      children: [
+                        for (final option in [
+                          ('new', 'New to me'),
+                          ('again', 'Watch again'),
+                          ('either', 'Either'),
+                        ])
+                          ChoiceChip(
+                            label: Text(option.$2),
+                            selected: pickWatchStatus == option.$1,
+                            onSelected: (_) => setModalState(
+                              () => pickWatchStatus = option.$1,
+                            ),
+                          ),
+                      ],
+                    ),
+                    if (savedProviders.isNotEmpty) ...[
+                      const SizedBox(height: 20),
+                      const Text('Your streaming services'),
+                      const SizedBox(height: 8),
+                      StreamingServiceChips(
+                        services: {
+                          for (final id in savedProviders)
+                            id:
+                                controller.availableServices[id] ??
+                                'Service $id',
+                        },
+                        selected: pickProviders,
+                        onChanged: (next) =>
+                            setModalState(() => pickProviders = next),
+                      ),
+                      if (pickProviders.isEmpty)
+                        const Text('Select at least one streaming service.'),
+                    ],
+                    const SizedBox(height: 24),
                     FilledButton(
-                      onPressed: choose,
+                      onPressed:
+                          savedProviders.isNotEmpty && pickProviders.isEmpty
+                          ? null
+                          : choose,
                       child: const Text('Make the pick'),
                     ),
                   ] else if (!picking && pick != null) ...[
@@ -644,6 +787,12 @@ class _BrowseScreenState extends ConsumerState<BrowseScreen> {
                         );
                       },
                       child: const Text('Perfect — show details'),
+                    ),
+                    const SizedBox(height: 8),
+                    TitleExtras(
+                      key: ValueKey('pick-trailer-${pick!.key}'),
+                      item: pick!,
+                      trailerOnly: true,
                     ),
                     const SizedBox(height: 8),
                     OutlinedButton(

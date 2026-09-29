@@ -1,14 +1,18 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:url_launcher/url_launcher.dart';
+import 'package:flutter/services.dart';
+
+import '../services/trailer_launcher.dart';
+import 'nex_notice.dart';
 
 import '../models/content.dart';
 import '../state/app_controller.dart';
 import 'skeleton.dart';
 
 class TitleExtras extends ConsumerStatefulWidget {
-  const TitleExtras({super.key, required this.item});
+  const TitleExtras({super.key, required this.item, this.trailerOnly = false});
   final ContentItem item;
+  final bool trailerOnly;
   @override
   ConsumerState<TitleExtras> createState() => _TitleExtrasState();
 }
@@ -18,6 +22,8 @@ class _TitleExtrasState extends ConsumerState<TitleExtras> {
   final seasons = <int, Future<Map<String, dynamic>>>{};
   int? selected;
   int visibleEpisodes = 20;
+  String? openingTrailer;
+  final launcher = TrailerLauncher();
   @override
   void initState() {
     super.initState();
@@ -67,49 +73,66 @@ class _TitleExtrasState extends ConsumerState<TitleExtras> {
           (v) => ListTile(
             contentPadding: EdgeInsets.zero,
             leading: const Icon(Icons.play_circle_outline),
-            trailing: const Icon(Icons.open_in_new, size: 18),
+            trailing: Icon(
+              openingTrailer == v['url']
+                  ? Icons.hourglass_top_rounded
+                  : Icons.open_in_new,
+              size: 18,
+            ),
             title: Text(v['name'] as String),
             subtitle: Text(
               '${v['type']} · YouTube${v['official'] == true ? ' · Official' : ''}',
             ),
-            onTap: () async {
-              final uri = Uri.tryParse(v['url'] as String? ?? '');
-              bool opened = false;
-              try {
-                if (uri != null &&
-                    uri.scheme == 'https' &&
-                    uri.host == 'www.youtube.com') {
-                  opened = await launchUrl(
-                    uri,
-                    mode: LaunchMode.externalApplication,
-                  );
-                }
-              } catch (_) {
-                /* Recover below. */
-              }
-              if (!opened && mounted) {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(
-                    content: Text(
-                      'Could not open this trailer. Please try again.',
-                    ),
-                  ),
-                );
-              }
-            },
+            onTap: openingTrailer != null
+                ? null
+                : () => openTrailer(v['url'] as String? ?? ''),
           ),
         )
         .toList(),
   );
-  Widget loading() => const NexSkeleton(
-    child: Column(
-      children: [
-        SkeletonBlock(height: 56),
-        SizedBox(height: 12),
-        SkeletonBlock(height: 56),
-      ],
-    ),
-  );
+  Future<void> openTrailer(String url) async {
+    setState(() => openingTrailer = url);
+    final result = await launcher.open(url);
+    if (!mounted) return;
+    setState(() => openingTrailer = null);
+    if (result == TrailerLaunchResult.opened) return;
+    final message = switch (result) {
+      TrailerLaunchResult.bridgeUnavailable => 'The phone’s link launcher did not respond. You can copy the trailer link.',
+      TrailerLaunchResult.invalidLink => 'This trailer link is unavailable.',
+      _ => 'No browser could open this trailer. You can copy its link.',
+    };
+    showNexNotice(
+      context,
+      message,
+      action: TrailerLauncher.validatedUrl(url) == null
+          ? null
+          : SnackBarAction(
+              label: 'Copy link',
+              onPressed: () async {
+                await Clipboard.setData(
+                  ClipboardData(
+                    text: TrailerLauncher.validatedUrl(url).toString(),
+                  ),
+                );
+                if (mounted) {
+                  showNexNotice(context, 'Trailer link copied.');
+                }
+              },
+            ),
+    );
+  }
+
+  Widget loading() => widget.trailerOnly
+      ? const NexSkeleton(child: SkeletonBlock(height: 48))
+      : const NexSkeleton(
+          child: Column(
+            children: [
+              SkeletonBlock(height: 56),
+              SizedBox(height: 12),
+              SkeletonBlock(height: 56),
+            ],
+          ),
+        );
   @override
   Widget build(BuildContext context) => FutureBuilder<Map<String, dynamic>>(
     future: request,
@@ -119,12 +142,43 @@ class _TitleExtrasState extends ConsumerState<TitleExtras> {
         return TextButton.icon(
           onPressed: () => setState(load),
           icon: const Icon(Icons.refresh),
-          label: const Text('Retry trailers and seasons'),
+          label: Text(
+            widget.trailerOnly ? 'Retry trailer' : 'Retry trailers and seasons',
+          ),
         );
       }
       final data = snapshot.data!;
       final trailers = data['videos'] as List? ?? [];
       final summaries = data['seasons'] as List? ?? [];
+      if (widget.trailerOnly) {
+        final available = trailers
+            .where(
+              (v) =>
+                  TrailerLauncher.validatedUrl(v['url'] as String? ?? '') !=
+                  null,
+            )
+            .toList();
+        final trailer =
+            available.where((v) => v['type'] == 'Trailer').firstOrNull ??
+            available.firstOrNull;
+        return OutlinedButton.icon(
+          icon: Icon(
+            openingTrailer == null
+                ? Icons.play_circle_outline
+                : Icons.hourglass_top_rounded,
+          ),
+          label: Text(
+            trailer == null
+                ? 'No trailer available'
+                : openingTrailer == null
+                ? 'Watch trailer'
+                : 'Opening trailer…',
+          ),
+          onPressed: trailer == null || openingTrailer != null
+              ? null
+              : () => openTrailer(trailer['url'] as String),
+        );
+      }
       return Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [

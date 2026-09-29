@@ -83,6 +83,14 @@ it("renews a signed device session and invalidates it on logout", () => {
     const headers = { Authorization: "Bearer " + token };
     assert.equal((await app.request("http://localhost:8787/api/discovery?batch=0", {headers})).status, 200);
     assert.equal((await app.request("http://localhost:8787/api/discovery?batch=6", {headers})).status, 400);
+    assert.equal((await app.request("http://localhost:8787/api/discovery?watchStatus=unknown", {headers})).status, 400);
+    assert.equal((await app.request("http://localhost:8787/api/discovery?providerIds=", {headers})).status, 400);
+    const rewatch = await app.request("http://localhost:8787/api/discovery?batch=0&watchStatus=again", {headers});
+    assert.equal(rewatch.status, 200);
+    assert.deepEqual((await rewatch.json()).data, []);
+    const unowned = await app.request("http://localhost:8787/api/discovery?providerIds=999999", {headers});
+    assert.equal(unowned.status, 200);
+    assert.deepEqual((await unowned.json()).data, []);
     assert.equal((await app.request("http://localhost:8787/api/discovery?batch=1&plan=invalid", {headers})).status, 400);
     assert.equal((await app.request("http://localhost:8787/api/title/series/1396/seasons/-1", {headers})).status, 400);
     assert.equal((await app.request("http://localhost:8787/api/title/movie/27205/extras", {headers})).status, 200);

@@ -6,6 +6,9 @@ import '../models/tv_program.dart';
 import '../state/app_controller.dart';
 import '../widgets/content_card.dart';
 import '../widgets/top_bar.dart';
+import '../widgets/nex_notice.dart';
+import '../widgets/chat_library_changes.dart';
+import '../widgets/chat_help.dart';
 
 class ChatScreen extends ConsumerStatefulWidget {
   const ChatScreen({super.key});
@@ -24,8 +27,16 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
   }
 
   Future<void> send([String? prompt]) async {
+    if (ref.read(appControllerProvider).busy) return;
     final text = prompt ?? input.text;
     if (text.trim().isEmpty) return;
+    if (text.length > 16000) {
+      showNexNotice(
+        context,
+        'This message is too long. Split it into smaller groups of up to 50 titles. Nothing was sent.',
+      );
+      return;
+    }
     input.clear();
     await ref.read(appControllerProvider.notifier).sendChat(text);
     await Future<void>.delayed(const Duration(milliseconds: 80));
@@ -42,7 +53,16 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
   Widget build(BuildContext context) {
     final state = ref.watch(appControllerProvider);
     return Scaffold(
-      appBar: const NexTopBar(title: 'Ask Nex'),
+      appBar: NexTopBar(
+        title: 'Ask Nex',
+        extraActions: [
+          IconButton(
+            tooltip: 'What can Nex do?',
+            onPressed: () => showChatHelp(context),
+            icon: const Icon(Icons.help_outline_rounded),
+          ),
+        ],
+      ),
       body: Column(
         children: [
           Expanded(
@@ -175,6 +195,7 @@ class _Message extends StatelessWidget {
               (block) => Padding(
                 padding: const EdgeInsets.only(bottom: 10),
                 child: switch (block) {
+                  LibraryChangesChatBlock() => ChatLibraryChanges(block: block),
                   TextChatBlock() => Container(
                     padding: const EdgeInsets.symmetric(
                       horizontal: 16,
@@ -238,7 +259,7 @@ class _Message extends StatelessWidget {
                     children: block.actions
                         .map(
                           (action) => ActionChip(
-                            label: Text(action),
+                            label: Text(chatActionLabel(action)),
                             onPressed: () => onPrompt(action),
                           ),
                         )

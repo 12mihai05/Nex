@@ -3,15 +3,16 @@ import { FixtureTmdbRepository, type TmdbRepository } from "../repositories/tmdb
 import { UserRepository } from "../repositories/user-repository.js";
 import { rankCandidates } from "./recommendation.js";
 import {titleKey} from "./recommendation.js";
-import { resolveDisplayedReference } from "./reference-resolution.js";
 import { isPersistentPreference, fallbackIntent } from "./intent.js";
 import { AiService } from "./ai.js";
 import { EpgService } from "./epg/service.js";
 import { generateCandidates } from "./candidates.js";
 import { tvWindow } from "./tv-window.js";
 import { explicitCountry,countryTimezones } from "./country-context.js";
-import {titleOpinionAction} from "./title-opinion.js";
+import {ChatActions} from './chat-actions.js';
 import {addSuitabilityCaution} from "./composition-intro.js";
+import {chatCapabilityReply} from './chat-help.js';
+import {requestedTvScope} from './chat-tv.js';
 
 export class ChatService {
   constructor(
@@ -24,16 +25,31 @@ export class ChatService {
   async respond(userId: string, message: string, requestedSessionId?: string): Promise<{ sessionId: string; blocks: ChatBlock[] }> {
     const sessionId = requestedSessionId ?? await this.users.createConversation(userId);
     await this.users.addConversationMessage(userId, sessionId, "user", message);
-    const action = await this.tryAction(userId, sessionId, message);
+    const help=chatCapabilityReply(message);
+    if(help){const blocks:ChatBlock[]=[{type:'text',content:help}];await this.users.addConversationMessage(userId,sessionId,'assistant',help,blocks);return {sessionId,blocks};}
+    const action = await new ChatActions(this.users,this.catalog,this.ai,this.epg).handle(userId,sessionId,message) ?? await this.tryPreference(userId,message);
     if (action) {
-      const blocks: ChatBlock[] = [action];
-      await this.users.addConversationMessage(userId, sessionId, "assistant", action.content, blocks);
+      const blocks: ChatBlock[] = action;
+      await this.users.addConversationMessage(userId, sessionId, "assistant", blocks.filter(b=>b.type==='text'||b.type==='confirmation').map(b=>b.content).join('\n'), blocks);
       return { sessionId, blocks };
     }
 
     const storedState = await this.users.getRecommendationState(userId);
     const requestedCountry=explicitCountry(message);
     const state={...storedState,country:requestedCountry??storedState.country,timezone:requestedCountry?countryTimezones[requestedCountry]??storedState.timezone:storedState.timezone};
+    const mightBeTv=/\b(tv|television|channel|broadcast|on|pe|canal)\b|\b(?:at|la)\s*\d/i.test(message);
+    const scope=mightBeTv?requestedTvScope(message,await this.epg.chatChannels(state.country),state.timezone):null;
+    if(scope){
+      if('error'in scope){const blocks:ChatBlock[]=[{type:'text',content:scope.error}];await this.users.addConversationMessage(userId,sessionId,'assistant',scope.error,blocks);return {sessionId,blocks};}
+      const pages=await Promise.all((scope.channelIds.length?scope.channelIds:[undefined]).map(channelId=>this.epg.listWindow(scope.start,scope.end,state.country,userId,channelId?{channelId}:{})));
+      const unique=new Map(pages.flat().map(p=>[`${p.title}:${+p.startAt}:${p.channel.name.replace(/\s+(?:HD|SD)$/i,'')}`,p]));
+      const programs=[...unique.values()].sort((a,b)=>+a.startAt-+b.startAt).slice(0,12);
+      const intro=programs.length?`${scope.channelName??'TV'} · ${scope.label} · ${state.country}`:`No listing found for ${scope.channelName??'TV'} · ${scope.label} in ${state.country}. I haven’t substituted another channel or time.`;
+      const blocks:ChatBlock[]=[{type:'text',content:intro},...(programs.length?[{type:'tv_carousel' as const,items:programs}]:[])];
+      const id=await this.users.addConversationMessage(userId,sessionId,'assistant',intro,blocks);
+      await this.users.saveDisplayedReferences(userId,sessionId,id,programs.map(p=>({contentType:'liveEvent' as const,externalId:p.id,metadata:{title:p.title,channel:p.channel.name,startsAt:p.startAt.toISOString()}})));
+      return {sessionId,blocks};
+    }
     const savedContext = await this.users.getSessionContext(userId,sessionId);
     const previous = savedContext.country && savedContext.country!==state.country ? undefined : savedContext.filter as import("../domain/types.js").FilterQuery | undefined;
     const query = await this.ai.parseIntent(message,previous).catch(() => undefined);
@@ -55,7 +71,7 @@ export class ChatService {
         ? [{ type: "text", content: intro }, { type: "tv_carousel", items: programs }, { type: "quick_actions", actions: ["Only movies", "Starting in the next hour", "Something on streaming"] }]
         : [{ type: "empty_state", title: "No TV schedule available", message: "Streaming discovery is still available." }];
       const assistantId = await this.users.addConversationMessage(userId, sessionId, "assistant", intro, blocks);
-      await this.users.saveDisplayedReferences(userId, sessionId, assistantId, programs.map((program) => ({ contentType: "liveEvent" as const, externalId: program.id, metadata: { title: program.title, startsAt: program.startAt.toISOString() } })));
+      await this.users.saveDisplayedReferences(userId, sessionId, assistantId, programs.map((program) => ({ contentType: "liveEvent" as const, externalId: program.id, metadata: { title: program.title, channel:program.channel.name, startsAt: program.startAt.toISOString() } })));
       return { sessionId, blocks };
     }
     const candidates = safeQuery.intent === "TITLE_LOOKUP" || safeQuery.intent === "AVAILABILITY_LOOKUP"
@@ -78,56 +94,12 @@ export class ChatService {
     return { sessionId, blocks };
   }
 
-  private async tryAction(userId: string, sessionId: string, message: string): Promise<Extract<ChatBlock, { type: "confirmation" }> | null> {
-    const lower = message.toLowerCase();
-    const wantAction=/\bwant to (?:see|watch) (?:the (?:first|second|third|fourth|fifth)|this|that)\b|\bwant to see list\b/.test(lower);
-    // Mentioning viewing history in a discovery request is not a mutation command.
-    if (/^(?:please\s+)?(?:recommend|suggest|find|give me|show me|what should)\b/.test(lower)) return null;
-    if (isPersistentPreference(message)&&!/\b(first|second|third|fourth|fifth|this one|that one)\b/.test(lower)) {
-      const extracted = await this.ai.extractTaste(message, []).catch(() => ({ summary: "Preference saved.", signals: [] }));
-      if (!extracted.signals.length) return { type: "confirmation", content: "I couldn’t extract a clear lasting preference. You can edit it in Your Taste." };
-      await this.users.upsertTaste(userId, extracted.signals.map((s)=>({ ...s, source: "chat_explicit" })));
-      return { type: "confirmation", content: "I’ve saved that as a long-term taste preference. It will shape Browse as well as Chat." };
-    }
-    if (!wantAction&&!/\b(watchlist|watched|seen|meh|rating|opinion|remind|reminder)\b/.test(lower) && !/^(?:please\s+)?(?:i\s+)?(?:add|remove|cancel|like|liked|dislike|disliked|hated|super.?like)\b/.test(lower)) return null;
-    const recent = await this.users.recentDisplayedItems(userId, sessionId);
-    const references = lower.includes("first and third")
-      ? [recent.find((item) => item.position === 1), recent.find((item) => item.position === 3)].filter(Boolean)
-      : [resolveDisplayedReference(message, recent) ?? (recent.length === 1 ? recent[0] : null)].filter(Boolean);
-    if (!references.length) return { type: "confirmation", content: "I couldn’t tell which displayed title you meant. Try “the second one”." };
-    const completed: string[] = [];
-    for (const reference of references) {
-      if (!reference) continue;
-      if (/cancel|remove/.test(lower) && /remind/.test(lower) && reference.contentType === "liveEvent") {
-        const saved=(await this.users.listReminders(userId)).find(r=>r.epgProgramId===reference.externalId);
-        if (!saved) return {type:"confirmation",content:"There is no saved reminder for that programme."};
-        await this.users.deleteReminder(userId,saved.id);
-        return {type:"confirmation",content:"That reminder has been cancelled.",action:{type:"cancelReminder",id:saved.id,epgProgramId:reference.externalId}};
-      }
-      if (/remind/.test(lower) && reference.contentType === "liveEvent") {
-        const offsetMatch = lower.match(/(\d+)\s*minutes? before/);
-        const offsetMinutes = offsetMatch ? Number(offsetMatch[1]) : 10;
-        const reminder = await this.users.createReminder(userId, reference.externalId, offsetMinutes);
-        return { type: "confirmation", content: `Reminder saved for ${reminder.title}; your device will confirm notification scheduling.`, action: { type: "setReminder", id: reminder.id, epgProgramId:reminder.epgProgramId, title: reminder.title, channelName:reminder.channelName, startsAt: reminder.startsAt.toISOString(), offsetMinutes } };
-      }
-      const mediaType = reference.contentType === "series" ? "series" : "movie";
-      const state = await this.users.getRecommendationState(userId);
-      const item = await this.catalog.getTitle(mediaType, Number(reference.externalId), state.country, state.ownedProviderIds);
-      if (!item) continue;
-      const opinion=titleOpinionAction(message);
-      if(opinion.seen!==undefined){
-        if(opinion.seen)await this.users.markWatched(userId,item);
-        else await this.users.removeWatched(userId,item.mediaType,item.id);
-        completed.push(`${item.title}: ${opinion.seen?"marked seen":"seen mark removed"}`);
-      }
-      if(opinion.reaction!==undefined){
-        if(opinion.reaction===null)await this.users.clearFeedback(userId,item.mediaType,item.id);
-        else {await this.users.applyFeedback(userId,item,opinion.reaction);}
-        completed.push(`${item.title}: ${opinion.reaction===null?"opinion cleared":opinion.reaction.replace("_"," ")}`);
-      }
-      if (/\b(remove|don't|do not|no longer)\b/.test(lower) && (/watchlist/.test(lower)||wantAction)) { await this.users.removeWatchlist(userId,item.mediaType,item.id); completed.push(`${item.title} was removed from your Want to see list`); }
-      else if (wantAction||/watchlist/.test(lower) || /^add\b/.test(lower)) { await this.users.addWatchlist(userId, item); completed.push(`${item.title} was added to your Want to see list`); }
-    }
-    return completed.length ? { type: "confirmation", content: `${completed.join("; ")}.` } : null;
+  private async tryPreference(userId:string,message:string):Promise<ChatBlock[]|null> {
+    if(/\b(?:do not|don['’]t|never)\s+(?:\w+\s+){0,4}(?:save|change|update|remember|add|mark|rate)\b/i.test(message))return null;
+    if(!isPersistentPreference(message))return null;
+    const extracted=await this.ai.extractTaste(message,[]).catch(()=>({signals:[]}));
+    if(!extracted.signals.length)return [{type:"text",content:"I couldn’t extract a clear lasting preference. Nothing changed; you can edit Your Taste."}];
+    await this.users.upsertTaste(userId,extracted.signals.map(s=>({...s,source:"chat_explicit"})));
+    return [{type:"confirmation",content:"I’ve saved that as a long-term taste preference."}];
   }
 }

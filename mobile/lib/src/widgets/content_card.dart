@@ -25,6 +25,9 @@ class ContentCard extends ConsumerWidget {
       appControllerProvider.select((s) => s.watchlist.contains(item.key)),
     );
     final available = item.bestAvailability;
+    final seen = ref.watch(
+      appControllerProvider.select((s) => s.watched.contains(item.key)),
+    );
     return Semantics(
       button: true,
       label:
@@ -48,6 +51,28 @@ class ContentCard extends ConsumerWidget {
                     fit: StackFit.expand,
                     children: [
                       Artwork(url: item.posterUrl),
+                      if (seen)
+                        Positioned(
+                          top: 8,
+                          left: 8,
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 8,
+                              vertical: 5,
+                            ),
+                            decoration: BoxDecoration(
+                              color: Colors.black.withValues(alpha: .8),
+                              borderRadius: BorderRadius.circular(9),
+                            ),
+                            child: const Text(
+                              'Seen',
+                              style: TextStyle(
+                                color: Colors.white,
+                                fontSize: 11,
+                              ),
+                            ),
+                          ),
+                        ),
                       if (saved)
                         const Positioned(
                           top: 8,

@@ -4,8 +4,13 @@ import 'package:go_router/go_router.dart';
 import 'nex_mark.dart';
 
 class NexTopBar extends StatelessWidget implements PreferredSizeWidget {
-  const NexTopBar({super.key, this.title = 'Nex'});
+  const NexTopBar({
+    super.key,
+    this.title = 'Nex',
+    this.extraActions = const [],
+  });
   final String title;
+  final List<Widget> extraActions;
   @override
   Size get preferredSize => const Size.fromHeight(64);
   @override
@@ -18,17 +23,22 @@ class NexTopBar extends StatelessWidget implements PreferredSizeWidget {
       children: [
         const NexMark(size: 32),
         const SizedBox(width: 8),
-        Text(
-          title,
-          style: const TextStyle(
-            fontSize: 25,
-            fontWeight: FontWeight.w800,
-            letterSpacing: -1,
+        Flexible(
+          child: Text(
+            title,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: const TextStyle(
+              fontSize: 25,
+              fontWeight: FontWeight.w800,
+              letterSpacing: -1,
+            ),
           ),
         ),
       ],
     ),
     actions: [
+      ...extraActions,
       IconButton(
         tooltip: 'Search',
         onPressed: () => context.push('/search'),

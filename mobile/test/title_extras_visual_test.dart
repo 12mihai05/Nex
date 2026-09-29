@@ -10,6 +10,7 @@ import 'package:nex/src/core/theme.dart';
 import 'package:nex/src/data/demo_data.dart';
 import 'package:nex/src/state/app_controller.dart';
 import 'package:nex/src/widgets/title_extras.dart';
+import 'package:nex/src/widgets/nex_notice.dart';
 
 import 'title_extras_test.dart' show ExtrasApi;
 
@@ -111,6 +112,18 @@ void main() {
         'build/verification/title-extras-${dark ? 'dark' : 'light'}.png',
       ).writeAsBytes(bytes!.buffer.asUint8List());
       image.dispose();
+      showNexNotice(
+        key.currentContext!,
+        'No browser could open this trailer. You can copy its link.',
+      );
+      await tester.pumpAndSettle();
+      final noticeImage = await boundary.toImage();
+      final noticeBytes = await noticeImage.toByteData(
+        format: ui.ImageByteFormat.png,
+      );
+      await File('build/verification/notice-${dark ? 'dark' : 'light'}.png')
+          .writeAsBytes(noticeBytes!.buffer.asUint8List());
+      noticeImage.dispose();
       expect(tester.takeException(), isNull);
     }, skip: Platform.environment['NEX_VISUAL_QA'] != '1');
   }

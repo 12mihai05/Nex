@@ -99,7 +99,8 @@ class ContentItem {
 }
 
 class ContentRow {
-  const ContentRow(this.title, this.subtitle, this.items);
+  const ContentRow(this.title, this.subtitle, this.items, {this.id});
+  final String? id;
   final String title;
   final String? subtitle;
   final List<ContentItem> items;
