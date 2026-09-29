@@ -177,6 +177,9 @@ class HomeSkeleton extends StatelessWidget {
           SizedBox(
             height: 284,
             child: ListView.separated(
+              key: PageStorageKey('home-skeleton-$i'),
+              primary: false,
+              physics: const NeverScrollableScrollPhysics(),
               padding: const EdgeInsets.symmetric(horizontal: 20),
               scrollDirection: Axis.horizontal,
               itemCount: 4,
@@ -259,6 +262,9 @@ class TvShelvesSkeleton extends StatelessWidget {
             SizedBox(
               height: height,
               child: ListView.separated(
+                key: PageStorageKey('tv-skeleton-$i'),
+                primary: false,
+                physics: const NeverScrollableScrollPhysics(),
                 scrollDirection: Axis.horizontal,
                 itemCount: 4,
                 separatorBuilder: (_, _) => const SizedBox(width: 12),

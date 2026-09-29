@@ -35,6 +35,13 @@ class ContentShelf extends ConsumerWidget {
         SizedBox(
           height: 284,
           child: ListView.separated(
+            // Without a local storage key, every carousel inherits the feed's
+            // saved offset. A new title set must also get a fresh position.
+            key: PageStorageKey((
+              row.title,
+              row.items.map((i) => i.key).join(','),
+            )),
+            primary: false,
             padding: const EdgeInsets.symmetric(horizontal: 20),
             scrollDirection: Axis.horizontal,
             itemCount: row.items.length,
