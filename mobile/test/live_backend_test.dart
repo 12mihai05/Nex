@@ -1,6 +1,8 @@
 import 'dart:io';
 import 'dart:ui' as ui;
 
+import 'package:dio/dio.dart';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
@@ -29,123 +31,142 @@ void main() {
   test(
     'Flutter client authenticates and uses the real backend over HTTP',
     () async {
-      FlutterSecureStorage.setMockInitialValues({});
-      final api = NexApiClient();
-      await api.signIn(
-        email: Platform.environment['NEX_TEST_EMAIL']!,
-        password: Platform.environment['NEX_TEST_PASSWORD']!,
-      );
-      final settings = await api.settings();
-      expect((settings['profile'] as Map)['country'], 'RO');
-      final results = await api.search('Arrival');
-      final arrival = results.firstWhere((i) => i.id == 329865);
-      await api.saveWatchlist(arrival);
-      expect(
-        (await api.list('/api/me/watchlist')).any((r) => r['tmdbId'] == 329865),
-        isTrue,
-      );
-      await api.react(arrival, 'super_like');
-      expect(
-        (await api.list('/api/me/history'))
-            .any((r) => r['tmdbId'] == arrival.id),
-        isFalse,
-      );
-      await api.markWatched(arrival);
-      expect((await api.list('/api/me/taste')).isNotEmpty, isTrue);
-      final recommendations = await api.recommend();
-      expect(recommendations, isNotEmpty);
-      expect(recommendations.first['reason'], isA<String>());
-      expect((await api.list('/api/tv/upcoming')).isNotEmpty, isTrue);
-      final directory = await api.list('/api/tv/channels');
-      expect(directory, isNotEmpty);
-      final channelId = directory.first['id'] as String;
-      await api.setChannelFavorite(channelId, true);
-      expect(
-        (await api.list('/api/tv/channels?favorites=true'))
-            .any((c) => c['id'] == channelId && c['favorite'] == true),
-        isTrue,
-      );
-      final tv = await api.tvDiscover();
-      expect(tv['live'], isA<List>());
-      expect(tv['upcoming'], isA<List>());
-      await api.setChannelFavorite(channelId, false);
-      final chat = await api.chat('Where can I watch Arrival?');
-      expect(
-        (chat['blocks'] as List).any((b) => b['type'] == 'movie_carousel'),
-        isTrue,
-      );
-      final action = await api.chat(
-        'add the first one to watchlist',
-        sessionId: chat['sessionId'] as String,
-      );
-      expect(
-        (action['blocks'] as List).any(
-          (b) => b['type'] == 'library_changes' && b['status'] == 'preview',
-        ),
-        isTrue,
-      );
-      final confirmation = (action['blocks'] as List)
-          .where((b) => b['type'] == 'quick_actions')
-          .expand((b) => b['actions'] as List)
-          .cast<String>()
-          .firstWhere((s) => s.startsWith('Confirm changes '));
-      final saved = await api.chat(
-        confirmation,
-        sessionId: chat['sessionId'] as String,
-      );
-      expect(
-        (saved['blocks'] as List).any(
-          (b) => b['type'] == 'library_changes' && b['status'] == 'saved',
-        ),
-        isTrue,
-      );
-      await api.removeWatchlist(arrival);
-      final restoredContainer = ProviderContainer();
       try {
+        FlutterSecureStorage.setMockInitialValues({});
+        final api = NexApiClient();
+        await api.signIn(
+          email: Platform.environment['NEX_TEST_EMAIL']!,
+          password: Platform.environment['NEX_TEST_PASSWORD']!,
+        );
+        final settings = await api.settings();
+        expect((settings['profile'] as Map)['country'], 'RO');
+        final results = await api.search('Arrival');
+        final arrival = results.firstWhere((i) => i.id == 329865);
+        await api.saveWatchlist(arrival);
         expect(
-          await restoredContainer
-              .read(appControllerProvider.notifier)
-              .restoreSession(),
+          (await api.list('/api/me/watchlist'))
+              .any((r) => r['tmdbId'] == 329865),
           isTrue,
         );
-        expect(restoredContainer.read(appControllerProvider).demoMode, isFalse);
-        expect(
-          restoredContainer.read(appControllerProvider).reactions[arrival.key],
-          'super_like',
-        );
-        expect(
-          restoredContainer.read(appControllerProvider).watched,
-          contains(arrival.key),
-        );
-        await restoredContainer
-            .read(appControllerProvider.notifier)
-            .react(arrival, 'meh');
-        await restoredContainer
-            .read(appControllerProvider.notifier)
-            .refreshLive();
-        expect(
-          restoredContainer.read(appControllerProvider).reactions[arrival.key],
-          'meh',
-        );
-        await restoredContainer
-            .read(appControllerProvider.notifier)
-            .react(arrival, null);
+        await api.react(arrival, 'super_like');
         expect(
           (await api.list('/api/me/history'))
               .any((r) => r['tmdbId'] == arrival.id),
-          isTrue,
-        );
-        await api.removeWatched(arrival);
-        expect(
-          (await api.list('/api/me/feedback'))
-              .any((r) => r['tmdbId'] == arrival.id),
           isFalse,
         );
-      } finally {
-        restoredContainer.dispose();
+        await api.markWatched(arrival);
+        expect((await api.list('/api/me/taste')).isNotEmpty, isTrue);
+        final recommendations = await api.recommend();
+        expect(recommendations, isNotEmpty);
+        expect(recommendations.first['reason'], isA<String>());
+        expect((await api.list('/api/tv/upcoming')).isNotEmpty, isTrue);
+        final directory = await api.list('/api/tv/channels');
+        expect(directory, isNotEmpty);
+        final channelId = directory.first['id'] as String;
+        await api.setChannelFavorite(channelId, true);
+        expect(
+          (await api.list('/api/tv/channels?favorites=true'))
+              .any((c) => c['id'] == channelId && c['favorite'] == true),
+          isTrue,
+        );
+        final tv = await api.tvDiscover();
+        expect(tv['live'], isA<List>());
+        expect(tv['upcoming'], isA<List>());
+        await api.setChannelFavorite(channelId, false);
+        final chat = await api.chat('Where can I watch Arrival?');
+        expect(
+          (chat['blocks'] as List).any((b) => b['type'] == 'movie_carousel'),
+          isTrue,
+        );
+        final action = await api.chat(
+          'add the first one to watchlist',
+          sessionId: chat['sessionId'] as String,
+        );
+        expect(
+          (action['blocks'] as List).any(
+            (b) => b['type'] == 'library_changes' && b['status'] == 'preview',
+          ),
+          isTrue,
+        );
+        final confirmation = (action['blocks'] as List)
+            .where((b) => b['type'] == 'quick_actions')
+            .expand((b) => b['actions'] as List)
+            .cast<String>()
+            .firstWhere((s) => s.startsWith('Confirm changes '));
+        final saved = await api.chat(
+          confirmation,
+          sessionId: chat['sessionId'] as String,
+        );
+        expect(
+          (saved['blocks'] as List).any(
+            (b) => b['type'] == 'library_changes' && b['status'] == 'saved',
+          ),
+          isTrue,
+        );
+        await api.removeWatchlist(arrival);
+        final restoredContainer = ProviderContainer();
+        try {
+          expect(
+            await restoredContainer
+                .read(appControllerProvider.notifier)
+                .restoreSession(),
+            isTrue,
+          );
+          expect(
+            restoredContainer.read(appControllerProvider).demoMode,
+            isFalse,
+          );
+          expect(
+            restoredContainer
+                .read(appControllerProvider)
+                .reactions[arrival.key],
+            'super_like',
+          );
+          expect(
+            restoredContainer.read(appControllerProvider).watched,
+            contains(arrival.key),
+          );
+          await restoredContainer
+              .read(appControllerProvider.notifier)
+              .react(arrival, 'meh');
+          await restoredContainer
+              .read(appControllerProvider.notifier)
+              .refreshLive();
+          expect(
+            restoredContainer
+                .read(appControllerProvider)
+                .reactions[arrival.key],
+            'meh',
+          );
+          await restoredContainer
+              .read(appControllerProvider.notifier)
+              .react(arrival, null);
+          expect(
+            (await api.list('/api/me/history'))
+                .any((r) => r['tmdbId'] == arrival.id),
+            isTrue,
+          );
+          await api.removeWatched(arrival);
+          expect(
+            (await api.list('/api/me/feedback'))
+                .any((r) => r['tmdbId'] == arrival.id),
+            isFalse,
+          );
+        } finally {
+          restoredContainer.dispose();
+        }
+        await api.signOut();
+        await expectLater(api.settings(), throwsA(anything));
+      } on DioException catch (error) {
+        // Report route/status only, never auth headers, private prompts or bodies.
+        final data = error.response?.data;
+        final code = data is Map && data['error'] is Map
+            ? data['error']['code']
+            : null;
+        fail(
+          'Live HTTP failed: ${error.requestOptions.method} ${error.requestOptions.uri.path}; status=${error.response?.statusCode}; code=${code is String && RegExp(r"^[A-Z_]+$").hasMatch(code) ? code : "withheld"}',
+        );
       }
-      await api.signOut();
-      await expectLater(api.settings(), throwsA(anything));
     },
     skip: Platform.environment['NEX_TEST_PASSWORD'] == null,
     timeout: const Timeout(Duration(minutes: 5)),
@@ -196,7 +217,7 @@ void main() {
       );
       for (
         var attempt = 0;
-        attempt < 60 && controller.catalog.isEmpty;
+        attempt < 60 && controller.browseHero == null;
         attempt++
       ) {
         await tester.runAsync(
@@ -204,9 +225,11 @@ void main() {
         );
         await tester.pump();
       }
-      expect(controller.catalog, isNotEmpty);
+      expect(controller.browseHero, isNotNull);
       await tester.pump(const Duration(seconds: 2));
-      expect(find.text(controller.catalog.first.title), findsWidgets);
+      // The catalog includes library titles, including Seen titles intentionally
+      // excluded from the Home hero. Assert the actual presentation selection.
+      expect(find.text(controller.browseHero!.title), findsWidgets);
       await tester.runAsync(() async {
         final image =
             await (boundaryKey.currentContext!.findRenderObject()!

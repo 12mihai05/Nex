@@ -46,4 +46,12 @@ This audit does not claim every historical request is perfectly solved. Physical
 - All 24 semantic personas rerun: all 46 predefined preference pairs passed, with zero new OpenAI calls in that cached run. This is regression evidence, not proof of subjective enjoyment.
 - No database migration or user-data reset is required by this follow-up.
 
+## Production verification
+
+Backend commit `c944137` deployed READY as `dpl_HuivCnqNQUeiZ6P6WJyuGtNjoD9y` on the existing production domains. A disposable semantic-enabled Netflix/RO account fetched all six batches: 575 unique recommendations, 239 with semantic evidence, no duplicates. Movie-only and series-only filtering passed. Slight differences from the local synthetic run are expected because the live profile also had an explicit story preference. The test account was deleted.
+
+The live Flutter HTTP + Home/TV widget integration passed both tests on rerun, including library actions, Taste, Chat confirmation and session restoration. Home/TV render captures were inspected for layout; the Home capture was taken while poster images were still placeholders, so it is not evidence of completed image loading or handset rendering. Test assertions now use the actual Home hero instead of the first catalog/library title, which can legitimately be excluded after being marked Seen. Safe route/status-only failure diagnostics were added to the live test.
+
+The first live attempt returned an HTTP 500 without enough route diagnostics to isolate its cause. It was not reproduced by the rerun or a subsequent route-by-route check (library, Taste, recommend, EPG and Chat all returned success). This is recorded as an intermittent unresolved failure, not a verified server-error fix. All disposable accounts were deleted. Existing real account settings were unchanged.
+
 References used: [TMDB movie discovery](https://developer.themoviedb.org/reference/discover-movie), [TV discovery](https://developer.themoviedb.org/reference/discover-tv). Provider filters are retrieval hints; server-side eligibility remains authoritative.
