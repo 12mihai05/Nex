@@ -44,4 +44,13 @@ The narrow `car race` discovery query returned 17 raw titles under the account's
 - `scripts/verify-chat-examples.ts` provides a production HTTP verification with a disposable account and cleanup. It checks persisted canonical examples, sentiment, no unsolicited library changes and the anime correction.
 - Secrets scan found no secret-bearing files. Credentials stay server-side and are never logged by verification scripts.
 
+## Deployment verification
+
+- Application revision `5178d56` deployed successfully to the production Vercel aliases, including `https://nex-three-omega.vercel.app`.
+- Production HTTP test passed: Arrival (329865), Contact (686) and Prometheus (70981) persisted as verified examples with the intended mixed sentiment. No actor/director/genre/country preferences were invented from those examples; Seen, ratings and watchlist stayed empty.
+- Production anime correction passed without adding a broad Animation, country or language dislike. Synthetic verification account deleted successfully.
+- Flutter-to-production tests: both passed (authentication/API operations and real Browse rendering). Their separate synthetic account was also deleted successfully.
+- Final Android debug build and analyzer passed after the final contrast adjustment.
+- GitHub's scheduled EPG workflow is a separate unresolved configuration issue: the latest inspected run failed for all nine countries with generic `SYNC_FAILED` codes. Repository secret metadata shows the required Turso URL/token and optional TMDB token are absent. No secret values were read from GitHub or printed. Permission to provision encrypted repository secrets was requested separately; this is not a backend deployment failure.
+
 OpenAI Docs informed the structured-output implementation: [Structured Outputs](https://developers.openai.com/api/docs/guides/structured-outputs). Schema conformance is not semantic verification; title resolution and persistence checks are performed separately.
