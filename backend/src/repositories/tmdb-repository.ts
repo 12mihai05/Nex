@@ -364,7 +364,7 @@ export class LiveTmdbRepository implements TmdbRepository {
       .filter(key=>(this.memoryCache.get(key)?.expires??0)<=now);
     if(!keys.length)return;
     // One database round trip per candidate batch, rather than two per title.
-    const rows=await this.db.select().from(tmdbCache).where(and(inArray(tmdbCache.cacheKey,keys),gt(tmdbCache.expiresAt,new Date())));
+    const rows=await this.db.select().from(tmdbCache).where(and(inArray(tmdbCache.cacheKey,keys),gt(tmdbCache.expiresAt,new Date()))).catch(()=>[]);
     for(const key of keys)this.rememberCache(key,null,now+5000);
     for(const row of rows){try{this.rememberCache(row.cacheKey,JSON.parse(row.payloadJson),+row.expiresAt);}catch{/* Invalid cache entries are refetched. */}}
   }
@@ -373,7 +373,7 @@ export class LiveTmdbRepository implements TmdbRepository {
     const memory=this.memoryCache.get(key);
     if(memory&&memory.expires>Date.now())return memory.value;
     this.memoryCache.delete(key);
-    const rows = await this.db.select().from(tmdbCache).where(and(eq(tmdbCache.cacheKey, key), gt(tmdbCache.expiresAt, new Date()))).limit(1);
+    const rows = await this.db.select().from(tmdbCache).where(and(eq(tmdbCache.cacheKey, key), gt(tmdbCache.expiresAt, new Date()))).limit(1).catch(()=>[]);
     if (!rows[0]) return null;
     try { const value=JSON.parse(rows[0].payloadJson);this.rememberCache(key,value,+rows[0].expiresAt);return value; } catch { return null; }
   }
@@ -385,10 +385,12 @@ export class LiveTmdbRepository implements TmdbRepository {
 
   private async writeCache(key: string, kind: string, payload: unknown, ttlSeconds: number): Promise<void> {
     const now = new Date();
+    this.rememberCache(key,payload,now.getTime()+ttlSeconds*1000);
+    try {
     if(+now-this.lastPrune>3600000){this.lastPrune=+now;await this.db.delete(tmdbCache).where(lt(tmdbCache.expiresAt,now));}
     await this.db.insert(tmdbCache).values({ cacheKey: key, kind, payloadJson: JSON.stringify(payload), expiresAt: new Date(now.getTime() + ttlSeconds * 1000), createdAt: now, updatedAt: now })
       .onConflictDoUpdate({ target: tmdbCache.cacheKey, set: { payloadJson: JSON.stringify(payload), expiresAt: new Date(now.getTime() + ttlSeconds * 1000), updatedAt: now } });
-    this.rememberCache(key,payload,now.getTime()+ttlSeconds*1000);
+    } catch { /* Public metadata remains usable when cache persistence fails. */ }
   }
 }
 

@@ -10,6 +10,15 @@ import { filterQuerySchema } from "../src/domain/types.js";
 const state = () => ({country:"RO",timezone:"Europe/Bucharest",ownedProviderIds:[8],taste:[],watchedIds:new Set<number>(),watchlistIds:new Set<number>(),watchedKeys:new Set<string>(),watchlistKeys:new Set<string>(),ratedKeys:new Set<string>(),rejectedKeys:new Set<string>(),recentlyShown:new Map<string,number>(),wantHints:[],seenHints:[],behaviorPersonalization:true,favorites:[],saved:[]});
 const items = Array.from({length:180},(_,id)=>({...fixtureCatalog[0]!,id:id+1,title:`Title ${id}`,mediaType:id%5===0?"series" as const:"movie" as const,genres:[["Drama"],["Comedy"],["Thriller"],["Animation"]][id%4]!,keywords:id%3===0?["underdog"]:[],moods:[],rating:8,voteCount:500,runtimeMinutes:id%2===0?85:125,year:id%3===0?1990:2026,availability:[{providerId:8,providerName:"Netflix",logoUrl:null,access:"included" as const,owned:true}]}));
 describe("personalized discovery shelves",()=>{
+  it('slow initial sources do not trigger a fresh refill budget',async()=>{
+    const clock=vi.spyOn(Date,'now');let now=1_000;clock.mockImplementation(()=>now);
+    try {
+      const catalog=new FixtureTmdbRepository();let calls=0;
+      catalog.discover=async()=>{calls++;now+=13_000;return items.slice(0,15);};
+      const rows=await discoverHome(catalog,state(),'u',{},1,['for-you','short','series','recent','classics','acclaimed','genre:Drama']);
+      expect(calls).toBe(1);expect(rows.length).toBeGreaterThan(0);
+    }finally{clock.mockRestore();}
+  });
   it('refills rows at 12–19 after exclusions until twenty eligible titles exist',async()=>{
     const s=state();for(let id=1;id<=5;id++)s.watchedKeys.add(`movie:${id}`);
     const catalog=new FixtureTmdbRepository(),pages:number[]=[];

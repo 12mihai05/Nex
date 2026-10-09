@@ -146,7 +146,11 @@ app.on(['GET','POST'],"/api/discovery", async c => {
   const plan=decoded===undefined?discoveryShelves(state).map(s=>s.id):z.array(z.string().max(160)).max(36).parse(decoded);
   const rows=await discoverHome(catalog,state,userId,filters,batch,plan,seen,personalizer);
   // Record only the lead shelf, not hundreds of titles below the fold.
-  if(batch===undefined||batch===0) await users.recordRecommendations(userId,rows[0]?.items??[],"discovery-lead");
+  if(batch===undefined||batch===0) {
+    // Impression telemetry is not a prerequisite for displaying valid picks.
+    try { await users.recordRecommendations(userId,rows[0]?.items??[],"discovery-lead"); }
+    catch { console.warn('HOME_IMPRESSION_WRITE_FAILED'); }
+  }
   c.header("Cache-Control","private, no-store");
   return c.json({data:rows,meta:{plan}});
 });
@@ -225,10 +229,14 @@ app.get("/api/tv/channels",async c=>{
 app.get('/api/tv/guide',async c=>{
   const input=z.object({start:z.iso.datetime(),q:z.string().max(100).default(''),offset:z.coerce.number().int().min(0).max(10000).default(0),favorites:z.enum(['true','false']).default('false')}).parse(c.req.query());
   const start=new Date(input.start);
+  const rawOrder=c.req.query('orderOverrides');
+  let parsedOrder:unknown={};
+  if(rawOrder){try{parsedOrder=JSON.parse(z.string().max(16000).parse(rawOrder));}catch{throw new HTTPException(400,{message:'Invalid guide ordering.'});}}
+  const orderOverrides=z.record(z.string().min(1).max(500),z.boolean()).refine(v=>Object.keys(v).length<=500).parse(parsedOrder);
   if(+start<Date.now()-86400000||+start>Date.now()+14*86400000)throw new HTTPException(400,{message:'Choose a day within the available TV guide.'});
   const userId=c.get('authSession').user.id,{profile}=await users.getSettings(userId);
   c.header('Cache-Control','private, no-store');
-  return c.json({data:await epg.guide(userId,profile.country,start,new Date(+start+6*3600000),input.q,input.offset,input.favorites==='true')});
+  return c.json({data:await epg.guide(userId,profile.country,start,new Date(+start+6*3600000),input.q,input.offset,input.favorites==='true',orderOverrides)});
 });
 app.put("/api/me/channel-favorites",async c=>{
   const body=z.object({channelId:z.string().min(1).max(500),favorite:z.boolean()}).strict().parse(await c.req.json());

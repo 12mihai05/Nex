@@ -48,9 +48,10 @@ const groups:Record<string,string[]>={
   war:["war","warfare","battlefield"],
 };
 const normalize=(s:string)=>s.toLowerCase().trim().replace(/[_-]/g," ").replace(/\s+/g," ");
+const aliases=new Map(Object.entries(groups).flatMap(([key,values])=>values.map(value=>[normalize(value),key] as const)));
 export function canonicalConcept(value:string):string {
   const n=normalize(value);
-  return Object.entries(groups).find(([,values])=>values.some(v=>normalize(v)===n))?.[0]??n;
+  return aliases.get(n)??n;
 }
 export function conceptTerms(value:string):string[]{const key=canonicalConcept(value);return [...new Set([key,...(groups[key]??[])])];}
 // Context for short legacy tags, not additional preferences or inferred facts.

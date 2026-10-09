@@ -17,40 +17,49 @@ class HomeShell extends ConsumerStatefulWidget {
 class _HomeShellState extends ConsumerState<HomeShell> {
   var index = 0;
   @override
-  Widget build(BuildContext context) => Scaffold(
-    body: IndexedStack(
-      index: index,
-      children: [
-        const BrowseScreen(),
-        TvScreen(active: index == 1),
-        const ChatScreen(),
-      ],
-    ),
-    bottomNavigationBar: NavigationBar(
-      selectedIndex: index,
-      onDestinationSelected: (value) {
-        setState(() => index = value);
-        if (value == 0) {
-          ref.read(appControllerProvider.notifier).refreshIfStale();
-        }
-      },
-      destinations: const [
-        NavigationDestination(
-          icon: Icon(Icons.movie_filter_outlined),
-          selectedIcon: Icon(Icons.movie_filter),
-          label: 'Streaming',
-        ),
-        NavigationDestination(
-          icon: Icon(Icons.live_tv_outlined),
-          selectedIcon: Icon(Icons.live_tv),
-          label: 'TV',
-        ),
-        NavigationDestination(
-          icon: Icon(Icons.chat_bubble_outline),
-          selectedIcon: Icon(Icons.chat_bubble),
-          label: 'Chat',
-        ),
-      ],
+  Widget build(BuildContext context) => PopScope<Object?>(
+    canPop: index == 0,
+    onPopInvokedWithResult: (didPop, result) {
+      if (!didPop && index != 0) {
+        setState(() => index = 0);
+        ref.read(appControllerProvider.notifier).refreshIfStale();
+      }
+    },
+    child: Scaffold(
+      body: IndexedStack(
+        index: index,
+        children: [
+          const BrowseScreen(),
+          TvScreen(active: index == 1),
+          const ChatScreen(),
+        ],
+      ),
+      bottomNavigationBar: NavigationBar(
+        selectedIndex: index,
+        onDestinationSelected: (value) {
+          setState(() => index = value);
+          if (value == 0) {
+            ref.read(appControllerProvider.notifier).refreshIfStale();
+          }
+        },
+        destinations: const [
+          NavigationDestination(
+            icon: Icon(Icons.movie_filter_outlined),
+            selectedIcon: Icon(Icons.movie_filter),
+            label: 'Streaming',
+          ),
+          NavigationDestination(
+            icon: Icon(Icons.live_tv_outlined),
+            selectedIcon: Icon(Icons.live_tv),
+            label: 'TV',
+          ),
+          NavigationDestination(
+            icon: Icon(Icons.chat_bubble_outline),
+            selectedIcon: Icon(Icons.chat_bubble),
+            label: 'Chat',
+          ),
+        ],
+      ),
     ),
   );
 }

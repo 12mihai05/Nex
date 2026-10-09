@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:convert';
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
@@ -33,6 +34,8 @@ class _TvGuideScreenState extends ConsumerState<TvGuideScreen> {
   final offset = ValueNotifier<double>(0);
   final cache = <String, ({DateTime at, Map<String, dynamic> data})>{};
   final saving = <String>{};
+  // Freeze ordering until the next deliberate reload, not the displayed stars.
+  final orderOverrides = <String, bool>{};
   List<Map<String, dynamic>> channels = [];
   DateTime start = _currentStart();
   String query = '', scope = '';
@@ -101,6 +104,7 @@ class _TvGuideScreenState extends ConsumerState<TvGuideScreen> {
       search.clear();
     }
     final page = next ? channels.length : 0;
+    if (!next) orderOverrides.clear();
     final viewKey =
         '$scope:${start.toUtc().toIso8601String()}:$query:$favorites';
     setState(() {
@@ -151,6 +155,8 @@ class _TvGuideScreenState extends ConsumerState<TvGuideScreen> {
                   'q': query,
                   'favorites': '$favorites',
                   'offset': '$page',
+                  if (orderOverrides.isNotEmpty)
+                    'orderOverrides': jsonEncode(orderOverrides),
                 },
               ).toString(),
             );
@@ -190,6 +196,7 @@ class _TvGuideScreenState extends ConsumerState<TvGuideScreen> {
             ref.read(channelOverridesProvider)[id] ??
             channel['favorite'] == true;
     final savedScope = scope;
+    orderOverrides.putIfAbsent(id, () => channel['favorite'] == true);
     overrides.set(id, !before);
     setState(() => saving.add(id));
     try {
@@ -198,7 +205,6 @@ class _TvGuideScreenState extends ConsumerState<TvGuideScreen> {
       }
       if (mounted && savedScope == scope) {
         cache.clear();
-        await load(force: true);
       }
     } catch (_) {
       if (mounted && savedScope == scope) {

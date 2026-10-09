@@ -115,8 +115,9 @@ void main() {
   testWidgets(
     'unified guide lazily loads thirty favorites and other channels in batches',
     (tester) async {
+      final api = BusyTvApi();
       final c = ProviderContainer(
-        overrides: [nexApiClientProvider.overrideWithValue(BusyTvApi())],
+        overrides: [nexApiClientProvider.overrideWithValue(api)],
       );
       addTearDown(c.dispose);
       await c.read(appControllerProvider.notifier).restoreSession();
@@ -138,6 +139,20 @@ void main() {
         ),
         maxScrolls: 40,
       );
+      expect(find.text('Channel 31'), findsOneWidget);
+      final scrolling = tester.state<ScrollableState>(
+        find.descendant(
+          of: find.byType(ListView),
+          matching: find.byType(Scrollable),
+        ),
+      );
+      final position = scrolling.position.pixels;
+      final requests = api.queries.length;
+      await tester.tap(find.byTooltip('Favourite channel').last);
+      api.save.complete();
+      await tester.pumpAndSettle();
+      expect(api.queries.length, requests);
+      expect(scrolling.position.pixels, position);
       expect(find.text('Channel 31'), findsOneWidget);
       expect(tester.takeException(), isNull);
       await tester.pumpWidget(const SizedBox());

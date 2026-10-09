@@ -28,6 +28,11 @@ class MutableApi extends OfflineCatalogApi {
   @override
   Future<List<Map<String, dynamic>>> list(String path) async {
     if (failPersonalRead) throw StateError('Read unavailable');
+    if (path == '/api/discovery?batch=0') {
+      return [
+        {'id': 'for-you', 'title': 'For you', 'items': await recommend()},
+      ];
+    }
     if (path == '/api/me/watchlist') {
       return [
         for (final id in saved)

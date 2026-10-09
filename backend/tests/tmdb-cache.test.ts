@@ -4,6 +4,19 @@ import {drizzle} from "drizzle-orm/libsql";
 import {it,expect,vi} from "vitest";
 import * as schema from "../src/db/schema.js";
 import {LiveTmdbRepository} from "../src/repositories/tmdb-repository.js";
+it('a cache database outage cannot discard successfully fetched public metadata',async()=>{
+ const client=createClient({url:':memory:'});
+ try{
+  // Deliberately no cache table: every persistence operation fails.
+  const db=drizzle(client,{schema});
+  const fetcher=vi.fn(async()=>new Response(JSON.stringify({results:[]}),{status:200}));
+  vi.stubGlobal('fetch',fetcher);
+  const catalog=new LiveTmdbRepository('synthetic-test-token',db);
+  await expect(catalog.discover({region:'RO',mediaType:'movie'})).resolves.toEqual([]);
+  await expect(catalog.discover({region:'RO',mediaType:'movie'})).resolves.toEqual([]);
+  expect(fetcher).toHaveBeenCalledTimes(1);
+ }finally{vi.unstubAllGlobals();client.close();}
+});
 it("coalesces public lookups, keys by country and refreshes expired entries",async()=>{
   const client=createClient({url:":memory:"});
   try{

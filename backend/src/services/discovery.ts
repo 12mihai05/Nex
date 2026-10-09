@@ -164,6 +164,7 @@ function plannedShelves(state:State,plan?:string[]) {
   return plan.map(id=>byId.get(id)??{id,title:"",subtitle:"",accepts:()=>false});
 }
 export async function discoverHome(catalog: TmdbRepository, state: State, userId: string, filters: HomeFilters = {}, batch?: number, plan?:string[],seen:string[] = [], personalizer?: PersonalizationService) {
+  const retrievalStarted=Date.now();
   if (filters.providerIds?.some(id=>!state.ownedProviderIds.includes(id))) return [];
   const hardFilters = {...filters};
   if(hardFilters.providerIds === undefined) delete hardFilters.providerIds;
@@ -235,8 +236,9 @@ export async function discoverHome(catalog: TmdbRepository, state: State, userId
   const cursors=new Map<string,number>(),exhausted=new Set<string>();
   for(const q of constrained){const {page=1,...rest}=q;cursors.set(JSON.stringify(rest),Math.max(page,cursors.get(JSON.stringify(rest))??0));}
   let remaining=24;
-  const refillStarted=Date.now();
-  while(remaining>0&&Date.now()-refillStarted<25_000){
+  // Include initial retrieval in the budget. Slow first sources must not start
+  // another 25 seconds of optional filling before any useful Home can appear.
+  while(remaining>0&&Date.now()-retrievalStarted<12_000){
     const sparse=new Set(currentDefinitions.filter(s=>(rows.find(r=>r.id===s.id)?.items.length??0)<HOME_ROW_TARGET).map(s=>s.id));
     const needed=[...new Map(sources.filter(({s})=>sparse.has(s.id)).map(({q})=>{const rest=withoutPage(q);return [JSON.stringify(rest),rest] as const;})).entries()]
       .filter(([key])=>!exhausted.has(key)&&(cursors.get(key)??0)<6).slice(0,Math.min(3,remaining));

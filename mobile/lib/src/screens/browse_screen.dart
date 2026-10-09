@@ -422,7 +422,17 @@ class _BrowseScreenState extends ConsumerState<BrowseScreen> {
                 SliverToBoxAdapter(
                   child: Padding(
                     padding: const EdgeInsets.all(20),
-                    child: Text(state.error!),
+                    child: Column(
+                      children: [
+                        Text(state.error!),
+                        TextButton(
+                          onPressed: state.busy
+                              ? null
+                              : () => controller.refreshLive(),
+                          child: const Text('Retry'),
+                        ),
+                      ],
+                    ),
                   ),
                 ),
               if (hero != null)
@@ -432,7 +442,10 @@ class _BrowseScreenState extends ConsumerState<BrowseScreen> {
                     onPick: () => _showPickSheet(context, ref),
                   ),
                 )
-              else if (!filtering && !state.busy && filterError == null)
+              else if (!filtering &&
+                  !state.busy &&
+                  filterError == null &&
+                  state.error == null)
                 SliverToBoxAdapter(
                   child: Padding(
                     padding: const EdgeInsets.all(24),

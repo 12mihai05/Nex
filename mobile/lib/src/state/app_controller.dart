@@ -522,22 +522,14 @@ class AppController extends Notifier<AppState> {
         recommendationEngine:
             profile['recommendationEngine'] as String? ?? 'baseline',
       );
-      List<Map<String, dynamic>> shelves = [];
-      // Old deployments remain usable during a rolling backend/mobile upgrade.
-      try {
-        shelves = await _api.list('/api/discovery?batch=0');
-      } catch (_) {
-        /* Fall back to the existing endpoint. */
-      }
-      final ranked = shelves.isEmpty
-          ? await _api.recommend()
-          : shelves
-                .expand(
-                  (r) => (r['items'] as List).map(
-                    (i) => (i as Map).cast<String, dynamic>(),
-                  ),
-                )
-                .toList();
+      final shelves = await _api.list('/api/discovery?batch=0');
+      final ranked = shelves
+          .expand(
+            (r) => (r['items'] as List).map(
+              (i) => (i as Map).cast<String, dynamic>(),
+            ),
+          )
+          .toList();
       if (!ref.mounted || ticket != _homeGeneration) return;
       _discoveryRows = shelves
           .map(

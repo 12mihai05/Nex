@@ -26,6 +26,21 @@ beforeEach(async()=>{
   epg=new EpgService(db,{sourceId:"fixture",load:async()=>({channels:[],programs:[],sourceTimestamp:null})},new FixtureTmdbRepository());
 });
 afterEach(()=>client.close());
+it('favorite changes do not skip channels across a frozen guide order; fresh visits reorder',async()=>{
+ const end=new Date(+now+6*3600000);
+ await epg.setChannelFavorite('alice','RO','c9',true);
+ const first=await epg.guide('alice','RO',now,end);
+ expect(first.channels[0]!.id).toBe('c9');
+ await epg.setChannelFavorite('alice','RO','c9',false);
+ const second=await epg.guide('alice','RO',now,end,'',20,false,{c9:true});
+ expect(new Set([...first.channels,...second.channels].map(c=>c.id)).size).toBe(22);
+ const fresh=await epg.guide('alice','RO',now,end);
+ expect(fresh.channels[0]!.id).not.toBe('c9');
+ const frozen=await epg.guide('alice','RO',now,end,'',0,true,{c9:true,c22:true});
+ expect(frozen.channels.map(c=>c.id)).toEqual(['c9']);
+ expect(frozen.channels[0]!.favorite).toBe(false);
+ expect((await epg.guide('alice','RO',now,end,'',0,true)).channels).toEqual([]);
+});
 it('guide batches align programmes to one window, put favourites first and isolate countries/users',async()=>{
  await epg.setChannelFavorite('alice','RO','c0',true);
  const first=await epg.guide('alice','RO',now,new Date(+now+6*3600000));
