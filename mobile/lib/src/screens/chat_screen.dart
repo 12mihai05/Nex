@@ -245,7 +245,7 @@ class _Message extends StatelessWidget {
                           : Theme.of(context).cardTheme.color,
                       borderRadius: BorderRadius.circular(19),
                     ),
-                    child: Text(
+                    child: SelectableText(
                       block.text,
                       style: TextStyle(
                         color: message.fromUser
@@ -265,7 +265,7 @@ class _Message extends StatelessWidget {
                       children: [
                         const Icon(Icons.check_circle_outline),
                         const SizedBox(width: 9),
-                        Flexible(child: Text(block.text)),
+                        Flexible(child: SelectableText(block.text)),
                       ],
                     ),
                   ),

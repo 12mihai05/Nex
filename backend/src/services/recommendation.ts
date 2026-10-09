@@ -2,6 +2,7 @@ import type { ContentItem, FilterQuery, RankedContent, RecommendationEvidence, T
 import { aggregateEvidence, evidenceWeight, titleDimensions } from "./taste.js";
 import { canonicalTrait, contentTraits, matchesGenre } from "./content-traits.js";
 import {canonicalConcept,conceptEvidence} from "./concepts.js";
+import {isExplicitKeywordExclusion} from './preference-exclusions.js';
 export { signalStrength } from "./taste.js";
 
 export interface RecommendationContext {
@@ -25,6 +26,9 @@ export function scoreCandidate(item: ContentItem, query: FilterQuery, context: R
   // Rated means familiar, not necessarily seen. Never manufacture history.
   if (!exact && ((query.excludeWatched && (watched || context.ratedKeys?.has(key))) || context.rejectedKeys?.has(key))) return null;
   if (!exact && query.mediaType !== "any" && item.mediaType !== query.mediaType) return null;
+  if(!exact&&context.taste.some(s=>isExplicitKeywordExclusion(s)&&
+    item.keywords.some(k=>canonicalConcept(k)===canonicalConcept(s.key))&&
+    (!s.conditions?.length||s.conditions.every(c=>c.values.some(value=>titleDimensions(item).some(d=>d.dimension===c.dimension&&canonicalTrait(d.key)===canonicalTrait(value)))))))return null;
   if(!exact&&query.originalLanguages.length&&!query.originalLanguages.includes(item.originalLanguage??""))return null;
   if(!exact&&query.excludedKeywords.some(k=>conceptEvidence(item,k)))return null;
   if(!exact&&query.keywordMatch==="all"&&query.keywords.length&&!query.keywords.every(k=>conceptEvidence(item,k)))return null;

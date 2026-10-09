@@ -92,7 +92,7 @@ class DetailScreen extends ConsumerWidget {
                     style: Theme.of(context).textTheme.titleLarge,
                   ),
                   const SizedBox(height: 9),
-                  Text(
+                  SelectableText(
                     item.overview,
                     style: Theme.of(context).textTheme.bodyLarge,
                   ),
@@ -101,7 +101,9 @@ class DetailScreen extends ConsumerWidget {
                       context: context,
                       builder: (_) => AlertDialog(
                         title: const Text('Source synopsis'),
-                        content: Text(item.overview),
+                        content: SingleChildScrollView(
+                          child: SelectableText(item.overview),
+                        ),
                         actions: [
                           TextButton(
                             onPressed: () => Navigator.pop(context),
@@ -119,7 +121,7 @@ class DetailScreen extends ConsumerWidget {
                       style: Theme.of(context).textTheme.titleLarge,
                     ),
                     const SizedBox(height: 8),
-                    Text(
+                    SelectableText(
                       [
                         if (item.director != null)
                           'Directed by ${item.director}',
@@ -148,7 +150,7 @@ class DetailScreen extends ConsumerWidget {
                               ),
                         ),
                         const SizedBox(height: 8),
-                        Text(
+                        SelectableText(
                           controller.reasonFor(item),
                           style: Theme.of(context).textTheme.bodyLarge,
                         ),

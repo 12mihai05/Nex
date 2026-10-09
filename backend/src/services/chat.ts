@@ -16,6 +16,7 @@ import {requestedTvScope,tvFollowup,tvContextSchema,tvReferenceMatches} from './
 import {ChatKnowledge} from './chat-knowledge.js';
 import {broadcastReference} from '../domain/entities.js';
 import {personalizationFor} from './personalization.js';
+import {isExplicitKeywordExclusion} from './preference-exclusions.js';
 
 export class ChatService {
   constructor(
@@ -125,8 +126,8 @@ export class ChatService {
   }
 
   private async tryPreference(userId:string,message:string):Promise<ChatBlock[]|null> {
-    if(/\b(?:do not|don['’]t|never)\s+(?:\w+\s+){0,4}(?:save|change|update|remember|add|mark|rate)\b/i.test(message))return null;
     if(!isPersistentPreference(message))return null;
+    if(/\b(?:do not|don['’]t|never)\s+(?:(?:ever|automatically|permanently|also)\s+)?(?:save|change|update|remember|add|mark|rate)\b/i.test(message))return [{type:'text',content:'I haven’t changed your saved Taste.'}];
     if(/\b(this|that) (kind|type|sort)\b/i.test(message))return [{type:'text',content:'What part wasn’t for you—the story, tone, pacing, or something else? I won’t treat one movie as a dislike of its whole genre.'}];
     const result=await this.ai.extractTaste(message,[]).catch(()=>({signals:[]}));
     const extracted={signals:result.signals.filter(s=>s.confidence>=.75 && (s.dimension!=='combination'||(s.conditions?.length??0)>=2))};
@@ -138,6 +139,7 @@ export class ChatService {
       return s.key;
     });
     const liked=labels(true),disliked=labels(false);
-    return [{type:"confirmation",content:`I’ve saved your taste preferences.${liked.length?` More of: ${liked.join(', ')}.`:''}${disliked.length?` Less of: ${disliked.join(', ')}.`:''} You can review or correct them in Your Taste.`}];
+    const excluded=extracted.signals.filter(s=>isExplicitKeywordExclusion({...s,source:'chat_explicit'})).map(s=>s.key);
+    return [{type:"confirmation",content:`I’ve saved your taste preferences.${liked.length?` More of: ${liked.join(', ')}.`:''}${disliked.length?` Less of: ${disliked.join(', ')}.`:''}${excluded.length?` I’ll exclude titles tagged ${excluded.join(', ')} from recommendations.`:''} You can review or correct them in Your Taste.`}];
   }
 }

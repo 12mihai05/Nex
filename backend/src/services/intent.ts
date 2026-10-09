@@ -38,7 +38,9 @@ export function detectSearchIntent(input: string): FilterQuery {
 }
 
 export function isPersistentPreference(input: string): boolean {
-  return /\b(i (?:generally |usually |really |absolutely )?(?:like|love|hate|dislike|prefer|(?:don['’]?t|do not) (?:like|enjoy)|am not into)|i['’]m not into)\b/i.test(input) && !/\b(tonight|right now|today|this time|just kidding|joking|sarcasm|maybe|not sure)\b/i.test(input) && !/\b(if i|would i|could i|what if|suppose|pretend)\b/i.test(input);
+  const declaration=/\b(i (?:generally |usually |really |absolutely )?(?:like|love|hate|dislike|prefer|(?:don['’]?t|do not) (?:really |particularly |usually |generally )?(?:like|enjoy)|am not into)|i['’]m not into)\b/i.test(input);
+  const correction=/\b(?:exclude|avoid|remove|add|remember|update|change|save)\b/i.test(input)&&/\bmy (?:taste|preferences?|profile)\b/i.test(input);
+  return (declaration||correction) && !/\b(tonight|right now|today|this time|just kidding|joking|sarcasm|maybe|not sure)\b/i.test(input) && !/\b(if i|would i|could i|what if|suppose|pretend)\b/i.test(input);
 }
 
 export function fallbackIntent(message:string,previous?:Partial<FilterQuery>):FilterQuery {

@@ -66,7 +66,7 @@ class KnowledgeAnswer extends StatelessWidget {
         color: Theme.of(context).cardTheme.color,
         borderRadius: BorderRadius.circular(19),
       ),
-      child: Text.rich(TextSpan(children: spans)),
+      child: SelectionArea(child: Text.rich(TextSpan(children: spans))),
     );
   }
 }

@@ -3,6 +3,7 @@ import type {ContentItem} from "../domain/types.js";
 // Small, inspectable vocabulary bridge. It connects wording to source text;
 // it never assigns psychological traits, age suitability, or unseen plot facts.
 const groups:Record<string,string[]>={
+  anime:['anime','animes'],
   underdog:["underdog","underdogs","against all odds","unlikely champion","unlikely hero"],
   redemption:["redemption","second chance","second chances","atonement"],
   revenge:["revenge","vengeance","retribution"],
