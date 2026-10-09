@@ -47,6 +47,23 @@ export async function watchedCandidates(catalog: TmdbRepository, state: State, f
   return promise;
 }
 type Shelf = { id: string; title: string; subtitle: string; filter?: Partial<FilterQuery>; accepts?: (item: ContentItem) => boolean };
+export const HOME_ROW_TARGET=20;
+function withoutPage(q:DiscoverOptions){const copy={...q};delete copy.page;return copy;}
+// Retrieval hints are not eligibility rules. Every result is checked against
+// the shelf definition and the user's hard filters after hydration.
+function shelfSource(s:Shelf):Partial<DiscoverOptions>{
+  if(s.id==='recent')return {minYear:new Date().getUTCFullYear()-2};
+  if(s.id==='classics')return {maxYear:1999};
+  if(s.id==='2000s')return {minYear:2000,maxYear:2009};
+  if(s.id==='2010s')return {minYear:2010,maxYear:2019};
+  if(s.id==='acclaimed')return {minRating:7.5,minVoteCount:250};
+  if(s.id==='feel-good')return {genres:['Comedy']};
+  if(s.id==='mood:tense')return {genres:['Thriller']};
+  if(s.id==='mood:cerebral')return {keywords:['philosophy','time paradox']};
+  if(s.id==='mood:weird')return {keywords:['surrealism']};
+  if(s.id.startsWith('mood:'))return {keywords:[s.id.slice(5)]};
+  return {};
+}
 export function discoveryShelves(state: State): Shelf[] {
   const liked = (dimension: string) => state.taste.filter(s => s.dimension === dimension && s.score > .3 && s.confidence >= .35)
     .sort((a,b) => b.score*b.confidence-a.score*a.confidence).map(s=>s.key);
@@ -99,13 +116,27 @@ export function buildDiscoveryRows(items: ContentItem[], state: State, userId: s
   const occurrences = new Map<string,number>(seen.map(key=>[key,1]));
   const rows: Array<{id:string;title:string;subtitle:string;items:RankedContent[]}> = [];
   const definitions=plannedShelves(state,plan);
-  for (const shelf of batch===undefined?definitions:definitions.slice(batch*6,batch*6+6)) {
-    if (shelf.id === "rewatch" && filters.watchStatus !== undefined) continue;
+  const selected=batch===undefined?definitions:definitions.slice(batch*6,batch*6+6);
+  const candidates=selected.flatMap(shelf=>{
+    if (shelf.id === "rewatch" && filters.watchStatus !== undefined) return [];
     const query = filterQuerySchema.parse({intent:"DISCOVERY",...shelf.filter,excludeWatched:shelf.id!=="rewatch" && filters.watchStatus!=="again" && filters.watchStatus!=="either"});
     const eligible = items.filter(i=>(!shelf.accepts||shelf.accepts(i))&&!occurrences.has(titleKey(i)) &&
       (shelf.id==='watchlist'||!definitions.some(s=>s.id==='watchlist')||!state.watchlistKeys.has(titleKey(i))) &&
       (shelf.id!=="rewatch" || i.availability.some(a=>a.access==="included"&&state.ownedProviderIds.includes(a.providerId))));
-    const ranked = rankCandidates(eligible,query,{...state,...personal,viewerIds:[userId],temporaryMoods:[]},20);
+    const ranked=eligible.map(item=>scoreCandidate(item,query,{...state,...personal,viewerIds:[userId],temporaryMoods:[]})).filter((r):r is RankedContent=>r!==null);
+    return [{shelf,query,ranked}];
+  });
+  // Allocate scarce categories first; broad shelves use their remaining strong
+  // candidates. Presentation order below stays personalized, not scarcity order.
+  candidates.sort((a,b)=>Number(b.shelf.id==='for-you')-Number(a.shelf.id==='for-you')||a.ranked.length-b.ranked.length||selected.indexOf(a.shelf)-selected.indexOf(b.shelf));
+  for(const {shelf,query,ranked:available} of candidates){
+    let remaining=available.filter(r=>!occurrences.has(titleKey(r.item))).map(r=>r.item);
+    if(shelf.id==='for-you'){
+      const scarce=new Set(candidates.filter(c=>c.shelf.id!=='for-you'&&c.ranked.length<=HOME_ROW_TARGET).flatMap(c=>c.ranked.map(r=>titleKey(r.item))));
+      const alternatives=remaining.filter(i=>!scarce.has(titleKey(i)));
+      if(alternatives.length>=HOME_ROW_TARGET)remaining=alternatives;
+    }
+    const ranked=rankCandidates(remaining,query,{...state,...personal,viewerIds:[userId],temporaryMoods:[]},HOME_ROW_TARGET);
     if (ranked.length < (shelf.id==="rewatch" ? 3 : Object.keys(filters).length || shelf.id==="watchlist" ? 1 : 3)) continue;
     if (rows.some(r=>ranked.filter(i=>r.items.some(j=>titleKey(j.item)===titleKey(i.item))).length/Math.max(r.items.length,ranked.length)>.85)) continue;
     rows.push({id:shelf.id,title:shelf.title,subtitle:filters.watchStatus && filters.watchStatus!=="new" ? "Ranked for your taste and selected services" : shelf.subtitle,items:ranked});
@@ -150,7 +181,7 @@ export async function discoverHome(catalog: TmdbRepository, state: State, userId
     {...common,mediaType:"movie"}, {...common,mediaType:"series"},
     {...common,mediaType:"movie",sortBy:"popularity.desc"}, {...common,mediaType:"movie",page:2},
     ...definitions.filter(s=>s.filter&&(s.filter.genres||s.filter.keywords||s.id==="short")).slice(0,7).map(s=>({...common,mediaType:"movie" as const,...s.filter})),
-  ]:definitions.slice(batch*6,batch*6+6).map((s,index)=>({...common,mediaType:filters.mediaType==="series"?"series" as const: s.filter?.mediaType==="series"?"series" as const:"movie" as const,page:s.filter?1:batch+1,...s.filter,...(!s.filter&&index%2?{sortBy:"popularity.desc" as const}:{})}));
+  ]:currentDefinitions.map(s=>({...common,mediaType:filters.mediaType==="series"?"series" as const: s.filter?.mediaType==="series"?"series" as const:"movie" as const,page:1,...shelfSource(s),...s.filter}));
   const queryAllowed=(q:DiscoverOptions)=>!filters.mediaType||filters.mediaType==="any"||!q.mediaType||q.mediaType===filters.mediaType;
   const constrain=(q:DiscoverOptions):DiscoverOptions=>({...q,...hardFilters, ...(filters.mediaType==="any"?{mediaType:q.mediaType}:{}),
       // Preserve short-shelf bounds when they are stricter than the global maximum.
@@ -183,26 +214,56 @@ export async function discoverHome(catalog: TmdbRepository, state: State, userId
   }
   return found;})();
   let succeeded = 0;
+  const sourceSeen=new Map<string,Set<string>>();
   for(let start=0;start<constrained.length;start+=3) {
     const results = await Promise.allSettled(constrained.slice(start,start+3).map(q=>catalog.discover(q)));
-    for(const result of results) if(result.status==="fulfilled") { succeeded++;pool.push(...result.value); }
+    results.forEach((result,index)=>{if(result.status==="fulfilled") { succeeded++;pool.push(...result.value);
+      const key=JSON.stringify(withoutPage(constrained[start+index]!)),known=sourceSeen.get(key)??new Set<string>();result.value.forEach(i=>known.add(titleKey(i)));sourceSeen.set(key,known);
+    }});
   }
   pool.push(...await savedPool);
   if(!succeeded&&constrained.length&&!pool.length) throw new Error("CATALOG_UNAVAILABLE");
   let rows=buildDiscoveryRows([...new Map(pool.map(i=>[titleKey(i),i])).values()],state,userId,filters,batch,plan,seen);
-  // Refill only sparse shelves, never pad with titles outside their definition.
-  // One bounded extra page per query keeps cold-start costs predictable.
-  const sparse=new Set(currentDefinitions.filter(s=>(rows.find(r=>r.id===s.id)?.items.length??0)<12).map(s=>s.id));
-  if(sparse.size&&batch!==undefined){
-    // Preserve shelf/query association before filtering or deduplicating queries.
-    const refill=[...new Map(queries.filter((q,index)=>sparse.has(currentDefinitions[index]?.id??'')&&queryAllowed(q)).map(constrain).filter(rangeAllowed).map(q=>[JSON.stringify(q),q])).values()].slice(0,3);
-    const extra=await Promise.allSettled(refill.map(q=>catalog.discover({...q,page:(q.page??1)+1})));
-    pool.push(...extra.flatMap(r=>r.status==='fulfilled'?r.value:[]));
+  // Fetch toward twenty AFTER exclusions/allocation, including rows at 12–19.
+  // At most 24 refill pages, three concurrent calls and six pages per source.
+  // Stop repeated/empty sources; never invent filler or broaden hard filters.
+  const sources=currentDefinitions.filter(s=>!['watchlist','rewatch'].includes(s.id)).flatMap(s=>{
+    const q=constrain({...common,mediaType:filters.mediaType==='series'?'series':s.filter?.mediaType==='series'?'series':'movie',...shelfSource(s),...s.filter});
+    const mixed=(!filters.mediaType||filters.mediaType==='any')&&!s.filter?.mediaType;
+    return [{s,q},...(mixed?[{s,q:{...q,mediaType:'series' as const}}]:[])];
+  }).filter(({q})=>queryAllowed(q)&&rangeAllowed(q));
+  const cursors=new Map<string,number>(),exhausted=new Set<string>();
+  for(const q of constrained){const {page=1,...rest}=q;cursors.set(JSON.stringify(rest),Math.max(page,cursors.get(JSON.stringify(rest))??0));}
+  let remaining=24;
+  const refillStarted=Date.now();
+  while(remaining>0&&Date.now()-refillStarted<25_000){
+    const sparse=new Set(currentDefinitions.filter(s=>(rows.find(r=>r.id===s.id)?.items.length??0)<HOME_ROW_TARGET).map(s=>s.id));
+    const needed=[...new Map(sources.filter(({s})=>sparse.has(s.id)).map(({q})=>{const rest=withoutPage(q);return [JSON.stringify(rest),rest] as const;})).entries()]
+      .filter(([key])=>!exhausted.has(key)&&(cursors.get(key)??0)<6).slice(0,Math.min(3,remaining));
+    if(!needed.length)break;
+    remaining-=needed.length;
+    const extra=await Promise.allSettled(needed.map(([key,q])=>{const page=(cursors.get(key)??0)+1;cursors.set(key,page);return catalog.discover({...q,page});}));
+    extra.forEach((r,index)=>{const key=needed[index]![0];if(r.status==='rejected'){exhausted.add(key);return;}
+      const previous=sourceSeen.get(key)??new Set<string>(),fresh=r.value.filter(i=>!previous.has(titleKey(i)));
+      r.value.forEach(i=>previous.add(titleKey(i)));sourceSeen.set(key,previous);
+      if(!fresh.length)exhausted.add(key);pool.push(...fresh);
+    });
     rows=buildDiscoveryRows([...new Map(pool.map(i=>[titleKey(i),i])).values()],state,userId,filters,batch,plan,seen);
   }
   if(personalizer && state.recommendationEngine && state.recommendationEngine!=='baseline') {
     const unique=[...new Map(pool.map(i=>[titleKey(i),i])).values()];
-    const personal=await personalizer.prepare(unique,state,userId,filterQuerySchema.parse({...filters,intent:'DISCOVERY',excludeWatched:filters.watchStatus!=='either'}));
+    // Larger retrieval pools must not give the first fetched source every
+    // embedding slot. Interleave promising candidates from each current shelf.
+    const context={...state,viewerIds:[userId],temporaryMoods:[]},alreadySeen=new Set(seen);
+    const global=filterQuerySchema.parse({...filters,intent:'DISCOVERY',excludeWatched:false});
+    const eligible=unique.filter(i=>!alreadySeen.has(titleKey(i))&&scoreCandidate(i,global,context)!==null);
+    const groups=currentDefinitions.map(s=>{
+      const query=filterQuerySchema.parse({intent:'DISCOVERY',...s.filter,excludeWatched:s.id!=='rewatch'&&filters.watchStatus!=='either'});
+      return eligible.filter(i=>!s.accepts||s.accepts(i)).map(i=>scoreCandidate(i,query,context)).filter((r):r is RankedContent=>r!==null).sort((a,b)=>b.score-a.score).slice(0,64);
+    });
+    const shortlist=new Map<string,ContentItem>();
+    for(let index=0;index<64&&shortlist.size<384;index++)for(const group of groups){const item=group[index]?.item;if(item&&shortlist.size<384)shortlist.set(titleKey(item),item);}
+    const personal=await personalizer.prepare([...shortlist.values()],state,userId,filterQuerySchema.parse({...filters,intent:'DISCOVERY',excludeWatched:filters.watchStatus!=='either'}));
     rows=buildDiscoveryRows(unique,state,userId,filters,batch,plan,seen,personal);
   }
   return rows;

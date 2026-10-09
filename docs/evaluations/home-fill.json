@@ -1,0 +1,171 @@
+{
+  "batches": [
+    {
+      "batch": 0,
+      "ms": 9164,
+      "rows": [
+        {
+          "id": "for-you",
+          "count": 20
+        },
+        {
+          "id": "series",
+          "count": 20
+        },
+        {
+          "id": "acclaimed",
+          "count": 20
+        },
+        {
+          "id": "genre:Mystery",
+          "count": 20
+        },
+        {
+          "id": "recent",
+          "count": 20
+        },
+        {
+          "id": "short",
+          "count": 20
+        }
+      ],
+      "uniqueDelivered": 120
+    },
+    {
+      "batch": 1,
+      "ms": 8844,
+      "rows": [
+        {
+          "id": "concept:revenge",
+          "count": 20
+        },
+        {
+          "id": "genre:Fantasy",
+          "count": 20
+        },
+        {
+          "id": "2010s",
+          "count": 20
+        },
+        {
+          "id": "genre:History",
+          "count": 20
+        },
+        {
+          "id": "mood:bittersweet",
+          "count": 14
+        },
+        {
+          "id": "mood:cerebral",
+          "count": 8
+        }
+      ],
+      "uniqueDelivered": 222
+    },
+    {
+      "batch": 2,
+      "ms": 13819,
+      "rows": [
+        {
+          "id": "concept:survival",
+          "count": 20
+        },
+        {
+          "id": "genre:Action",
+          "count": 20
+        },
+        {
+          "id": "feel-good",
+          "count": 20
+        },
+        {
+          "id": "genre:Animation",
+          "count": 20
+        },
+        {
+          "id": "2000s",
+          "count": 20
+        },
+        {
+          "id": "mood:weird",
+          "count": 19
+        }
+      ],
+      "uniqueDelivered": 341
+    },
+    {
+      "batch": 3,
+      "ms": 6964,
+      "rows": [
+        {
+          "id": "concept:underdog",
+          "count": 10
+        },
+        {
+          "id": "concept:found family",
+          "count": 5
+        },
+        {
+          "id": "genre:Adventure",
+          "count": 20
+        },
+        {
+          "id": "mood:tense",
+          "count": 20
+        },
+        {
+          "id": "genre:Drama",
+          "count": 20
+        },
+        {
+          "id": "classics",
+          "count": 20
+        }
+      ],
+      "uniqueDelivered": 436
+    },
+    {
+      "batch": 4,
+      "ms": 5116,
+      "rows": [
+        {
+          "id": "genre:Crime",
+          "count": 20
+        },
+        {
+          "id": "genre:Science Fiction",
+          "count": 20
+        },
+        {
+          "id": "genre:Documentary",
+          "count": 20
+        },
+        {
+          "id": "genre:Comedy",
+          "count": 20
+        },
+        {
+          "id": "genre:Thriller",
+          "count": 20
+        },
+        {
+          "id": "genre:Horror",
+          "count": 20
+        }
+      ],
+      "uniqueDelivered": 556
+    },
+    {
+      "batch": 5,
+      "ms": 383,
+      "rows": [
+        {
+          "id": "genre:Romance",
+          "count": 20
+        }
+      ],
+      "uniqueDelivered": 576
+    }
+  ],
+  "complete": true
+}

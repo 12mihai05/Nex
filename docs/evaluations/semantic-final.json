@@ -1,5 +1,5 @@
 {
-  "createdAt": "2026-10-09T21:36:57.266Z",
+  "createdAt": "2026-10-09T22:17:28.261Z",
   "method": "Predefined synopsis pairs; same pool, profile and filters for all arms. Synthetic labels are not human satisfaction.",
   "synthetic": [
     {
@@ -88,9 +88,9 @@
         "semantic": {
           "mode": "semantic",
           "reason": "selected",
-          "ms": 375,
+          "ms": 11,
           "covered": 32,
-          "embedded": 1,
+          "embedded": 0,
           "cacheHits": 32,
           "pairs": [
             {
@@ -115,7 +115,7 @@
                 {
                   "code": "semantic:interest",
                   "label": "its premise is related to your interests",
-                  "weight": 1.1464157726814144
+                  "weight": 1.146415772681414
                 }
               ]
             },
@@ -127,7 +127,7 @@
                 {
                   "code": "semantic:interest",
                   "label": "its premise is related to your interests",
-                  "weight": 0.9565854970035401
+                  "weight": 0.9565854970035405
                 }
               ]
             },
@@ -163,7 +163,7 @@
                 {
                   "code": "semantic:interest",
                   "label": "its premise is related to your interests",
-                  "weight": 0.47691781731385796
+                  "weight": 0.47691781731385824
                 }
               ]
             },
@@ -175,7 +175,7 @@
                 {
                   "code": "semantic:interest",
                   "label": "its premise is related to your interests",
-                  "weight": 0.6709390124590271
+                  "weight": 0.670939012459028
                 }
               ]
             },
@@ -199,12 +199,12 @@
                 {
                   "code": "semantic:interest",
                   "label": "its premise is related to your interests",
-                  "weight": 0.41198536208763387
+                  "weight": 0.41198536208763414
                 }
               ]
             }
           ],
-          "apiCalls": 1
+          "apiCalls": 0
         }
       }
     },
@@ -294,7 +294,7 @@
         "semantic": {
           "mode": "semantic",
           "reason": "selected",
-          "ms": 9,
+          "ms": 8,
           "covered": 32,
           "embedded": 0,
           "cacheHits": 32,
@@ -976,9 +976,9 @@
         "semantic": {
           "mode": "semantic",
           "reason": "selected",
-          "ms": 193,
+          "ms": 8,
           "covered": 32,
-          "embedded": 2,
+          "embedded": 0,
           "cacheHits": 32,
           "pairs": [
             {
@@ -1002,7 +1002,7 @@
                 {
                   "code": "semantic:avoid",
                   "label": "its premise may overlap with something you dislike",
-                  "weight": -0.39354074146026174
+                  "weight": -0.3935407414602626
                 }
               ]
             },
@@ -1019,7 +1019,7 @@
                 {
                   "code": "semantic:avoid",
                   "label": "its premise may overlap with something you dislike",
-                  "weight": -0.14202164203185155
+                  "weight": -0.14202164203185358
                 }
               ]
             },
@@ -1065,7 +1065,7 @@
                 {
                   "code": "semantic:avoid",
                   "label": "its premise may overlap with something you dislike",
-                  "weight": -0.21210283357864979
+                  "weight": -0.2121028335786514
                 }
               ]
             },
@@ -1082,7 +1082,7 @@
                 {
                   "code": "semantic:avoid",
                   "label": "its premise may overlap with something you dislike",
-                  "weight": -0.05317358195138875
+                  "weight": -0.05317358195138834
                 }
               ]
             },
@@ -1111,7 +1111,7 @@
               ]
             }
           ],
-          "apiCalls": 1
+          "apiCalls": 0
         }
       }
     },
@@ -2251,7 +2251,7 @@
         "semantic": {
           "mode": "semantic",
           "reason": "selected",
-          "ms": 5,
+          "ms": 6,
           "covered": 32,
           "embedded": 0,
           "cacheHits": 32,
@@ -2683,7 +2683,7 @@
         "semantic": {
           "mode": "semantic",
           "reason": "selected",
-          "ms": 6,
+          "ms": 5,
           "covered": 32,
           "embedded": 0,
           "cacheHits": 32,
@@ -3130,7 +3130,7 @@
         "semantic": {
           "mode": "semantic",
           "reason": "selected",
-          "ms": 5,
+          "ms": 6,
           "covered": 32,
           "embedded": 0,
           "cacheHits": 32,
@@ -3547,9 +3547,9 @@
         "semantic": {
           "mode": "semantic",
           "reason": "selected",
-          "ms": 214,
+          "ms": 6,
           "covered": 32,
-          "embedded": 2,
+          "embedded": 0,
           "cacheHits": 32,
           "pairs": [
             {
@@ -3586,7 +3586,7 @@
                 {
                   "code": "semantic:interest",
                   "label": "its premise is related to your interests",
-                  "weight": 1.7855556009254545
+                  "weight": 1.7855556009254556
                 }
               ]
             },
@@ -3598,7 +3598,7 @@
                 {
                   "code": "semantic:interest",
                   "label": "its premise is related to your interests",
-                  "weight": 0.9470110846984927
+                  "weight": 0.9470110846984936
                 }
               ]
             },
@@ -3610,7 +3610,7 @@
                 {
                   "code": "semantic:interest",
                   "label": "its premise is related to your interests",
-                  "weight": 0.9336162484099283
+                  "weight": 0.9336162484099284
                 }
               ]
             },
@@ -3622,7 +3622,7 @@
                 {
                   "code": "semantic:interest",
                   "label": "its premise is related to your interests",
-                  "weight": 1.0602297879002482
+                  "weight": 1.0602297879002491
                 }
               ]
             },
@@ -3634,7 +3634,7 @@
                 {
                   "code": "semantic:interest",
                   "label": "its premise is related to your interests",
-                  "weight": 0.7803540687963401
+                  "weight": 0.7803540687963402
                 }
               ]
             },
@@ -3646,7 +3646,7 @@
                 {
                   "code": "semantic:interest",
                   "label": "its premise is related to your interests",
-                  "weight": 0.8105844171996639
+                  "weight": 0.8105844171996647
                 }
               ]
             },
@@ -3663,7 +3663,7 @@
               ]
             }
           ],
-          "apiCalls": 1
+          "apiCalls": 0
         }
       }
     },
@@ -4185,7 +4185,7 @@
         "semantic": {
           "mode": "semantic",
           "reason": "selected",
-          "ms": 6,
+          "ms": 5,
           "covered": 32,
           "embedded": 0,
           "cacheHits": 32,
@@ -4596,9 +4596,9 @@
         "semantic": {
           "mode": "semantic",
           "reason": "selected",
-          "ms": 157,
+          "ms": 6,
           "covered": 32,
-          "embedded": 1,
+          "embedded": 0,
           "cacheHits": 32,
           "pairs": [
             {
@@ -4706,7 +4706,7 @@
               ]
             }
           ],
-          "apiCalls": 1
+          "apiCalls": 0
         }
       }
     },
@@ -5118,8 +5118,8 @@
   "realCatalog": [],
   "modelVersion": "semantic-1:text-embedding-3-large:1024:gpt-5",
   "usage": {
-    "embeddingRequests": 4,
-    "embeddingTokens": 117,
+    "embeddingRequests": 0,
+    "embeddingTokens": 0,
     "reviewRequests": 0,
     "reviewInputTokens": 0,
     "reviewOutputTokens": 0

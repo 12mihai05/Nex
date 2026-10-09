@@ -6,6 +6,7 @@ import { fixtureCatalog, fixtureProviders } from "../fixtures/catalog.js";
 import { getDatabase, type NexDatabase } from "../db/client.js";
 import { tmdbCache } from "../db/schema.js";
 import {conceptTerms} from "../services/concepts.js";
+import {matchesGenre} from '../services/content-traits.js';
 import {createHash} from "node:crypto";
 import {lt} from "drizzle-orm";
 import { normalizeVideos, seasonSummarySchema, episodeSchema, type TitleExtras, type SeasonExtras } from "../domain/title-extras.js";
@@ -31,6 +32,10 @@ export interface DiscoverOptions {
   page?: number;
   sortBy?: "vote_average.desc" | "popularity.desc";
   limit?: number;
+  minYear?: number;
+  maxYear?: number;
+  minRating?: number;
+  minVoteCount?: number;
 }
 
 export interface TmdbRepository {
@@ -62,13 +67,17 @@ export class FixtureTmdbRepository implements TmdbRepository {
 
   async discover(options: DiscoverOptions): Promise<ContentItem[]> {
     return fixtureCatalog.filter((item) => {
+      if(options.minYear&&(item.year??0)<options.minYear)return false;
+      if(options.maxYear&&(item.year??9999)>options.maxYear)return false;
+      if(options.minRating&&(item.rating??0)<options.minRating)return false;
+      if(options.minVoteCount&&(item.voteCount??0)<options.minVoteCount)return false;
       if (options.mediaType && options.mediaType !== "any" && item.mediaType !== options.mediaType) return false;
       if(options.originalLanguages?.length&&!options.originalLanguages.includes(item.originalLanguage??""))return false;
       if(options.originCountries?.length&&!item.countries?.some(c=>options.originCountries!.includes(c)))return false;
       if (options.maxRuntimeMinutes && item.runtimeMinutes && item.runtimeMinutes > options.maxRuntimeMinutes) return false;
       if (options.minRuntimeMinutes && (!item.runtimeMinutes || item.runtimeMinutes < options.minRuntimeMinutes)) return false;
       if (options.providerIds?.length && !item.availability.some((entry) => options.providerIds?.includes(entry.providerId))) return false;
-      if (options.genres?.length && !options.genres.some((genre) => item.genres.some((g) => g.toLowerCase() === genre.toLowerCase()))) return false;
+      if (options.genres?.length && !(options.genreMatch==='all'?options.genres.every((genre)=>item.genres.some(g=>matchesGenre(genre,g))):options.genres.some((genre) => item.genres.some(g=>matchesGenre(genre,g))))) return false;
       return true;
     });
   }
@@ -169,8 +178,12 @@ export class LiveTmdbRepository implements TmdbRepository {
     const results = await Promise.all(types.map(async (mediaType) => {
       const params: Record<string, string> = {
         include_adult: "false", language: "en-US", page: String(options.page ?? 1), sort_by: options.sortBy ?? "vote_average.desc",
-        "vote_count.gte": "80", watch_region: options.region,
+        "vote_count.gte": String(options.minVoteCount??80), watch_region: options.region,
       };
+      const dateField=mediaType==='series'?'first_air_date':'primary_release_date';
+      if(options.minYear)params[`${dateField}.gte`]=`${options.minYear}-01-01`;
+      if(options.maxYear)params[`${dateField}.lte`]=`${options.maxYear}-12-31`;
+      if(options.minRating)params['vote_average.gte']=String(options.minRating);
       if (options.providerIds?.length) {
         params.with_watch_providers = options.providerIds.join("|");
         params.with_watch_monetization_types = "flatrate|free|ads";
@@ -181,7 +194,7 @@ export class LiveTmdbRepository implements TmdbRepository {
       if(options.originCountries?.length)params.with_origin_country=options.originCountries.join("|");
       if (options.genres?.length) {
         const list = await this.request<{ genres: Array<{ id: number; name: string }> }>(`/genre/${mediaType === "series" ? "tv" : "movie"}/list`, { language: "en-US" });
-        const ids = list.genres.filter((g)=>options.genres!.some((name)=>name.toLowerCase() === g.name.toLowerCase())).map((g)=>g.id);
+        const ids = list.genres.filter((g)=>options.genres!.some((name)=>matchesGenre(name,g.name))).map((g)=>g.id);
         if (!ids.length) return [];
         if (ids.length) params.with_genres = ids.join(options.genreMatch==="all"?",":"|");
       }

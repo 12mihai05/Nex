@@ -1,6 +1,6 @@
 import type { ContentItem, FilterQuery, RankedContent, RecommendationEvidence, TasteSignal } from "../domain/types.js";
 import { aggregateEvidence, evidenceWeight, titleDimensions } from "./taste.js";
-import { canonicalTrait, contentTraits } from "./content-traits.js";
+import { canonicalTrait, contentTraits, matchesGenre } from "./content-traits.js";
 import {canonicalConcept,conceptEvidence} from "./concepts.js";
 export { signalStrength } from "./taste.js";
 
@@ -28,7 +28,7 @@ export function scoreCandidate(item: ContentItem, query: FilterQuery, context: R
   if(!exact&&query.originalLanguages.length&&!query.originalLanguages.includes(item.originalLanguage??""))return null;
   if(!exact&&query.excludedKeywords.some(k=>conceptEvidence(item,k)))return null;
   if(!exact&&query.keywordMatch==="all"&&query.keywords.length&&!query.keywords.every(k=>conceptEvidence(item,k)))return null;
-  if (!exact && query.genres.length && !(query.genreMatch==="all"?query.genres.every((g) => item.genres.map(normalized).includes(normalized(g))):query.genres.some((g) => item.genres.map(normalized).includes(normalized(g))))) return null;
+  if (!exact && query.genres.length && !(query.genreMatch==="all"?query.genres.every((g) => item.genres.some(actual=>matchesGenre(g,actual))):query.genres.some((g) => item.genres.some(actual=>matchesGenre(g,actual))))) return null;
   if (!exact && query.maxRuntimeMinutes && (!item.runtimeMinutes || item.runtimeMinutes > query.maxRuntimeMinutes)) return null;
   if (!exact && query.minRuntimeMinutes && (!item.runtimeMinutes || item.runtimeMinutes < query.minRuntimeMinutes)) return null;
   const included = item.availability.find((a) => a.access === "included" && context.ownedProviderIds.includes(a.providerId));

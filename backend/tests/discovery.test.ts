@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { buildDiscoveryRows, discoverHome, discoveryShelves } from "../src/services/discovery.js";
 import { fixtureCatalog } from "../src/fixtures/catalog.js";
 import { FixtureTmdbRepository } from "../src/repositories/tmdb-repository.js";
@@ -10,6 +10,49 @@ import { filterQuerySchema } from "../src/domain/types.js";
 const state = () => ({country:"RO",timezone:"Europe/Bucharest",ownedProviderIds:[8],taste:[],watchedIds:new Set<number>(),watchlistIds:new Set<number>(),watchedKeys:new Set<string>(),watchlistKeys:new Set<string>(),ratedKeys:new Set<string>(),rejectedKeys:new Set<string>(),recentlyShown:new Map<string,number>(),wantHints:[],seenHints:[],behaviorPersonalization:true,favorites:[],saved:[]});
 const items = Array.from({length:180},(_,id)=>({...fixtureCatalog[0]!,id:id+1,title:`Title ${id}`,mediaType:id%5===0?"series" as const:"movie" as const,genres:[["Drama"],["Comedy"],["Thriller"],["Animation"]][id%4]!,keywords:id%3===0?["underdog"]:[],moods:[],rating:8,voteCount:500,runtimeMinutes:id%2===0?85:125,year:id%3===0?1990:2026,availability:[{providerId:8,providerName:"Netflix",logoUrl:null,access:"included" as const,owned:true}]}));
 describe("personalized discovery shelves",()=>{
+  it('refills rows at 12–19 after exclusions until twenty eligible titles exist',async()=>{
+    const s=state();for(let id=1;id<=5;id++)s.watchedKeys.add(`movie:${id}`);
+    const catalog=new FixtureTmdbRepository(),pages:number[]=[];
+    catalog.discover=async q=>{const page=q.page??1;pages.push(page);return Array.from({length:20},(_,n)=>({...items[1]!,id:(page-1)*20+n+1,title:`Page ${page} film ${n}`,genres:['Drama'],mediaType:'movie' as const}));};
+    const rows=await discoverHome(catalog,s,'u',{mediaType:'movie'},0,['genre:Drama']);
+    expect(rows[0]?.items).toHaveLength(20);expect(pages).toEqual([1,2]);
+    expect(rows[0]!.items.every(r=>!s.watchedKeys.has(`movie:${r.item.id}`))).toBe(true);
+  });
+  it('protects a scarce category from the general recommendation row',()=>{
+    const pool=Array.from({length:60},(_,i)=>({...items[1]!,id:i+1,mediaType:'movie' as const,genres:[i<20?'Drama':'Comedy']}));
+    const rows=buildDiscoveryRows(pool,state(),'u',{},0,['for-you','genre:Drama','genre:Comedy']);
+    expect(rows).toHaveLength(3);expect(rows.every(r=>r.items.length===20)).toBe(true);
+    expect(new Set(rows.flatMap(r=>r.items.map(i=>i.item.id))).size).toBe(60);
+  });
+  it('fetches era-specific pages, retains global filters, and stops repeated sources',async()=>{
+    const catalog=new FixtureTmdbRepository(),calls:Array<Parameters<typeof catalog.discover>[0]>=[];
+    catalog.discover=async q=>{calls.push(q);return Array.from({length:15},(_,id)=>({...items[1]!,id:id+1,mediaType:'movie' as const,genres:['Drama'],runtimeMinutes:85,year:1990}));};
+    const rows=await discoverHome(catalog,state(),'u',{mediaType:'movie',genres:['Drama'],minRuntimeMinutes:80,maxRuntimeMinutes:90},0,['classics']);
+    expect(rows[0]?.items).toHaveLength(15);expect(calls).toHaveLength(2);
+    expect(calls.every(q=>q.maxYear===1999&&q.genres?.includes('Drama')&&q.minRuntimeMinutes===80&&q.maxRuntimeMinutes===90)).toBe(true);
+  });
+  it('fills later batches after previously shown titles rather than repeating them',async()=>{
+    const catalog=new FixtureTmdbRepository();catalog.discover=async q=>Array.from({length:20},(_,i)=>({...items[1]!,id:((q.page??1)-1)*20+i+1,mediaType:'movie' as const,genres:['Drama']}));
+    const seen=Array.from({length:45},(_,i)=>`movie:${i+1}`);
+    const rows=await discoverHome(catalog,state(),'u',{},1,['unknown1','unknown2','unknown3','unknown4','unknown5','unknown6','genre:Drama'],seen);
+    expect(rows[0]?.items).toHaveLength(20);expect(rows[0]!.items.every(r=>!seen.includes(`movie:${r.item.id}`))).toBe(true);
+  });
+  it('can refill mixed shelves with series and recognizes TMDB combined TV genres',async()=>{
+    const catalog=new FixtureTmdbRepository();
+    catalog.discover=async q=>q.mediaType==='series'?Array.from({length:20},(_,i)=>({...items[1]!,id:i+1,mediaType:'series' as const,genres:['Sci-Fi & Fantasy']})):[];
+    const mixed=await discoverHome(catalog,state(),'u',{},0,['genre:Science Fiction']);
+    expect(mixed[0]?.items).toHaveLength(20);expect(mixed[0]!.items.every(r=>r.item.mediaType==='series')).toBe(true);
+    const movies=await discoverHome(catalog,state(),'u',{mediaType:'movie'},0,['genre:Science Fiction']);
+    expect(movies).toEqual([]);
+  });
+  it('reserves semantic coverage for late categories in a large candidate pool',async()=>{
+    const catalog=new FixtureTmdbRepository();
+    catalog.discover=async()=>Array.from({length:500},(_,i)=>({...items[1]!,id:i+1,mediaType:'movie' as const,genres:[i<450?'Drama':'Comedy']}));
+    const prepare=vi.fn(async()=>({personalAdjustments:new Map(),mode:'semantic' as const,reason:'selected' as const,covered:0,embedded:0,cacheHits:0}));
+    await discoverHome(catalog,{...state(),recommendationEngine:'semantic'},'u',{},0,['genre:Drama','genre:Comedy'],[],{prepare} as unknown as NonNullable<Parameters<typeof discoverHome>[7]>);
+    const supplied=(prepare.mock.calls[0] as unknown as [typeof items])[0];
+    expect(supplied.length).toBeLessThanOrEqual(384);expect(supplied.some(i=>i.id>450)).toBe(true);
+  });
   it('never repeats a title across paged shelves when prior delivered identities are supplied',()=>{
     const seen:string[]=[];const s=state(),plan=discoveryShelves(s).map(r=>r.id);
     for(let batch=0;batch<6;batch++)for(const row of buildDiscoveryRows(items,s,'u',{},batch,plan,seen))for(const r of row.items){
@@ -57,7 +100,7 @@ describe("personalized discovery shelves",()=>{
     for(let batch=0;batch<6;batch++) {
       calls=0;
       const rows=await discoverHome(catalog,state(),"u",{mediaType:"movie",minRuntimeMinutes:80,maxRuntimeMinutes:90},batch);
-      expect(calls).toBeLessThanOrEqual(9); // Up to three sparse-shelf refill queries.
+      expect(calls).toBeLessThanOrEqual(30); // Six initial sources + bounded targeted refill.
       expect(rows.length).toBeLessThanOrEqual(6);
       for(const row of rows) {
         expect(ids.has(row.id)).toBe(false);ids.add(row.id);
@@ -131,6 +174,6 @@ describe("personalized discovery shelves",()=>{
     const catalog=new FixtureTmdbRepository();let calls=0,active=0,max=0;
     catalog.discover=async()=>{calls++;active++;max=Math.max(max,active);await Promise.resolve();active--;if(calls===1)throw Error("Unavailable");return items;};
     expect((await discoverHome(catalog,state(),"u")).length).toBeGreaterThan(2);
-    expect(calls).toBeLessThanOrEqual(11);expect(max).toBeLessThanOrEqual(3);
+    expect(calls).toBeLessThanOrEqual(35);expect(max).toBeLessThanOrEqual(3);
   });
 });

@@ -1,5 +1,14 @@
 import type { ContentItem } from "../domain/types.js";
 
+// TMDB groups some TV genres that are separate for movies. Match the shared
+// bucket without relabelling the actual title's metadata.
+export function matchesGenre(requested:string,actual:string):boolean {
+  const q=canonicalTrait(requested),a=canonicalTrait(actual);
+  return q===a || (a==='action & adventure'&&['action','adventure'].includes(q)) ||
+    (a==='sci-fi & fantasy'&&['science fiction','fantasy'].includes(q)) ||
+    (a==='war & politics'&&['war','politics'].includes(q));
+}
+
 // Conservative vocabulary normalization, not an assertion about plot or age safety.
 // A genre supports only a broad hint; unknown nuanced traits remain unknown.
 export function canonicalTrait(value:string):string {
