@@ -13,7 +13,14 @@ export function matchesGenre(requested:string,actual:string):boolean {
 // A genre supports only a broad hint; unknown nuanced traits remain unknown.
 export function canonicalTrait(value:string):string {
   const key=value.toLowerCase().trim();
+  if(key==='kpop'||key==='k pop')return 'k-pop';
   return ({"sci-fi":"science fiction",scifi:"science fiction",mysteries:"mystery",musicals:"musical",humorous:"funny",comedic:"funny",uplifting:"feel-good","mind-bending":"cerebral",gory:"gore","nature documentary":"nature",wildlife:"nature"} as Record<string,string>)[key]??key;
+}
+// Interpret legacy country names without rewriting the user's stored preferences.
+export function canonicalDimensionTrait(dimension:string,value:string):string {
+ const key=canonicalTrait(value);
+ if(dimension!=='country')return key;
+ return ({china:'cn',chinese:'cn',japan:'jp',japanese:'jp',korea:'kr','south korea':'kr',korean:'kr',france:'fr',french:'fr'} as Record<string,string>)[key]??key;
 }
 export function contentTraits(item:ContentItem):Set<string> {
   const keys=new Set([...item.moods,...item.keywords,...item.genres].map(canonicalTrait));

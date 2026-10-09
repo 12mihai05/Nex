@@ -1,6 +1,6 @@
 import { createHash } from 'node:crypto';
 import type { ContentItem, TasteSignal } from '../domain/types.js';
-import { canonicalTrait } from './content-traits.js';
+import { canonicalTrait,canonicalDimensionTrait } from './content-traits.js';
 import { conceptEvidence, conceptMeaning } from './concepts.js';
 import { titleDimensions } from './taste.js';
 
@@ -23,7 +23,7 @@ export function semanticTitleText(item: ContentItem) {
 }
 export function conditionApplies(item: ContentItem, signal: TasteSignal) {
   const dimensions=new Set(titleDimensions(item).map(d=>`${d.dimension}:${canonicalTrait(d.key)}`));
-  return !signal.conditions?.length || signal.conditions.every(c=>c.values.some(v=>dimensions.has(`${c.dimension}:${canonicalTrait(v)}`)||(c.dimension==='keyword'&&Boolean(conceptEvidence(item,v)))));
+  return !signal.conditions?.length || signal.conditions.every(c=>c.values.some(v=>dimensions.has(`${c.dimension}:${canonicalDimensionTrait(c.dimension,v)}`)||(c.dimension==='keyword'&&Boolean(conceptEvidence(item,v)))));
 }
 export function semanticSignals(taste: TasteSignal[]) {
   // Explicit open-ended preferences only. Do not turn inferred actor/country traits into stories.

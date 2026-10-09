@@ -32,6 +32,24 @@ describe('semantic personalization and source-to-feed integration',()=>{
     catalog=new FixtureTmdbRepository();catalog.discover=async()=>titles;
   });
   afterEach(()=>client.close());
+  it('verified movie-example evidence survives storage and editing and influences semantic ranking without history or ratings',async()=>{
+    await users.updateSettings('alice',{recommendationEngine:'semantic'});
+    const example={...story,key:'stories like a verified example',meaning:'Former friends repair their broken trust.',example:{tmdbId:2,mediaType:'movie' as const,title:'Synthetic 2'}};
+    await users.upsertTaste('alice',[example]);
+    await users.upsertTaste('alice',[example]);
+    let state=await users.getRecommendationState('alice');
+    expect(state.taste).toHaveLength(1);expect(state.taste[0]!.evidenceCount).toBe(1);
+    expect(state.taste[0]!.example).toEqual(example.example);
+    expect(state.watchedKeys.size).toBe(0);expect(state.ratedKeys.size).toBe(0);
+    const service=new PersonalizationService(users.recommendationStore(),catalog,async()=>true,fake());
+    const personal=await service.prepare(titles,state,'alice',query);
+    const ranked=rankCandidates(titles,query,{...state,...personal,viewerIds:['alice'],temporaryMoods:[]});
+    expect(ranked[0]!.item.id%2).toBe(0);
+    await users.upsertTaste('alice',[{...example,source:'explicit_edit',score:-1,meaning:undefined,example:undefined}]);
+    state=await users.getRecommendationState('alice');
+    expect(state.taste[0]!.example).toEqual(example.example);
+    expect(state.taste[0]!.meaning).toBe(example.meaning);
+  });
   it('keeps baseline identical and makes zero model/cache calls',async()=>{
     const model=fake(),reserve=vi.fn(async()=>true),store=users.recommendationStore(),read=vi.spyOn(store,'publicVectors');
     const state=await users.getRecommendationState('alice');

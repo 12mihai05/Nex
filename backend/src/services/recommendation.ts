@@ -1,6 +1,6 @@
 import type { ContentItem, FilterQuery, RankedContent, RecommendationEvidence, TasteSignal } from "../domain/types.js";
 import { aggregateEvidence, evidenceWeight, titleDimensions } from "./taste.js";
-import { canonicalTrait, contentTraits, matchesGenre } from "./content-traits.js";
+import { canonicalTrait, canonicalDimensionTrait, contentTraits, matchesGenre } from "./content-traits.js";
 import {canonicalConcept,conceptEvidence} from "./concepts.js";
 import {isExplicitKeywordExclusion} from './preference-exclusions.js';
 export { signalStrength } from "./taste.js";
@@ -44,7 +44,22 @@ export function scoreCandidate(item: ContentItem, query: FilterQuery, context: R
   const dimensions = new Set(titleDimensions(item).map((d) => `${d.dimension}:${canonicalTrait(d.key)}`));
   for(const keyword of item.keywords) dimensions.add(`keyword:${canonicalTrait(keyword)}`);
   for(const trait of keys) dimensions.add(`mood:${trait}`);
-  const matches = context.taste.filter((s) => s.dimension!=='story' && (s.conditions?.length ? s.conditions.every(c=>c.values.some(value=>dimensions.has(`${c.dimension}:${canonicalTrait(value)}`)||(c.dimension==='keyword'&&conceptEvidence(item,value)))) : dimensions.has(`${s.dimension}:${canonicalTrait(s.key)}`)||(["keyword","theme"].includes(s.dimension)&&conceptEvidence(item,s.key))));
+  const applicable = context.taste.filter((s) => {
+    if(s.dimension==='story')return false;
+    const scoped=!s.conditions?.length||s.conditions.every(c=>c.values.some(value=>dimensions.has(`${c.dimension}:${canonicalDimensionTrait(c.dimension,value)}`)||(c.dimension==='keyword'&&conceptEvidence(item,value))));
+    // Conditions qualify a trait; only a combination is defined entirely by them.
+    const trait=s.dimension==='combination'?(s.conditions?.length??0)>=2:
+      dimensions.has(`${s.dimension}:${canonicalDimensionTrait(s.dimension,s.key)}`)||(["keyword","theme"].includes(s.dimension)&&conceptEvidence(item,s.key));
+    return scoped&&trait;
+  });
+  // Legacy aliases (China/CN, kpop/k-pop) are one matched trait, not two votes.
+  const uniqueMatches=new Map<string,TasteSignal>();
+  for(const signal of applicable){
+    const identity=`${Math.sign(signal.score)}:${signal.dimension}:${canonicalDimensionTrait(signal.dimension,signal.key)}`;
+    const previous=uniqueMatches.get(identity);
+    if(!previous||Math.abs(signal.score)*signal.confidence>Math.abs(previous.score)*previous.confidence)uniqueMatches.set(identity,signal);
+  }
+  const matches=[...uniqueMatches.values()];
   const positives = matches.filter((s) => s.score > 0).sort((a,b) => b.score*b.confidence-a.score*a.confidence).slice(0,3);
   // Strongest match leads; two supporting matches give diminishing bonuses.
   // Averaging matches made an extra valid match perversely lower a title's score.

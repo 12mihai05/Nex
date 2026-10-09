@@ -83,10 +83,12 @@ export class UserRepository {
       if (existing && !entries.length) entries = [{ id: "legacy", source: existing.source, score: existing.score, weight: Math.max(.1,existing.confidence), explicit: /explicit|onboarding/.test(existing.source), at: existing.updatedAt.toISOString() }];
       const id = evidenceId ?? signal.source;
       const priorMeaning=entries.filter(e=>e.meaning).at(-1)?.meaning;
+      const priorExample=entries.filter(e=>e.example).at(-1)?.example;
       entries = entries.filter((e) => e.id !== id);
       const conditions=signal.conditions??(existing?JSON.parse(existing.evidenceJson) as TasteEvidence[]:[]).filter(e=>e.conditions?.length).at(-1)?.conditions;
       const meaning=signal.meaning??(signal.source==='explicit_edit'?priorMeaning:undefined);
-      entries.push({ id, source: signal.source, score: signal.score, weight: evidenceWeight(signal.source)*signal.confidence, explicit: !["watchlist","search","detail_open"].includes(signal.source), at: new Date().toISOString(),...(conditions?.length?{conditions}:{}),...(signal.statement?{statement:signal.statement}:{}),...(meaning?{meaning}:{}) });
+      const example=signal.example??(signal.source==='explicit_edit'?priorExample:undefined);
+      entries.push({ id, source: signal.source, score: signal.score, weight: evidenceWeight(signal.source)*signal.confidence, explicit: !["watchlist","search","detail_open"].includes(signal.source), at: new Date().toISOString(),...(conditions?.length?{conditions}:{}),...(signal.statement?{statement:signal.statement}:{}),...(meaning?{meaning}:{}),...(example?{example}:{}) });
       entries = entries.slice(-64);
       const merged = aggregateEvidence(signal.dimension,key,entries);
       const values = { dimension: signal.dimension, key, score: merged.score, confidence: merged.confidence, evidenceCount: merged.evidenceCount, source: merged.source, explicit: merged.explicit ?? false, evidenceJson: JSON.stringify(entries), lastEvidenceAt: new Date(), updatedAt: new Date() };

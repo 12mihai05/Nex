@@ -6,9 +6,13 @@ import {canonicalConcept} from "./concepts.js";
 type State=Awaited<ReturnType<UserRepository['getRecommendationState']>>;
 export function personalizedSources(catalog:TmdbRepository,state:State,options:DiscoverOptions):Promise<ContentItem[]>[] {
  const jobs:Promise<ContentItem[]>[]=[];
+ // Verified conversational examples supplement retrieval; final ranking still enforces all filters.
+ const examples=state.taste.filter(s=>s.example&&s.score>.3&&s.confidence>.5).sort((a,b)=>b.score*b.confidence-a.score*a.confidence).slice(0,2);
+ if(catalog.related)for(const signal of examples)jobs.push(catalog.related(signal.example!.mediaType,signal.example!.tmdbId,state.country));
+ const targetedLimit=jobs.length+2;
  const interests=state.taste.filter(s=>['language','country','combination'].includes(s.dimension)&&s.score>.3&&s.confidence>.5).sort((a,b)=>b.score*b.confidence-a.score*a.confidence);
  for(const interest of interests){
-   if(jobs.length>=2)break;
+   if(jobs.length>=targetedLimit)break;
    const conditions=interest.conditions??[{dimension:interest.dimension,values:[interest.key]}];
    const values=(dimension:string)=>conditions.find(c=>c.dimension===dimension)?.values;
    const query:DiscoverOptions={...options,limit:12};let targeted=false;

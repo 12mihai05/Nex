@@ -1,4 +1,7 @@
 import 'package:flutter/material.dart';
+
+import '../widgets/nex_dialog.dart';
+
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../models/content.dart';
@@ -99,11 +102,10 @@ class DetailScreen extends ConsumerWidget {
                   TextButton(
                     onPressed: () => showDialog<void>(
                       context: context,
-                      builder: (_) => AlertDialog(
-                        title: const Text('Source synopsis'),
-                        content: SingleChildScrollView(
-                          child: SelectableText(item.overview),
-                        ),
+                      builder: (_) => NexDialog(
+                        title: 'Source synopsis',
+                        icon: Icons.notes_rounded,
+                        content: SelectableText(item.overview),
                         actions: [
                           TextButton(
                             onPressed: () => Navigator.pop(context),

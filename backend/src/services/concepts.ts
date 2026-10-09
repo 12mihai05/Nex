@@ -4,6 +4,7 @@ import type {ContentItem} from "../domain/types.js";
 // it never assigns psychological traits, age suitability, or unseen plot facts.
 const groups:Record<string,string[]>={
   anime:['anime','animes'],
+  'k-pop':['k-pop','kpop','k pop'],
   underdog:["underdog","underdogs","against all odds","unlikely champion","unlikely hero"],
   redemption:["redemption","second chance","second chances","atonement"],
   revenge:["revenge","vengeance","retribution"],

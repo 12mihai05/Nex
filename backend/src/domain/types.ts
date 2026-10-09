@@ -76,6 +76,7 @@ export const tasteSignalSchema = z.object({
   conditions:z.array(tasteConditionSchema).max(5).optional(),
   statement: z.string().max(600).optional(),
   meaning: z.string().max(400).optional(),
+  example:z.object({tmdbId:z.number().int().positive(),mediaType:z.enum(['movie','series']),title:z.string().min(1).max(300)}).optional(),
 });
 export type TasteSignal = z.infer<typeof tasteSignalSchema>;
 

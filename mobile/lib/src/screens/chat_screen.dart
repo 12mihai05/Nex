@@ -1,4 +1,7 @@
 import 'package:flutter/material.dart';
+
+import '../widgets/nex_dialog.dart';
+
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../models/chat_message.dart';
@@ -53,8 +56,9 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
   Future<void> clearChat() async {
     final confirmed = await showDialog<bool>(
       context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Clear chat?'),
+      builder: (context) => NexDialog(
+        title: 'Clear chat?',
+        icon: Icons.chat_bubble_outline_rounded,
         content: const Text(
           'This deletes your chat history and resets the conversation. Your watchlist, Seen titles, ratings, saved taste and reminders stay as they are.',
         ),

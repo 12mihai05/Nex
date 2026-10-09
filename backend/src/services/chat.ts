@@ -17,6 +17,7 @@ import {ChatKnowledge} from './chat-knowledge.js';
 import {broadcastReference} from '../domain/entities.js';
 import {personalizationFor} from './personalization.js';
 import {isExplicitKeywordExclusion} from './preference-exclusions.js';
+import {resolveTasteExamples} from './taste-examples.js';
 
 export class ChatService {
   constructor(
@@ -37,7 +38,7 @@ export class ChatService {
     if (action) {
       const blocks: ChatBlock[] = action;
       const id=await this.users.addConversationMessage(userId, sessionId, "assistant", blocks.filter(b=>b.type==='text'||b.type==='confirmation').map(b=>b.content).join('\n'), blocks);
-      const cards=blocks.flatMap(b=>b.type==='library_changes'?b.items:[]);
+      const cards=blocks.flatMap(b=>b.type==='library_changes'||b.type==='movie_carousel'?b.items.map(item=>({id:item.id,mediaType:item.mediaType,title:item.title,year:item.year})):[]);
       if(cards.length)await this.users.saveDisplayedReferences(userId,sessionId,id,cards.map(item=>({contentType:item.mediaType,externalId:String(item.id),metadata:{title:item.title,year:item.year,source:'tmdb',tmdbId:item.id}})));
       return { sessionId, blocks };
     }
@@ -130,7 +131,11 @@ export class ChatService {
     if(/\b(?:do not|don['’]t|never)\s+(?:(?:ever|automatically|permanently|also)\s+)?(?:save|change|update|remember|add|mark|rate)\b/i.test(message))return [{type:'text',content:'I haven’t changed your saved Taste.'}];
     if(/\b(this|that) (kind|type|sort)\b/i.test(message))return [{type:'text',content:'What part wasn’t for you—the story, tone, pacing, or something else? I won’t treat one movie as a dislike of its whole genre.'}];
     const result=await this.ai.extractTaste(message,[]).catch(()=>({signals:[]}));
+    const requests='examples'in result?result.examples??[]:[];
+    const examples=requests.length?await resolveTasteExamples(this.catalog,requests,message,(await this.users.getSettings(userId)).profile.country):{items:[],signals:[],issues:[]};
+    if(examples.issues.length)return [{type:'text',content:`${examples.issues.join(' ')} Nothing changed yet. Please repeat the examples with those details.`}];
     const extracted={signals:result.signals.filter(s=>s.confidence>=.75 && (s.dimension!=='combination'||(s.conditions?.length??0)>=2))};
+    extracted.signals.push(...examples.signals);
     if(!extracted.signals.length)return [{type:"text",content:"I couldn’t extract a clear lasting preference. Nothing changed; you can edit Your Taste."}];
     await this.users.upsertTaste(userId,extracted.signals.map(s=>({...s,source:"chat_explicit"})));
     const labels=(positive:boolean)=>extracted.signals.filter(s=>positive?s.score>0:s.score<0).map(s=>{
@@ -140,6 +145,6 @@ export class ChatService {
     });
     const liked=labels(true),disliked=labels(false);
     const excluded=extracted.signals.filter(s=>isExplicitKeywordExclusion({...s,source:'chat_explicit'})).map(s=>s.key);
-    return [{type:"confirmation",content:`I’ve saved your taste preferences.${liked.length?` More of: ${liked.join(', ')}.`:''}${disliked.length?` Less of: ${disliked.join(', ')}.`:''}${excluded.length?` I’ll exclude titles tagged ${excluded.join(', ')} from recommendations.`:''} You can review or correct them in Your Taste.`}];
+    return [{type:"confirmation",content:`I’ve saved your taste preferences.${liked.length?` More of: ${liked.join(', ')}.`:''}${disliked.length?` Less of: ${disliked.join(', ')}.`:''}${excluded.length?` I’ll exclude titles tagged ${excluded.join(', ')} from recommendations.`:''} You can review or correct them in Your Taste.${examples.items.length?' I used their catalog descriptions as story examples, without changing your ratings or Seen list. Tell me which parts matter most to refine this.':''}`},...(examples.items.length?[{type:'movie_carousel' as const,items:examples.items}]:[])];
   }
 }

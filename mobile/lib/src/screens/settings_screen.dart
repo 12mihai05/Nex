@@ -1,4 +1,7 @@
 import 'package:flutter/material.dart';
+
+import '../widgets/nex_dialog.dart';
+
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
@@ -212,8 +215,9 @@ class SettingsScreen extends ConsumerWidget {
   Future<bool?> _confirm(BuildContext context, String title, String body) =>
       showDialog<bool>(
         context: context,
-        builder: (context) => AlertDialog(
-          title: Text(title),
+        builder: (context) => NexDialog(
+          title: title,
+          icon: Icons.restart_alt_rounded,
           content: Text(body),
           actions: [
             TextButton(
