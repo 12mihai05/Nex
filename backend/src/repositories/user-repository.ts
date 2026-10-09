@@ -12,6 +12,7 @@ import type {ChatActionPlan} from '../services/chat-action-types.js';
 import { calculateReminderTime } from "../services/reminder.js";
 import { aggregateEvidence, evidenceWeight, signalStrength, titleDimensions, type TasteEvidence } from "../services/taste.js";
 import type { RankedContent } from "../domain/types.js";
+import { RecommendationStore } from './recommendation-store.js';
 
 export interface SettingsInput {
   country?: string | undefined;
@@ -20,10 +21,12 @@ export interface SettingsInput {
   behaviorPersonalization?: boolean | undefined;
   remindersEnabled?: boolean | undefined;
   onboardingComplete?: boolean | undefined;
+  recommendationEngine?: import('../domain/types.js').RecommendationEngine | undefined;
 }
 
 export class UserRepository {
   constructor(private readonly db: Pick<NexDatabase,"select"|"insert"|"update"|"delete"|"transaction"> = getDatabase()) {}
+  recommendationStore() { return new RecommendationStore(this.db); }
 
   async ensureProfile(userId: string): Promise<void> {
     await this.db.insert(profiles).values({ userId }).onConflictDoNothing();
@@ -38,6 +41,7 @@ export class UserRepository {
   }
 
   async updateSettings(userId: string, input: SettingsInput): Promise<void> {
+    if(input.behaviorPersonalization===false) await this.recommendationStore().clearPrivate(userId);
     await this.ensureProfile(userId);
     await this.db.update(profiles).set({ ...input, updatedAt: new Date() }).where(eq(profiles.userId, userId));
     if (input.remindersEnabled === false) await this.db.update(reminders).set({active:false,updatedAt:new Date()}).where(eq(reminders.userId,userId));
@@ -67,6 +71,7 @@ export class UserRepository {
   }
 
   async upsertTaste(userId: string, signals: TasteSignal[], evidenceId?: string): Promise<void> {
+    await this.recommendationStore().clearPrivate(userId);
     for (const original of signals) {
       const signal = { ...original };
       let key = signal.key.trim().toLowerCase();
@@ -77,8 +82,11 @@ export class UserRepository {
       let entries: TasteEvidence[] = existing ? JSON.parse(existing.evidenceJson) as TasteEvidence[] : [];
       if (existing && !entries.length) entries = [{ id: "legacy", source: existing.source, score: existing.score, weight: Math.max(.1,existing.confidence), explicit: /explicit|onboarding/.test(existing.source), at: existing.updatedAt.toISOString() }];
       const id = evidenceId ?? signal.source;
+      const priorMeaning=entries.filter(e=>e.meaning).at(-1)?.meaning;
       entries = entries.filter((e) => e.id !== id);
-      entries.push({ id, source: signal.source, score: signal.score, weight: evidenceWeight(signal.source)*(evidenceId?signal.confidence:1), explicit: !["watchlist","search","detail_open"].includes(signal.source), at: new Date().toISOString() });
+      const conditions=signal.conditions??(existing?JSON.parse(existing.evidenceJson) as TasteEvidence[]:[]).filter(e=>e.conditions?.length).at(-1)?.conditions;
+      const meaning=signal.meaning??(signal.source==='explicit_edit'?priorMeaning:undefined);
+      entries.push({ id, source: signal.source, score: signal.score, weight: evidenceWeight(signal.source)*signal.confidence, explicit: !["watchlist","search","detail_open"].includes(signal.source), at: new Date().toISOString(),...(conditions?.length?{conditions}:{}),...(signal.statement?{statement:signal.statement}:{}),...(meaning?{meaning}:{}) });
       entries = entries.slice(-64);
       const merged = aggregateEvidence(signal.dimension,key,entries);
       const values = { dimension: signal.dimension, key, score: merged.score, confidence: merged.confidence, evidenceCount: merged.evidenceCount, source: merged.source, explicit: merged.explicit ?? false, evidenceJson: JSON.stringify(entries), lastEvidenceAt: new Date(), updatedAt: new Date() };
@@ -99,7 +107,13 @@ export class UserRepository {
   }
 
   async clearTaste(userId: string): Promise<void> {
+    await this.recommendationStore().clearPrivate(userId);
     await this.db.delete(userTastePreferences).where(eq(userTastePreferences.userId, userId));
+  }
+
+  async removeTaste(userId:string,dimension:string,key:string):Promise<void>{
+    await this.recommendationStore().clearPrivate(userId);
+    await this.db.delete(userTastePreferences).where(and(eq(userTastePreferences.userId,userId),eq(userTastePreferences.dimension,dimension),eq(userTastePreferences.key,key)));
   }
 
   async listWatchlist(userId: string) {
@@ -129,6 +143,7 @@ export class UserRepository {
   }
 
   private async removeReactionEvidence(userId: string, mediaType: string, tmdbId: number, includeWatchlist=false) {
+    await this.recommendationStore().clearPrivate(userId);
     const evidenceId=`reaction:${mediaType}:${tmdbId}`;
     const rows=await this.db.select().from(userTastePreferences).where(eq(userTastePreferences.userId,userId));
     for(const row of rows){
@@ -175,6 +190,7 @@ export class UserRepository {
     const rated=new Set(feedback.map(r=>`${r.mediaType}:${r.tmdbId}`));
     return {
       country: settings.profile.country,
+      ...(settings.profile.recommendationEngine!=='baseline'?{recommendationEngine:settings.profile.recommendationEngine as import('../domain/types.js').RecommendationEngine}:{}),
       timezone: settings.profile.timezone,
       ownedProviderIds: settings.services.map((row) => row.providerId), taste,
       watchedIds: new Set(history.map((row) => row.tmdbId)), watchlistIds: new Set(saved.map((row) => row.tmdbId)),
@@ -335,17 +351,20 @@ export class UserRepository {
 
   async saveDisplayedItems(userId: string, sessionId: string, messageId: string, items: ContentItem[]): Promise<void> {
     if (!await this.assertConversation(userId, sessionId)) throw new Error("CONVERSATION_NOT_FOUND");
-    if (items.length) await this.db.insert(conversationDisplayedItems).values(items.map((item, index) => ({ id: randomUUID(), sessionId, messageId, position: index + 1, contentType: item.mediaType, externalId: String(item.id), metadataJson: JSON.stringify({ title: item.title }) })));
+    await this.saveDisplayedReferences(userId,sessionId,messageId,items.map(item=>({contentType:item.mediaType,externalId:String(item.id),metadata:{title:item.title,originalTitle:item.originalTitle,year:item.year,source:'tmdb',tmdbId:item.id,entityType:item.mediaType}})));
   }
 
   async saveDisplayedReferences(userId: string, sessionId: string, messageId: string, items: Array<{ contentType: "movie" | "series" | "episode" | "liveEvent"; externalId: string; metadata?: Record<string, unknown> }>): Promise<void> {
     if (!await this.assertConversation(userId, sessionId)) throw new Error("CONVERSATION_NOT_FOUND");
     if (items.length) await this.db.insert(conversationDisplayedItems).values(items.map((item, index) => ({ id: randomUUID(), sessionId, messageId, position: index + 1, contentType: item.contentType, externalId: item.externalId, metadataJson: item.metadata ? JSON.stringify(item.metadata) : null })));
+    if(items.length){const context=await this.getSessionContext(userId,sessionId);await this.setSessionContext(userId,sessionId,{...context,focus:undefined,displayedMessageId:messageId});}
   }
 
   async recentDisplayedItems(userId: string, sessionId: string) {
     if (!await this.assertConversation(userId, sessionId)) throw new Error("CONVERSATION_NOT_FOUND");
-    const rows = await this.db.select().from(conversationDisplayedItems).where(eq(conversationDisplayedItems.sessionId, sessionId)).orderBy(desc(conversationDisplayedItems.createdAt)).limit(12);
+    const context=await this.getSessionContext(userId,sessionId);
+    if(typeof context.displayedMessageId==='string')return this.db.select().from(conversationDisplayedItems).where(and(eq(conversationDisplayedItems.sessionId,sessionId),eq(conversationDisplayedItems.messageId,context.displayedMessageId))).orderBy(conversationDisplayedItems.position).limit(50);
+    const rows = await this.db.select().from(conversationDisplayedItems).where(and(eq(conversationDisplayedItems.sessionId, sessionId),gt(conversationDisplayedItems.createdAt,new Date(Date.now()-12*3600000)))).orderBy(desc(conversationDisplayedItems.createdAt)).limit(50);
     const latestMessage = rows[0]?.messageId;
     return rows.filter((row) => row.messageId === latestMessage).sort((a, b) => a.position - b.position);
   }
@@ -356,8 +375,8 @@ export class UserRepository {
       .onConflictDoUpdate({ target: sessionContext.conversationSessionId, set: { contextJson: JSON.stringify(value), expiresAt: new Date(Date.now() + ttlHours * 3_600_000), updatedAt: new Date() } });
   }
 
-  async incrementAiUsage(userId: string, dailyLimit: number, now = new Date()): Promise<boolean> {
-    const date = now.toISOString().slice(0, 10);
+  async incrementAiUsage(userId: string, dailyLimit: number, now = new Date(), purpose = 'chat'): Promise<boolean> {
+    const date = now.toISOString().slice(0, 10)+(purpose==='chat'?'':`:${purpose}`);
     await this.db.insert(aiUsage).values({ userId, usageDate: date, messageCount: 0 }).onConflictDoNothing();
     const changed = await this.db.update(aiUsage).set({ messageCount: sql`${aiUsage.messageCount} + 1`, updatedAt: now }).where(and(eq(aiUsage.userId,userId),eq(aiUsage.usageDate,date),lt(aiUsage.messageCount,dailyLimit))).returning({ count: aiUsage.messageCount });
     return changed.length === 1;

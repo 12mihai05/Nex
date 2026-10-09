@@ -9,6 +9,7 @@ import '../widgets/top_bar.dart';
 import '../widgets/nex_notice.dart';
 import '../widgets/chat_library_changes.dart';
 import '../widgets/chat_help.dart';
+import '../widgets/knowledge_answer.dart';
 
 class ChatScreen extends ConsumerStatefulWidget {
   const ChatScreen({super.key});
@@ -231,6 +232,7 @@ class _Message extends StatelessWidget {
               (block) => Padding(
                 padding: const EdgeInsets.only(bottom: 10),
                 child: switch (block) {
+                  KnowledgeChatBlock() => KnowledgeAnswer(block: block),
                   LibraryChangesChatBlock() => ChatLibraryChanges(block: block),
                   TextChatBlock() => Container(
                     padding: const EdgeInsets.symmetric(

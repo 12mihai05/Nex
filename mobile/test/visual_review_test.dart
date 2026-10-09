@@ -169,34 +169,22 @@ void main() {
           if (path == '/home') {
             await tester.tap(find.byTooltip('Pick for me'));
             await capture('pick-controls');
+            await tester.ensureVisible(find.text('Make the pick'));
             await tester.tap(find.text('Make the pick'));
             await capture('pick-result');
             Navigator.of(tester.element(find.text('Another one'))).pop();
             await tester.pump(const Duration(milliseconds: 400));
           }
           if (path == '/tv') {
-            for (
-              var attempt = 0;
-              attempt < 8 &&
-                  find.text('Remind me').hitTestable().evaluate().isEmpty;
-              attempt++
-            ) {
-              await tester.drag(
-                find.byType(Scrollable).first,
-                const Offset(0, -200),
-              );
-              await tester.pump(const Duration(milliseconds: 400));
-            }
-            await tester.tap(find.text('Remind me').hitTestable().first);
+            await tester.tap(find.text('Interstellar').hitTestable().first);
             await capture('reminder-controls');
             Navigator.of(tester.element(find.text('At start'))).pop();
             await tester.pump(const Duration(milliseconds: 400));
             await tester.pump(const Duration(milliseconds: 500));
             await tester.tap(
-              find.byTooltip('Favorite channel').hitTestable().first,
+              find.byTooltip('Favourite channel').hitTestable().first,
             );
             await capture('tv-favorite');
-            await tester.tap(find.text('Channel guide'));
             await capture('tv-guide');
           }
           if (path == '/catalog') {

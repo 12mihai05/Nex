@@ -6,6 +6,7 @@ import type {AiService} from './ai.js';
 import type {EpgService} from './epg/service.js';
 import {looksLikeAction,type ChatActionPlan,type TitleChange} from './chat-action-types.js';
 import {countryTimezones} from './country-context.js';
+import {entitySchema,refersBack} from '../domain/entities.js';
 
 export const normalizedTitle=(value:string)=>value.normalize('NFKD').replace(/[\u0300-\u036f]/g,'').toLowerCase().replace(/[^\p{L}\p{N}]/gu,'');
 const text=(content:string):ChatBlock[]=>[{type:'text',content}];
@@ -26,7 +27,18 @@ export class ChatActions {
     // Never leave an old action armed after a new action request.
     if(context.chatPlan){delete context.chatPlan;await this.users.setSessionContext(userId,sessionId,context);}
     const {profile}=await this.users.getSettings(userId);
-    const displayed=await this.users.recentDisplayedItems(userId,sessionId);
+    let displayed=(await this.users.recentDisplayedItems(userId,sessionId)).map(r=>({position:r.position,contentType:r.contentType,externalId:r.externalId,metadataJson:r.metadataJson}));
+    const focus=entitySchema.safeParse(context.focus);
+    if(focus.success&&refersBack(message)&&! /\b(first|second|third|fourth|fifth|last|all|these|those)\b/i.test(message)){
+      const e=focus.data;
+      if(e.type==='movie'||e.type==='series')displayed=[{position:1,contentType:e.type,externalId:e.id,metadataJson:JSON.stringify(e)}];
+      else if(e.type==='broadcast')displayed=[{position:1,contentType:'liveEvent',externalId:e.id,metadataJson:JSON.stringify(e)}];
+      else if(e.type==='person')return text('That reference is a person. Which movie or series would you like to change?');
+      else if(e.type==='episode'||e.type==='channel')return text('Please specify the movie, series or scheduled broadcast you want to change. Nothing has changed.');
+    }
+    if(displayed.length>1&&/\b(this|that|it)\b/i.test(message)&&! /\b(first|second|third|fourth|fifth|last|all|these|those)\b/i.test(message)&&
+      !displayed.some(r=>{const title=JSON.parse(r.metadataJson??'{}').title;return typeof title==='string'&&title.length>2&&normalizedTitle(message).includes(normalizedTitle(title));}))
+      return text('Which one do you mean? Tell me its title or position in the cards. Nothing has changed.');
     let intent;
     try{intent=await this.ai.parseActions(message,{country:profile.country,timezone:profile.timezone,
       today:new Intl.DateTimeFormat('en-CA',{timeZone:profile.timezone,year:'numeric',month:'2-digit',day:'2-digit'}).format(new Date()),
@@ -83,12 +95,16 @@ export class ChatActions {
     }else{
       const r=intent.reminder;
       if(!r||intent.entries.length)return text('Nothing changed. Please request one TV reminder separately, including channel, day and advance minutes.');
-      const country=r.country??profile.country,timezone=r.country?countryTimezones[country]:profile.timezone;
+      const ref=r.position===null?undefined:displayed.find(p=>p.position===r.position&&p.contentType==='liveEvent');
+      const referenceCountry=ref?JSON.parse(ref.metadataJson??'{}').country as string|undefined:undefined;
+      if(r.country&&referenceCountry&&r.country!==referenceCountry)return text('That card belongs to a different country’s guide. Please specify the broadcast you want.');
+      const country=r.country??referenceCountry??profile.country,timezone=country!==profile.country?countryTimezones[country]:profile.timezone;
       if(!timezone)return text('No reminder saved: that country’s TV timezone is not configured.');
       plan.country=country;plan.timezone=timezone;
       let programs;
-      try{programs=await this.epg.reminderCandidates(country,r.date,timezone);}catch{return text('No reminder saved: I could not load the requested TV day.');}
-      const ref=r.position===null?undefined:displayed.find(p=>p.position===r.position&&p.contentType==='liveEvent');
+      const referenceStart=ref?JSON.parse(ref.metadataJson??'{}').startsAt as string|undefined:undefined;
+      const date=referenceStart&&Number.isFinite(Date.parse(referenceStart))?new Intl.DateTimeFormat('en-CA',{timeZone:timezone,year:'numeric',month:'2-digit',day:'2-digit'}).format(new Date(referenceStart)):r.date;
+      try{programs=await this.epg.reminderCandidates(country,date,timezone);}catch{return text('No reminder saved: I could not load the requested TV day.');}
       const matches=programs.filter(p=>ref?p.id===ref.externalId:
         Boolean(r.title&&r.channel)&&normalizedTitle(p.title)===normalizedTitle(r.title)&&normalizedTitle(p.channelName)===normalizedTitle(r.channel));
       const localTime=(p:typeof matches[number])=>new Intl.DateTimeFormat('en-GB',{timeZone:timezone,hour:'2-digit',minute:'2-digit',hourCycle:'h23'}).format(p.startAt);

@@ -1,0 +1,2191 @@
+{
+  "method": "Embedding similarity only, no genre diversity/quality/rating effects. Predeclared real-metadata diagnostic and held-out pairs.",
+  "catalogCount": 26,
+  "variants": [
+    {
+      "id": "small-512-tags",
+      "model": "text-embedding-3-small",
+      "dimensions": 512,
+      "tags": true,
+      "ms": 457,
+      "usage": {
+        "embeddingRequests": 1,
+        "embeddingTokens": 3442,
+        "reviewRequests": 0,
+        "reviewInputTokens": 0,
+        "reviewOutputTokens": 0
+      },
+      "rows": [
+        {
+          "id": "food-community",
+          "split": "diagnostic",
+          "meaning": "People finding belonging through kindness and shared meals",
+          "pairs": [
+            {
+              "preferred": "Chef",
+              "comparison": "Pulp Fiction",
+              "margin": 0.0401,
+              "credit": 1,
+              "similarityPreferred": 0.3809,
+              "similarityComparison": 0.3408
+            },
+            {
+              "preferred": "Paddington",
+              "comparison": "The Godfather",
+              "margin": -0.0051,
+              "credit": 0,
+              "similarityPreferred": 0.2836,
+              "similarityComparison": 0.2887
+            }
+          ],
+          "top": [
+            {
+              "title": "Chef",
+              "similarity": 0.38090493110344126
+            },
+            {
+              "title": "The Intern",
+              "similarity": 0.3648685541693591
+            },
+            {
+              "title": "Hunt for the Wilderpeople",
+              "similarity": 0.34916709621483244
+            },
+            {
+              "title": "Spotlight",
+              "similarity": 0.34854192651218274
+            },
+            {
+              "title": "Pulp Fiction",
+              "similarity": 0.34079296233869805
+            }
+          ]
+        },
+        {
+          "id": "practical-teamwork",
+          "split": "diagnostic",
+          "meaning": "Ordinary people collaboratively solving difficult practical problems through ingenuity",
+          "pairs": [
+            {
+              "preferred": "Moneyball",
+              "comparison": "Fight Club",
+              "margin": -0.0036,
+              "credit": 0,
+              "similarityPreferred": 0.4111,
+              "similarityComparison": 0.4147
+            },
+            {
+              "preferred": "The Martian",
+              "comparison": "Snatch",
+              "margin": 0.0112,
+              "credit": 1,
+              "similarityPreferred": 0.3508,
+              "similarityComparison": 0.3396
+            }
+          ],
+          "top": [
+            {
+              "title": "The Truman Show",
+              "similarity": 0.4253546359381151
+            },
+            {
+              "title": "Fight Club",
+              "similarity": 0.4146941143264789
+            },
+            {
+              "title": "Apollo 13",
+              "similarity": 0.4122380013667899
+            },
+            {
+              "title": "Moneyball",
+              "similarity": 0.41110557873213904
+            },
+            {
+              "title": "The Intern",
+              "similarity": 0.4004628991724619
+            }
+          ]
+        },
+        {
+          "id": "unreliable-reality",
+          "split": "diagnostic",
+          "meaning": "Stories about uncertain reality and unreliable memories that force the audience to question what really happened",
+          "pairs": [
+            {
+              "preferred": "The Truman Show",
+              "comparison": "Soul",
+              "margin": 0.1705,
+              "credit": 1,
+              "similarityPreferred": 0.4975,
+              "similarityComparison": 0.327
+            },
+            {
+              "preferred": "Fight Club",
+              "comparison": "Paddington",
+              "margin": 0.2368,
+              "credit": 1,
+              "similarityPreferred": 0.4465,
+              "similarityComparison": 0.2097
+            }
+          ],
+          "top": [
+            {
+              "title": "Eternal Sunshine of the Spotless Mind",
+              "similarity": 0.5034418273242127
+            },
+            {
+              "title": "The Truman Show",
+              "similarity": 0.49752398291429883
+            },
+            {
+              "title": "Memento",
+              "similarity": 0.48873728427852686
+            },
+            {
+              "title": "Fight Club",
+              "similarity": 0.44645984015338885
+            },
+            {
+              "title": "Zodiac",
+              "similarity": 0.40969419274270585
+            }
+          ]
+        },
+        {
+          "id": "institutional-investigation",
+          "split": "diagnostic",
+          "meaning": "Patient investigations uncovering institutional wrongdoing",
+          "pairs": [
+            {
+              "preferred": "Spotlight",
+              "comparison": "The Martian",
+              "margin": 0.2766,
+              "credit": 1,
+              "similarityPreferred": 0.5383,
+              "similarityComparison": 0.2616
+            },
+            {
+              "preferred": "Spotlight",
+              "comparison": "Chef",
+              "margin": 0.3489,
+              "credit": 1,
+              "similarityPreferred": 0.5383,
+              "similarityComparison": 0.1893
+            }
+          ],
+          "top": [
+            {
+              "title": "Spotlight",
+              "similarity": 0.5382572503812625
+            },
+            {
+              "title": "Erin Brockovich",
+              "similarity": 0.4463842250410159
+            },
+            {
+              "title": "Memento",
+              "similarity": 0.439275647963338
+            },
+            {
+              "title": "12 Angry Men",
+              "similarity": 0.3860967479285761
+            },
+            {
+              "title": "Zodiac",
+              "similarity": 0.372630128165769
+            }
+          ]
+        },
+        {
+          "id": "team-engineering-holdout",
+          "split": "holdout",
+          "meaning": "Teams solving difficult technical problems through patient ingenuity",
+          "pairs": [
+            {
+              "preferred": "Apollo 13",
+              "comparison": "John Wick",
+              "margin": 0.2007,
+              "credit": 1,
+              "similarityPreferred": 0.4205,
+              "similarityComparison": 0.2198
+            },
+            {
+              "preferred": "Hidden Figures",
+              "comparison": "Extraction",
+              "margin": 0.0673,
+              "credit": 1,
+              "similarityPreferred": 0.3875,
+              "similarityComparison": 0.3202
+            },
+            {
+              "preferred": "The Imitation Game",
+              "comparison": "John Wick",
+              "margin": 0.0906,
+              "credit": 1,
+              "similarityPreferred": 0.3105,
+              "similarityComparison": 0.2198
+            }
+          ],
+          "top": [
+            {
+              "title": "Apollo 13",
+              "similarity": 0.42053247612794836
+            },
+            {
+              "title": "Moneyball",
+              "similarity": 0.39426050032126225
+            },
+            {
+              "title": "Hidden Figures",
+              "similarity": 0.3875139743480094
+            },
+            {
+              "title": "Memento",
+              "similarity": 0.36657444224737745
+            },
+            {
+              "title": "The Martian",
+              "similarity": 0.3581684364816736
+            }
+          ]
+        },
+        {
+          "id": "unlikely-family-holdout",
+          "split": "holdout",
+          "meaning": "Lonely outsiders forming a caring chosen family and a sense of belonging",
+          "pairs": [
+            {
+              "preferred": "Hunt for the Wilderpeople",
+              "comparison": "Extraction",
+              "margin": 0.1031,
+              "credit": 1,
+              "similarityPreferred": 0.3955,
+              "similarityComparison": 0.2924
+            },
+            {
+              "preferred": "Paddington 2",
+              "comparison": "John Wick",
+              "margin": 0.0597,
+              "credit": 1,
+              "similarityPreferred": 0.3166,
+              "similarityComparison": 0.2569
+            }
+          ],
+          "top": [
+            {
+              "title": "Sing Street",
+              "similarity": 0.4160735942440598
+            },
+            {
+              "title": "Fight Club",
+              "similarity": 0.40252543662727863
+            },
+            {
+              "title": "Hunt for the Wilderpeople",
+              "similarity": 0.39554538980573783
+            },
+            {
+              "title": "The Intern",
+              "similarity": 0.3779305705305778
+            },
+            {
+              "title": "Spotlight",
+              "similarity": 0.3350939405942341
+            }
+          ]
+        },
+        {
+          "id": "reasoning-holdout",
+          "split": "holdout",
+          "meaning": "Ordinary people patiently reasoning through evidence to challenge an injustice",
+          "pairs": [
+            {
+              "preferred": "12 Angry Men",
+              "comparison": "Extraction",
+              "margin": 0.1862,
+              "credit": 1,
+              "similarityPreferred": 0.468,
+              "similarityComparison": 0.2818
+            },
+            {
+              "preferred": "Erin Brockovich",
+              "comparison": "John Wick",
+              "margin": 0.1902,
+              "credit": 1,
+              "similarityPreferred": 0.4647,
+              "similarityComparison": 0.2745
+            },
+            {
+              "preferred": "Zodiac",
+              "comparison": "Extraction",
+              "margin": 0.0937,
+              "credit": 1,
+              "similarityPreferred": 0.3755,
+              "similarityComparison": 0.2818
+            }
+          ],
+          "top": [
+            {
+              "title": "Spotlight",
+              "similarity": 0.47908935520613044
+            },
+            {
+              "title": "12 Angry Men",
+              "similarity": 0.46799798041488455
+            },
+            {
+              "title": "Erin Brockovich",
+              "similarity": 0.46471082289333093
+            },
+            {
+              "title": "The Truman Show",
+              "similarity": 0.41250113556968865
+            },
+            {
+              "title": "Hunt for the Wilderpeople",
+              "similarity": 0.3849403851354603
+            }
+          ]
+        },
+        {
+          "id": "memory-holdout",
+          "split": "holdout",
+          "meaning": "Unreliable memories that make the audience question what really happened",
+          "pairs": [
+            {
+              "preferred": "Memento",
+              "comparison": "The Intern",
+              "margin": 0.2582,
+              "credit": 1,
+              "similarityPreferred": 0.514,
+              "similarityComparison": 0.2558
+            },
+            {
+              "preferred": "Eternal Sunshine of the Spotless Mind",
+              "comparison": "Remember the Titans",
+              "margin": 0.2587,
+              "credit": 1,
+              "similarityPreferred": 0.5139,
+              "similarityComparison": 0.2552
+            }
+          ],
+          "top": [
+            {
+              "title": "Memento",
+              "similarity": 0.5139857003308942
+            },
+            {
+              "title": "Eternal Sunshine of the Spotless Mind",
+              "similarity": 0.5138637004354645
+            },
+            {
+              "title": "The Truman Show",
+              "similarity": 0.42845093634155246
+            },
+            {
+              "title": "Fight Club",
+              "similarity": 0.39481131942448083
+            },
+            {
+              "title": "Spotlight",
+              "similarity": 0.3757244448437852
+            }
+          ]
+        },
+        {
+          "id": "overcoming-disadvantage-holdout",
+          "split": "holdout",
+          "meaning": "People underestimated by others overcoming disadvantage through effort and cooperation",
+          "pairs": [
+            {
+              "preferred": "Remember the Titans",
+              "comparison": "John Wick",
+              "margin": 0.2004,
+              "credit": 1,
+              "similarityPreferred": 0.443,
+              "similarityComparison": 0.2427
+            },
+            {
+              "preferred": "Sing Street",
+              "comparison": "Extraction",
+              "margin": 0.014,
+              "credit": 1,
+              "similarityPreferred": 0.3428,
+              "similarityComparison": 0.3288
+            }
+          ],
+          "top": [
+            {
+              "title": "Remember the Titans",
+              "similarity": 0.4430469660480052
+            },
+            {
+              "title": "Moneyball",
+              "similarity": 0.4429938708386526
+            },
+            {
+              "title": "Hidden Figures",
+              "similarity": 0.40809949680027857
+            },
+            {
+              "title": "Apollo 13",
+              "similarity": 0.4065290522851532
+            },
+            {
+              "title": "Hunt for the Wilderpeople",
+              "similarity": 0.39335634671425457
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "small-512-plot",
+      "model": "text-embedding-3-small",
+      "dimensions": 512,
+      "tags": false,
+      "ms": 214,
+      "usage": {
+        "embeddingRequests": 1,
+        "embeddingTokens": 1532,
+        "reviewRequests": 0,
+        "reviewInputTokens": 0,
+        "reviewOutputTokens": 0
+      },
+      "rows": [
+        {
+          "id": "food-community",
+          "split": "diagnostic",
+          "meaning": "People finding belonging through kindness and shared meals",
+          "pairs": [
+            {
+              "preferred": "Chef",
+              "comparison": "Pulp Fiction",
+              "margin": -0.0088,
+              "credit": 0,
+              "similarityPreferred": 0.3269,
+              "similarityComparison": 0.3358
+            },
+            {
+              "preferred": "Paddington",
+              "comparison": "The Godfather",
+              "margin": 0.0633,
+              "credit": 1,
+              "similarityPreferred": 0.2697,
+              "similarityComparison": 0.2064
+            }
+          ],
+          "top": [
+            {
+              "title": "Pulp Fiction",
+              "similarity": 0.3357517525867683
+            },
+            {
+              "title": "Chef",
+              "similarity": 0.3269314111804342
+            },
+            {
+              "title": "The Truman Show",
+              "similarity": 0.32019969829058104
+            },
+            {
+              "title": "Sing Street",
+              "similarity": 0.30544781612836375
+            },
+            {
+              "title": "Spotlight",
+              "similarity": 0.2883810429598459
+            }
+          ]
+        },
+        {
+          "id": "practical-teamwork",
+          "split": "diagnostic",
+          "meaning": "Ordinary people collaboratively solving difficult practical problems through ingenuity",
+          "pairs": [
+            {
+              "preferred": "Moneyball",
+              "comparison": "Fight Club",
+              "margin": -0.018,
+              "credit": 0,
+              "similarityPreferred": 0.3448,
+              "similarityComparison": 0.3629
+            },
+            {
+              "preferred": "The Martian",
+              "comparison": "Snatch",
+              "margin": -0.0598,
+              "credit": 0,
+              "similarityPreferred": 0.2338,
+              "similarityComparison": 0.2936
+            }
+          ],
+          "top": [
+            {
+              "title": "The Truman Show",
+              "similarity": 0.3904695515267849
+            },
+            {
+              "title": "Apollo 13",
+              "similarity": 0.36567641924103295
+            },
+            {
+              "title": "Fight Club",
+              "similarity": 0.36285117053013916
+            },
+            {
+              "title": "Erin Brockovich",
+              "similarity": 0.35160687473574803
+            },
+            {
+              "title": "Moneyball",
+              "similarity": 0.3448279523098197
+            }
+          ]
+        },
+        {
+          "id": "unreliable-reality",
+          "split": "diagnostic",
+          "meaning": "Stories about uncertain reality and unreliable memories that force the audience to question what really happened",
+          "pairs": [
+            {
+              "preferred": "The Truman Show",
+              "comparison": "Soul",
+              "margin": 0.1834,
+              "credit": 1,
+              "similarityPreferred": 0.4408,
+              "similarityComparison": 0.2574
+            },
+            {
+              "preferred": "Fight Club",
+              "comparison": "Paddington",
+              "margin": 0.19,
+              "credit": 1,
+              "similarityPreferred": 0.2878,
+              "similarityComparison": 0.0978
+            }
+          ],
+          "top": [
+            {
+              "title": "The Truman Show",
+              "similarity": 0.44078867405584465
+            },
+            {
+              "title": "Pulp Fiction",
+              "similarity": 0.3328725825469508
+            },
+            {
+              "title": "Memento",
+              "similarity": 0.3275988019190775
+            },
+            {
+              "title": "Eternal Sunshine of the Spotless Mind",
+              "similarity": 0.3111689476595313
+            },
+            {
+              "title": "12 Angry Men",
+              "similarity": 0.30701175440303013
+            }
+          ]
+        },
+        {
+          "id": "institutional-investigation",
+          "split": "diagnostic",
+          "meaning": "Patient investigations uncovering institutional wrongdoing",
+          "pairs": [
+            {
+              "preferred": "Spotlight",
+              "comparison": "The Martian",
+              "margin": 0.3215,
+              "credit": 1,
+              "similarityPreferred": 0.497,
+              "similarityComparison": 0.1754
+            },
+            {
+              "preferred": "Spotlight",
+              "comparison": "Chef",
+              "margin": 0.3193,
+              "credit": 1,
+              "similarityPreferred": 0.497,
+              "similarityComparison": 0.1777
+            }
+          ],
+          "top": [
+            {
+              "title": "Spotlight",
+              "similarity": 0.49695249167035777
+            },
+            {
+              "title": "Erin Brockovich",
+              "similarity": 0.4340063530138673
+            },
+            {
+              "title": "Memento",
+              "similarity": 0.3594119468310076
+            },
+            {
+              "title": "12 Angry Men",
+              "similarity": 0.33121935365108685
+            },
+            {
+              "title": "The Truman Show",
+              "similarity": 0.3037324865328642
+            }
+          ]
+        },
+        {
+          "id": "team-engineering-holdout",
+          "split": "holdout",
+          "meaning": "Teams solving difficult technical problems through patient ingenuity",
+          "pairs": [
+            {
+              "preferred": "Apollo 13",
+              "comparison": "John Wick",
+              "margin": 0.2721,
+              "credit": 1,
+              "similarityPreferred": 0.3873,
+              "similarityComparison": 0.1152
+            },
+            {
+              "preferred": "Hidden Figures",
+              "comparison": "Extraction",
+              "margin": 0.0574,
+              "credit": 1,
+              "similarityPreferred": 0.3342,
+              "similarityComparison": 0.2768
+            },
+            {
+              "preferred": "The Imitation Game",
+              "comparison": "John Wick",
+              "margin": 0.1861,
+              "credit": 1,
+              "similarityPreferred": 0.3012,
+              "similarityComparison": 0.1152
+            }
+          ],
+          "top": [
+            {
+              "title": "Apollo 13",
+              "similarity": 0.3873055391402126
+            },
+            {
+              "title": "Moneyball",
+              "similarity": 0.34942677715469356
+            },
+            {
+              "title": "Hidden Figures",
+              "similarity": 0.33417950023376536
+            },
+            {
+              "title": "Pulp Fiction",
+              "similarity": 0.3014831413661266
+            },
+            {
+              "title": "The Imitation Game",
+              "similarity": 0.30122972362647826
+            }
+          ]
+        },
+        {
+          "id": "unlikely-family-holdout",
+          "split": "holdout",
+          "meaning": "Lonely outsiders forming a caring chosen family and a sense of belonging",
+          "pairs": [
+            {
+              "preferred": "Hunt for the Wilderpeople",
+              "comparison": "Extraction",
+              "margin": 0.0922,
+              "credit": 1,
+              "similarityPreferred": 0.3554,
+              "similarityComparison": 0.2632
+            },
+            {
+              "preferred": "Paddington 2",
+              "comparison": "John Wick",
+              "margin": 0.1023,
+              "credit": 1,
+              "similarityPreferred": 0.2987,
+              "similarityComparison": 0.1964
+            }
+          ],
+          "top": [
+            {
+              "title": "Sing Street",
+              "similarity": 0.44806918564099985
+            },
+            {
+              "title": "Hunt for the Wilderpeople",
+              "similarity": 0.35539888278786225
+            },
+            {
+              "title": "The Truman Show",
+              "similarity": 0.3496530915106148
+            },
+            {
+              "title": "Fight Club",
+              "similarity": 0.32825389965252466
+            },
+            {
+              "title": "Paddington",
+              "similarity": 0.3148218240937715
+            }
+          ]
+        },
+        {
+          "id": "reasoning-holdout",
+          "split": "holdout",
+          "meaning": "Ordinary people patiently reasoning through evidence to challenge an injustice",
+          "pairs": [
+            {
+              "preferred": "12 Angry Men",
+              "comparison": "Extraction",
+              "margin": 0.1656,
+              "credit": 1,
+              "similarityPreferred": 0.4199,
+              "similarityComparison": 0.2543
+            },
+            {
+              "preferred": "Erin Brockovich",
+              "comparison": "John Wick",
+              "margin": 0.2404,
+              "credit": 1,
+              "similarityPreferred": 0.4232,
+              "similarityComparison": 0.1829
+            },
+            {
+              "preferred": "Zodiac",
+              "comparison": "Extraction",
+              "margin": -0.0381,
+              "credit": 0,
+              "similarityPreferred": 0.2162,
+              "similarityComparison": 0.2543
+            }
+          ],
+          "top": [
+            {
+              "title": "Erin Brockovich",
+              "similarity": 0.42321896322899727
+            },
+            {
+              "title": "12 Angry Men",
+              "similarity": 0.4199194182888402
+            },
+            {
+              "title": "Spotlight",
+              "similarity": 0.38019021742524056
+            },
+            {
+              "title": "The Truman Show",
+              "similarity": 0.3555145833769614
+            },
+            {
+              "title": "Hunt for the Wilderpeople",
+              "similarity": 0.3263558715377173
+            }
+          ]
+        },
+        {
+          "id": "memory-holdout",
+          "split": "holdout",
+          "meaning": "Unreliable memories that make the audience question what really happened",
+          "pairs": [
+            {
+              "preferred": "Memento",
+              "comparison": "The Intern",
+              "margin": 0.2301,
+              "credit": 1,
+              "similarityPreferred": 0.3892,
+              "similarityComparison": 0.1591
+            },
+            {
+              "preferred": "Eternal Sunshine of the Spotless Mind",
+              "comparison": "Remember the Titans",
+              "margin": 0.1967,
+              "credit": 1,
+              "similarityPreferred": 0.3678,
+              "similarityComparison": 0.1712
+            }
+          ],
+          "top": [
+            {
+              "title": "The Truman Show",
+              "similarity": 0.3972964350868388
+            },
+            {
+              "title": "Memento",
+              "similarity": 0.3892065787693029
+            },
+            {
+              "title": "Eternal Sunshine of the Spotless Mind",
+              "similarity": 0.3678370664238677
+            },
+            {
+              "title": "Pulp Fiction",
+              "similarity": 0.3197124908001569
+            },
+            {
+              "title": "12 Angry Men",
+              "similarity": 0.31525893718232373
+            }
+          ]
+        },
+        {
+          "id": "overcoming-disadvantage-holdout",
+          "split": "holdout",
+          "meaning": "People underestimated by others overcoming disadvantage through effort and cooperation",
+          "pairs": [
+            {
+              "preferred": "Remember the Titans",
+              "comparison": "John Wick",
+              "margin": 0.1957,
+              "credit": 1,
+              "similarityPreferred": 0.3783,
+              "similarityComparison": 0.1826
+            },
+            {
+              "preferred": "Sing Street",
+              "comparison": "Extraction",
+              "margin": 0.0542,
+              "credit": 1,
+              "similarityPreferred": 0.3409,
+              "similarityComparison": 0.2868
+            }
+          ],
+          "top": [
+            {
+              "title": "Remember the Titans",
+              "similarity": 0.3783293891223347
+            },
+            {
+              "title": "Erin Brockovich",
+              "similarity": 0.36047452108369343
+            },
+            {
+              "title": "Sing Street",
+              "similarity": 0.3409208599890464
+            },
+            {
+              "title": "Apollo 13",
+              "similarity": 0.3367259517052046
+            },
+            {
+              "title": "Hunt for the Wilderpeople",
+              "similarity": 0.33461794970742065
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "small-1536-plot",
+      "model": "text-embedding-3-small",
+      "dimensions": 1536,
+      "tags": false,
+      "ms": 368,
+      "usage": {
+        "embeddingRequests": 1,
+        "embeddingTokens": 1532,
+        "reviewRequests": 0,
+        "reviewInputTokens": 0,
+        "reviewOutputTokens": 0
+      },
+      "rows": [
+        {
+          "id": "food-community",
+          "split": "diagnostic",
+          "meaning": "People finding belonging through kindness and shared meals",
+          "pairs": [
+            {
+              "preferred": "Chef",
+              "comparison": "Pulp Fiction",
+              "margin": 0,
+              "credit": 1,
+              "similarityPreferred": 0.3241,
+              "similarityComparison": 0.3241
+            },
+            {
+              "preferred": "Paddington",
+              "comparison": "The Godfather",
+              "margin": 0.0764,
+              "credit": 1,
+              "similarityPreferred": 0.2594,
+              "similarityComparison": 0.183
+            }
+          ],
+          "top": [
+            {
+              "title": "Chef",
+              "similarity": 0.32412498814008417
+            },
+            {
+              "title": "Pulp Fiction",
+              "similarity": 0.3240803422337338
+            },
+            {
+              "title": "Hunt for the Wilderpeople",
+              "similarity": 0.2762625572681225
+            },
+            {
+              "title": "Sing Street",
+              "similarity": 0.274569024969435
+            },
+            {
+              "title": "The Truman Show",
+              "similarity": 0.2670607821576706
+            }
+          ]
+        },
+        {
+          "id": "practical-teamwork",
+          "split": "diagnostic",
+          "meaning": "Ordinary people collaboratively solving difficult practical problems through ingenuity",
+          "pairs": [
+            {
+              "preferred": "Moneyball",
+              "comparison": "Fight Club",
+              "margin": -0.0516,
+              "credit": 0,
+              "similarityPreferred": 0.2808,
+              "similarityComparison": 0.3324
+            },
+            {
+              "preferred": "The Martian",
+              "comparison": "Snatch",
+              "margin": -0.0447,
+              "credit": 0,
+              "similarityPreferred": 0.1973,
+              "similarityComparison": 0.242
+            }
+          ],
+          "top": [
+            {
+              "title": "Fight Club",
+              "similarity": 0.3324320543140942
+            },
+            {
+              "title": "Pulp Fiction",
+              "similarity": 0.3227594428983005
+            },
+            {
+              "title": "The Truman Show",
+              "similarity": 0.3197837865244374
+            },
+            {
+              "title": "Erin Brockovich",
+              "similarity": 0.31759649074888163
+            },
+            {
+              "title": "Apollo 13",
+              "similarity": 0.3165120195242277
+            }
+          ]
+        },
+        {
+          "id": "unreliable-reality",
+          "split": "diagnostic",
+          "meaning": "Stories about uncertain reality and unreliable memories that force the audience to question what really happened",
+          "pairs": [
+            {
+              "preferred": "The Truman Show",
+              "comparison": "Soul",
+              "margin": 0.207,
+              "credit": 1,
+              "similarityPreferred": 0.4092,
+              "similarityComparison": 0.2021
+            },
+            {
+              "preferred": "Fight Club",
+              "comparison": "Paddington",
+              "margin": 0.1806,
+              "credit": 1,
+              "similarityPreferred": 0.2785,
+              "similarityComparison": 0.0979
+            }
+          ],
+          "top": [
+            {
+              "title": "The Truman Show",
+              "similarity": 0.4091778540507845
+            },
+            {
+              "title": "Pulp Fiction",
+              "similarity": 0.3203395902999596
+            },
+            {
+              "title": "Memento",
+              "similarity": 0.30122439421349806
+            },
+            {
+              "title": "Eternal Sunshine of the Spotless Mind",
+              "similarity": 0.28631960058072203
+            },
+            {
+              "title": "Fight Club",
+              "similarity": 0.2784837830106418
+            }
+          ]
+        },
+        {
+          "id": "institutional-investigation",
+          "split": "diagnostic",
+          "meaning": "Patient investigations uncovering institutional wrongdoing",
+          "pairs": [
+            {
+              "preferred": "Spotlight",
+              "comparison": "The Martian",
+              "margin": 0.2834,
+              "credit": 1,
+              "similarityPreferred": 0.4279,
+              "similarityComparison": 0.1445
+            },
+            {
+              "preferred": "Spotlight",
+              "comparison": "Chef",
+              "margin": 0.2542,
+              "credit": 1,
+              "similarityPreferred": 0.4279,
+              "similarityComparison": 0.1736
+            }
+          ],
+          "top": [
+            {
+              "title": "Spotlight",
+              "similarity": 0.42786316959289805
+            },
+            {
+              "title": "Erin Brockovich",
+              "similarity": 0.3957711328452799
+            },
+            {
+              "title": "Memento",
+              "similarity": 0.31618996151643575
+            },
+            {
+              "title": "Pulp Fiction",
+              "similarity": 0.27588758782949435
+            },
+            {
+              "title": "12 Angry Men",
+              "similarity": 0.2659837968478138
+            }
+          ]
+        },
+        {
+          "id": "team-engineering-holdout",
+          "split": "holdout",
+          "meaning": "Teams solving difficult technical problems through patient ingenuity",
+          "pairs": [
+            {
+              "preferred": "Apollo 13",
+              "comparison": "John Wick",
+              "margin": 0.242,
+              "credit": 1,
+              "similarityPreferred": 0.3619,
+              "similarityComparison": 0.12
+            },
+            {
+              "preferred": "Hidden Figures",
+              "comparison": "Extraction",
+              "margin": 0.0599,
+              "credit": 1,
+              "similarityPreferred": 0.3154,
+              "similarityComparison": 0.2555
+            },
+            {
+              "preferred": "The Imitation Game",
+              "comparison": "John Wick",
+              "margin": 0.1761,
+              "credit": 1,
+              "similarityPreferred": 0.296,
+              "similarityComparison": 0.12
+            }
+          ],
+          "top": [
+            {
+              "title": "Apollo 13",
+              "similarity": 0.36191434141473966
+            },
+            {
+              "title": "Moneyball",
+              "similarity": 0.32272403805492605
+            },
+            {
+              "title": "Hidden Figures",
+              "similarity": 0.31535227367329244
+            },
+            {
+              "title": "The Imitation Game",
+              "similarity": 0.29603190699511195
+            },
+            {
+              "title": "Fight Club",
+              "similarity": 0.2901118934342381
+            }
+          ]
+        },
+        {
+          "id": "unlikely-family-holdout",
+          "split": "holdout",
+          "meaning": "Lonely outsiders forming a caring chosen family and a sense of belonging",
+          "pairs": [
+            {
+              "preferred": "Hunt for the Wilderpeople",
+              "comparison": "Extraction",
+              "margin": 0.0614,
+              "credit": 1,
+              "similarityPreferred": 0.3187,
+              "similarityComparison": 0.2573
+            },
+            {
+              "preferred": "Paddington 2",
+              "comparison": "John Wick",
+              "margin": 0.0868,
+              "credit": 1,
+              "similarityPreferred": 0.2827,
+              "similarityComparison": 0.1959
+            }
+          ],
+          "top": [
+            {
+              "title": "Sing Street",
+              "similarity": 0.4166843306544795
+            },
+            {
+              "title": "Fight Club",
+              "similarity": 0.32329190183515644
+            },
+            {
+              "title": "The Truman Show",
+              "similarity": 0.3213752238584125
+            },
+            {
+              "title": "Hunt for the Wilderpeople",
+              "similarity": 0.3186958720486838
+            },
+            {
+              "title": "Paddington",
+              "similarity": 0.29360929002871444
+            }
+          ]
+        },
+        {
+          "id": "reasoning-holdout",
+          "split": "holdout",
+          "meaning": "Ordinary people patiently reasoning through evidence to challenge an injustice",
+          "pairs": [
+            {
+              "preferred": "12 Angry Men",
+              "comparison": "Extraction",
+              "margin": 0.1347,
+              "credit": 1,
+              "similarityPreferred": 0.3504,
+              "similarityComparison": 0.2158
+            },
+            {
+              "preferred": "Erin Brockovich",
+              "comparison": "John Wick",
+              "margin": 0.1985,
+              "credit": 1,
+              "similarityPreferred": 0.373,
+              "similarityComparison": 0.1745
+            },
+            {
+              "preferred": "Zodiac",
+              "comparison": "Extraction",
+              "margin": -0.0744,
+              "credit": 0,
+              "similarityPreferred": 0.1414,
+              "similarityComparison": 0.2158
+            }
+          ],
+          "top": [
+            {
+              "title": "Erin Brockovich",
+              "similarity": 0.37299642447654185
+            },
+            {
+              "title": "12 Angry Men",
+              "similarity": 0.35044612301388445
+            },
+            {
+              "title": "Spotlight",
+              "similarity": 0.3087157096528675
+            },
+            {
+              "title": "The Truman Show",
+              "similarity": 0.29917435838044487
+            },
+            {
+              "title": "Pulp Fiction",
+              "similarity": 0.29026458038401076
+            }
+          ]
+        },
+        {
+          "id": "memory-holdout",
+          "split": "holdout",
+          "meaning": "Unreliable memories that make the audience question what really happened",
+          "pairs": [
+            {
+              "preferred": "Memento",
+              "comparison": "The Intern",
+              "margin": 0.214,
+              "credit": 1,
+              "similarityPreferred": 0.3569,
+              "similarityComparison": 0.1428
+            },
+            {
+              "preferred": "Eternal Sunshine of the Spotless Mind",
+              "comparison": "Remember the Titans",
+              "margin": 0.1999,
+              "credit": 1,
+              "similarityPreferred": 0.3347,
+              "similarityComparison": 0.1348
+            }
+          ],
+          "top": [
+            {
+              "title": "The Truman Show",
+              "similarity": 0.3578635301715394
+            },
+            {
+              "title": "Memento",
+              "similarity": 0.35685997997604296
+            },
+            {
+              "title": "Eternal Sunshine of the Spotless Mind",
+              "similarity": 0.3347462751780462
+            },
+            {
+              "title": "Pulp Fiction",
+              "similarity": 0.3160257966076161
+            },
+            {
+              "title": "Fight Club",
+              "similarity": 0.26611399871360636
+            }
+          ]
+        },
+        {
+          "id": "overcoming-disadvantage-holdout",
+          "split": "holdout",
+          "meaning": "People underestimated by others overcoming disadvantage through effort and cooperation",
+          "pairs": [
+            {
+              "preferred": "Remember the Titans",
+              "comparison": "John Wick",
+              "margin": 0.1753,
+              "credit": 1,
+              "similarityPreferred": 0.3145,
+              "similarityComparison": 0.1393
+            },
+            {
+              "preferred": "Sing Street",
+              "comparison": "Extraction",
+              "margin": 0.0828,
+              "credit": 1,
+              "similarityPreferred": 0.2952,
+              "similarityComparison": 0.2124
+            }
+          ],
+          "top": [
+            {
+              "title": "Erin Brockovich",
+              "similarity": 0.31863865790290913
+            },
+            {
+              "title": "Remember the Titans",
+              "similarity": 0.31454395985228845
+            },
+            {
+              "title": "Hidden Figures",
+              "similarity": 0.31324564073167405
+            },
+            {
+              "title": "Sing Street",
+              "similarity": 0.29516148045687074
+            },
+            {
+              "title": "Apollo 13",
+              "similarity": 0.28682474454705076
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "large-1024-plot",
+      "model": "text-embedding-3-large",
+      "dimensions": 1024,
+      "tags": false,
+      "ms": 361,
+      "usage": {
+        "embeddingRequests": 1,
+        "embeddingTokens": 1532,
+        "reviewRequests": 0,
+        "reviewInputTokens": 0,
+        "reviewOutputTokens": 0
+      },
+      "rows": [
+        {
+          "id": "food-community",
+          "split": "diagnostic",
+          "meaning": "People finding belonging through kindness and shared meals",
+          "pairs": [
+            {
+              "preferred": "Chef",
+              "comparison": "Pulp Fiction",
+              "margin": 0.0456,
+              "credit": 1,
+              "similarityPreferred": 0.354,
+              "similarityComparison": 0.3084
+            },
+            {
+              "preferred": "Paddington",
+              "comparison": "The Godfather",
+              "margin": 0.2031,
+              "credit": 1,
+              "similarityPreferred": 0.3762,
+              "similarityComparison": 0.1731
+            }
+          ],
+          "top": [
+            {
+              "title": "Paddington",
+              "similarity": 0.3762119469463915
+            },
+            {
+              "title": "Chef",
+              "similarity": 0.3539870330695431
+            },
+            {
+              "title": "Pulp Fiction",
+              "similarity": 0.30842046502290305
+            },
+            {
+              "title": "Paddington 2",
+              "similarity": 0.29577646086247056
+            },
+            {
+              "title": "Soul",
+              "similarity": 0.27287584616832183
+            }
+          ]
+        },
+        {
+          "id": "practical-teamwork",
+          "split": "diagnostic",
+          "meaning": "Ordinary people collaboratively solving difficult practical problems through ingenuity",
+          "pairs": [
+            {
+              "preferred": "Moneyball",
+              "comparison": "Fight Club",
+              "margin": -0.0211,
+              "credit": 0,
+              "similarityPreferred": 0.2479,
+              "similarityComparison": 0.269
+            },
+            {
+              "preferred": "The Martian",
+              "comparison": "Snatch",
+              "margin": 0.0997,
+              "credit": 1,
+              "similarityPreferred": 0.3058,
+              "similarityComparison": 0.2061
+            }
+          ],
+          "top": [
+            {
+              "title": "The Martian",
+              "similarity": 0.305769918262763
+            },
+            {
+              "title": "Hidden Figures",
+              "similarity": 0.2855352975971824
+            },
+            {
+              "title": "The Imitation Game",
+              "similarity": 0.276645360414937
+            },
+            {
+              "title": "The Truman Show",
+              "similarity": 0.2752177163651574
+            },
+            {
+              "title": "Fight Club",
+              "similarity": 0.26901190650609486
+            }
+          ]
+        },
+        {
+          "id": "unreliable-reality",
+          "split": "diagnostic",
+          "meaning": "Stories about uncertain reality and unreliable memories that force the audience to question what really happened",
+          "pairs": [
+            {
+              "preferred": "The Truman Show",
+              "comparison": "Soul",
+              "margin": 0.2966,
+              "credit": 1,
+              "similarityPreferred": 0.5016,
+              "similarityComparison": 0.205
+            },
+            {
+              "preferred": "Fight Club",
+              "comparison": "Paddington",
+              "margin": 0.105,
+              "credit": 1,
+              "similarityPreferred": 0.3217,
+              "similarityComparison": 0.2167
+            }
+          ],
+          "top": [
+            {
+              "title": "The Truman Show",
+              "similarity": 0.5016144627573309
+            },
+            {
+              "title": "Memento",
+              "similarity": 0.3784273744987239
+            },
+            {
+              "title": "Pulp Fiction",
+              "similarity": 0.3683848800933645
+            },
+            {
+              "title": "Eternal Sunshine of the Spotless Mind",
+              "similarity": 0.36663603274676115
+            },
+            {
+              "title": "Fight Club",
+              "similarity": 0.3217073477825598
+            }
+          ]
+        },
+        {
+          "id": "institutional-investigation",
+          "split": "diagnostic",
+          "meaning": "Patient investigations uncovering institutional wrongdoing",
+          "pairs": [
+            {
+              "preferred": "Spotlight",
+              "comparison": "The Martian",
+              "margin": 0.2247,
+              "credit": 1,
+              "similarityPreferred": 0.4337,
+              "similarityComparison": 0.209
+            },
+            {
+              "preferred": "Spotlight",
+              "comparison": "Chef",
+              "margin": 0.3037,
+              "credit": 1,
+              "similarityPreferred": 0.4337,
+              "similarityComparison": 0.13
+            }
+          ],
+          "top": [
+            {
+              "title": "Spotlight",
+              "similarity": 0.43367954726974967
+            },
+            {
+              "title": "Erin Brockovich",
+              "similarity": 0.4241464543589729
+            },
+            {
+              "title": "12 Angry Men",
+              "similarity": 0.30412412049555165
+            },
+            {
+              "title": "The Truman Show",
+              "similarity": 0.2564689061013326
+            },
+            {
+              "title": "Paddington 2",
+              "similarity": 0.2539339898247508
+            }
+          ]
+        },
+        {
+          "id": "team-engineering-holdout",
+          "split": "holdout",
+          "meaning": "Teams solving difficult technical problems through patient ingenuity",
+          "pairs": [
+            {
+              "preferred": "Apollo 13",
+              "comparison": "John Wick",
+              "margin": 0.1307,
+              "credit": 1,
+              "similarityPreferred": 0.2763,
+              "similarityComparison": 0.1456
+            },
+            {
+              "preferred": "Hidden Figures",
+              "comparison": "Extraction",
+              "margin": 0.147,
+              "credit": 1,
+              "similarityPreferred": 0.3255,
+              "similarityComparison": 0.1785
+            },
+            {
+              "preferred": "The Imitation Game",
+              "comparison": "John Wick",
+              "margin": 0.1723,
+              "credit": 1,
+              "similarityPreferred": 0.3178,
+              "similarityComparison": 0.1456
+            }
+          ],
+          "top": [
+            {
+              "title": "Hidden Figures",
+              "similarity": 0.3254942675041492
+            },
+            {
+              "title": "The Imitation Game",
+              "similarity": 0.31784756436601413
+            },
+            {
+              "title": "The Martian",
+              "similarity": 0.3058362321577471
+            },
+            {
+              "title": "Moneyball",
+              "similarity": 0.28145069318424953
+            },
+            {
+              "title": "Apollo 13",
+              "similarity": 0.2762549952546615
+            }
+          ]
+        },
+        {
+          "id": "unlikely-family-holdout",
+          "split": "holdout",
+          "meaning": "Lonely outsiders forming a caring chosen family and a sense of belonging",
+          "pairs": [
+            {
+              "preferred": "Hunt for the Wilderpeople",
+              "comparison": "Extraction",
+              "margin": 0.1296,
+              "credit": 1,
+              "similarityPreferred": 0.3143,
+              "similarityComparison": 0.1847
+            },
+            {
+              "preferred": "Paddington 2",
+              "comparison": "John Wick",
+              "margin": 0.0309,
+              "credit": 1,
+              "similarityPreferred": 0.2683,
+              "similarityComparison": 0.2373
+            }
+          ],
+          "top": [
+            {
+              "title": "Paddington",
+              "similarity": 0.3748525162865559
+            },
+            {
+              "title": "Sing Street",
+              "similarity": 0.337087523759314
+            },
+            {
+              "title": "The Truman Show",
+              "similarity": 0.3329996607552301
+            },
+            {
+              "title": "Hunt for the Wilderpeople",
+              "similarity": 0.31431950519918084
+            },
+            {
+              "title": "Fight Club",
+              "similarity": 0.2864897488367901
+            }
+          ]
+        },
+        {
+          "id": "reasoning-holdout",
+          "split": "holdout",
+          "meaning": "Ordinary people patiently reasoning through evidence to challenge an injustice",
+          "pairs": [
+            {
+              "preferred": "12 Angry Men",
+              "comparison": "Extraction",
+              "margin": 0.2289,
+              "credit": 1,
+              "similarityPreferred": 0.3891,
+              "similarityComparison": 0.1603
+            },
+            {
+              "preferred": "Erin Brockovich",
+              "comparison": "John Wick",
+              "margin": 0.2135,
+              "credit": 1,
+              "similarityPreferred": 0.3684,
+              "similarityComparison": 0.1549
+            },
+            {
+              "preferred": "Zodiac",
+              "comparison": "Extraction",
+              "margin": -0.0037,
+              "credit": 0,
+              "similarityPreferred": 0.1565,
+              "similarityComparison": 0.1603
+            }
+          ],
+          "top": [
+            {
+              "title": "12 Angry Men",
+              "similarity": 0.3891314103961158
+            },
+            {
+              "title": "Erin Brockovich",
+              "similarity": 0.36838069209024876
+            },
+            {
+              "title": "Spotlight",
+              "similarity": 0.3446416492619224
+            },
+            {
+              "title": "The Truman Show",
+              "similarity": 0.314448934326055
+            },
+            {
+              "title": "Hidden Figures",
+              "similarity": 0.2659535749595878
+            }
+          ]
+        },
+        {
+          "id": "memory-holdout",
+          "split": "holdout",
+          "meaning": "Unreliable memories that make the audience question what really happened",
+          "pairs": [
+            {
+              "preferred": "Memento",
+              "comparison": "The Intern",
+              "margin": 0.2656,
+              "credit": 1,
+              "similarityPreferred": 0.3978,
+              "similarityComparison": 0.1322
+            },
+            {
+              "preferred": "Eternal Sunshine of the Spotless Mind",
+              "comparison": "Remember the Titans",
+              "margin": 0.1747,
+              "credit": 1,
+              "similarityPreferred": 0.3862,
+              "similarityComparison": 0.2115
+            }
+          ],
+          "top": [
+            {
+              "title": "The Truman Show",
+              "similarity": 0.43289050760068526
+            },
+            {
+              "title": "Memento",
+              "similarity": 0.39776429791708656
+            },
+            {
+              "title": "Eternal Sunshine of the Spotless Mind",
+              "similarity": 0.3861593533011079
+            },
+            {
+              "title": "12 Angry Men",
+              "similarity": 0.3316093317852176
+            },
+            {
+              "title": "Pulp Fiction",
+              "similarity": 0.32820260254698397
+            }
+          ]
+        },
+        {
+          "id": "overcoming-disadvantage-holdout",
+          "split": "holdout",
+          "meaning": "People underestimated by others overcoming disadvantage through effort and cooperation",
+          "pairs": [
+            {
+              "preferred": "Remember the Titans",
+              "comparison": "John Wick",
+              "margin": 0.1347,
+              "credit": 1,
+              "similarityPreferred": 0.3181,
+              "similarityComparison": 0.1835
+            },
+            {
+              "preferred": "Sing Street",
+              "comparison": "Extraction",
+              "margin": 0.1268,
+              "credit": 1,
+              "similarityPreferred": 0.2639,
+              "similarityComparison": 0.1371
+            }
+          ],
+          "top": [
+            {
+              "title": "Remember the Titans",
+              "similarity": 0.3181393420834261
+            },
+            {
+              "title": "Hidden Figures",
+              "similarity": 0.31518488911700426
+            },
+            {
+              "title": "Moneyball",
+              "similarity": 0.2939934020415493
+            },
+            {
+              "title": "The Martian",
+              "similarity": 0.2719548389453838
+            },
+            {
+              "title": "Sing Street",
+              "similarity": 0.26388064580957227
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "large-1024-tags",
+      "model": "text-embedding-3-large",
+      "dimensions": 1024,
+      "tags": true,
+      "ms": 349,
+      "usage": {
+        "embeddingRequests": 1,
+        "embeddingTokens": 3442,
+        "reviewRequests": 0,
+        "reviewInputTokens": 0,
+        "reviewOutputTokens": 0
+      },
+      "rows": [
+        {
+          "id": "food-community",
+          "split": "diagnostic",
+          "meaning": "People finding belonging through kindness and shared meals",
+          "pairs": [
+            {
+              "preferred": "Chef",
+              "comparison": "Pulp Fiction",
+              "margin": 0.1145,
+              "credit": 1,
+              "similarityPreferred": 0.4019,
+              "similarityComparison": 0.2874
+            },
+            {
+              "preferred": "Paddington",
+              "comparison": "The Godfather",
+              "margin": 0.0725,
+              "credit": 1,
+              "similarityPreferred": 0.3243,
+              "similarityComparison": 0.2518
+            }
+          ],
+          "top": [
+            {
+              "title": "Chef",
+              "similarity": 0.40188074323328654
+            },
+            {
+              "title": "Soul",
+              "similarity": 0.3463007722090376
+            },
+            {
+              "title": "Paddington",
+              "similarity": 0.3243489059048713
+            },
+            {
+              "title": "Hunt for the Wilderpeople",
+              "similarity": 0.3142763036911967
+            },
+            {
+              "title": "Paddington 2",
+              "similarity": 0.29970999720963365
+            }
+          ]
+        },
+        {
+          "id": "practical-teamwork",
+          "split": "diagnostic",
+          "meaning": "Ordinary people collaboratively solving difficult practical problems through ingenuity",
+          "pairs": [
+            {
+              "preferred": "Moneyball",
+              "comparison": "Fight Club",
+              "margin": 0.0312,
+              "credit": 1,
+              "similarityPreferred": 0.2807,
+              "similarityComparison": 0.2495
+            },
+            {
+              "preferred": "The Martian",
+              "comparison": "Snatch",
+              "margin": 0.0623,
+              "credit": 1,
+              "similarityPreferred": 0.3159,
+              "similarityComparison": 0.2536
+            }
+          ],
+          "top": [
+            {
+              "title": "The Martian",
+              "similarity": 0.3159193715823076
+            },
+            {
+              "title": "The Truman Show",
+              "similarity": 0.31464123764674395
+            },
+            {
+              "title": "Hidden Figures",
+              "similarity": 0.3028589357125829
+            },
+            {
+              "title": "Moneyball",
+              "similarity": 0.28067748070891174
+            },
+            {
+              "title": "The Imitation Game",
+              "similarity": 0.27840089380051497
+            }
+          ]
+        },
+        {
+          "id": "unreliable-reality",
+          "split": "diagnostic",
+          "meaning": "Stories about uncertain reality and unreliable memories that force the audience to question what really happened",
+          "pairs": [
+            {
+              "preferred": "The Truman Show",
+              "comparison": "Soul",
+              "margin": 0.2809,
+              "credit": 1,
+              "similarityPreferred": 0.5744,
+              "similarityComparison": 0.2936
+            },
+            {
+              "preferred": "Fight Club",
+              "comparison": "Paddington",
+              "margin": 0.1238,
+              "credit": 1,
+              "similarityPreferred": 0.4077,
+              "similarityComparison": 0.2839
+            }
+          ],
+          "top": [
+            {
+              "title": "The Truman Show",
+              "similarity": 0.5744423510097464
+            },
+            {
+              "title": "Eternal Sunshine of the Spotless Mind",
+              "similarity": 0.48097142702970636
+            },
+            {
+              "title": "Memento",
+              "similarity": 0.46713877483969235
+            },
+            {
+              "title": "Pulp Fiction",
+              "similarity": 0.41859283524346697
+            },
+            {
+              "title": "Fight Club",
+              "similarity": 0.4077058602502942
+            }
+          ]
+        },
+        {
+          "id": "institutional-investigation",
+          "split": "diagnostic",
+          "meaning": "Patient investigations uncovering institutional wrongdoing",
+          "pairs": [
+            {
+              "preferred": "Spotlight",
+              "comparison": "The Martian",
+              "margin": 0.1759,
+              "credit": 1,
+              "similarityPreferred": 0.4186,
+              "similarityComparison": 0.2427
+            },
+            {
+              "preferred": "Spotlight",
+              "comparison": "Chef",
+              "margin": 0.2588,
+              "credit": 1,
+              "similarityPreferred": 0.4186,
+              "similarityComparison": 0.1598
+            }
+          ],
+          "top": [
+            {
+              "title": "Erin Brockovich",
+              "similarity": 0.4214595537194112
+            },
+            {
+              "title": "Spotlight",
+              "similarity": 0.4185903014622683
+            },
+            {
+              "title": "12 Angry Men",
+              "similarity": 0.31813401980591705
+            },
+            {
+              "title": "Zodiac",
+              "similarity": 0.30041212134632533
+            },
+            {
+              "title": "The Truman Show",
+              "similarity": 0.2995722446140359
+            }
+          ]
+        },
+        {
+          "id": "team-engineering-holdout",
+          "split": "holdout",
+          "meaning": "Teams solving difficult technical problems through patient ingenuity",
+          "pairs": [
+            {
+              "preferred": "Apollo 13",
+              "comparison": "John Wick",
+              "margin": 0.1311,
+              "credit": 1,
+              "similarityPreferred": 0.311,
+              "similarityComparison": 0.1799
+            },
+            {
+              "preferred": "Hidden Figures",
+              "comparison": "Extraction",
+              "margin": 0.1472,
+              "credit": 1,
+              "similarityPreferred": 0.3374,
+              "similarityComparison": 0.1902
+            },
+            {
+              "preferred": "The Imitation Game",
+              "comparison": "John Wick",
+              "margin": 0.1157,
+              "credit": 1,
+              "similarityPreferred": 0.2956,
+              "similarityComparison": 0.1799
+            }
+          ],
+          "top": [
+            {
+              "title": "Hidden Figures",
+              "similarity": 0.33739081480972594
+            },
+            {
+              "title": "The Martian",
+              "similarity": 0.33323066751034247
+            },
+            {
+              "title": "Moneyball",
+              "similarity": 0.31316971220502154
+            },
+            {
+              "title": "Apollo 13",
+              "similarity": 0.31101151512054087
+            },
+            {
+              "title": "The Imitation Game",
+              "similarity": 0.29563610232581927
+            }
+          ]
+        },
+        {
+          "id": "unlikely-family-holdout",
+          "split": "holdout",
+          "meaning": "Lonely outsiders forming a caring chosen family and a sense of belonging",
+          "pairs": [
+            {
+              "preferred": "Hunt for the Wilderpeople",
+              "comparison": "Extraction",
+              "margin": 0.1541,
+              "credit": 1,
+              "similarityPreferred": 0.3546,
+              "similarityComparison": 0.2005
+            },
+            {
+              "preferred": "Paddington 2",
+              "comparison": "John Wick",
+              "margin": 0.0051,
+              "credit": 1,
+              "similarityPreferred": 0.294,
+              "similarityComparison": 0.2889
+            }
+          ],
+          "top": [
+            {
+              "title": "The Truman Show",
+              "similarity": 0.3592670403272159
+            },
+            {
+              "title": "Sing Street",
+              "similarity": 0.35924210307051335
+            },
+            {
+              "title": "Hunt for the Wilderpeople",
+              "similarity": 0.3545756227459942
+            },
+            {
+              "title": "Soul",
+              "similarity": 0.33344718704574783
+            },
+            {
+              "title": "Paddington",
+              "similarity": 0.32766785599209536
+            }
+          ]
+        },
+        {
+          "id": "reasoning-holdout",
+          "split": "holdout",
+          "meaning": "Ordinary people patiently reasoning through evidence to challenge an injustice",
+          "pairs": [
+            {
+              "preferred": "12 Angry Men",
+              "comparison": "Extraction",
+              "margin": 0.2055,
+              "credit": 1,
+              "similarityPreferred": 0.3812,
+              "similarityComparison": 0.1758
+            },
+            {
+              "preferred": "Erin Brockovich",
+              "comparison": "John Wick",
+              "margin": 0.1702,
+              "credit": 1,
+              "similarityPreferred": 0.3667,
+              "similarityComparison": 0.1964
+            },
+            {
+              "preferred": "Zodiac",
+              "comparison": "Extraction",
+              "margin": 0.0768,
+              "credit": 1,
+              "similarityPreferred": 0.2526,
+              "similarityComparison": 0.1758
+            }
+          ],
+          "top": [
+            {
+              "title": "12 Angry Men",
+              "similarity": 0.38123276561346914
+            },
+            {
+              "title": "Spotlight",
+              "similarity": 0.3712432633369719
+            },
+            {
+              "title": "Erin Brockovich",
+              "similarity": 0.3666834469077039
+            },
+            {
+              "title": "The Truman Show",
+              "similarity": 0.32916598037049644
+            },
+            {
+              "title": "Hidden Figures",
+              "similarity": 0.318236114176353
+            }
+          ]
+        },
+        {
+          "id": "memory-holdout",
+          "split": "holdout",
+          "meaning": "Unreliable memories that make the audience question what really happened",
+          "pairs": [
+            {
+              "preferred": "Memento",
+              "comparison": "The Intern",
+              "margin": 0.2523,
+              "credit": 1,
+              "similarityPreferred": 0.4684,
+              "similarityComparison": 0.2161
+            },
+            {
+              "preferred": "Eternal Sunshine of the Spotless Mind",
+              "comparison": "Remember the Titans",
+              "margin": 0.1648,
+              "credit": 1,
+              "similarityPreferred": 0.4623,
+              "similarityComparison": 0.2974
+            }
+          ],
+          "top": [
+            {
+              "title": "The Truman Show",
+              "similarity": 0.4998180826371844
+            },
+            {
+              "title": "Memento",
+              "similarity": 0.4684219598511111
+            },
+            {
+              "title": "Eternal Sunshine of the Spotless Mind",
+              "similarity": 0.4622692820265145
+            },
+            {
+              "title": "Pulp Fiction",
+              "similarity": 0.3763886356505114
+            },
+            {
+              "title": "12 Angry Men",
+              "similarity": 0.3760974022390202
+            }
+          ]
+        },
+        {
+          "id": "overcoming-disadvantage-holdout",
+          "split": "holdout",
+          "meaning": "People underestimated by others overcoming disadvantage through effort and cooperation",
+          "pairs": [
+            {
+              "preferred": "Remember the Titans",
+              "comparison": "John Wick",
+              "margin": 0.1666,
+              "credit": 1,
+              "similarityPreferred": 0.3525,
+              "similarityComparison": 0.1859
+            },
+            {
+              "preferred": "Sing Street",
+              "comparison": "Extraction",
+              "margin": 0.0826,
+              "credit": 1,
+              "similarityPreferred": 0.2444,
+              "similarityComparison": 0.1618
+            }
+          ],
+          "top": [
+            {
+              "title": "Hidden Figures",
+              "similarity": 0.3576400088903077
+            },
+            {
+              "title": "Remember the Titans",
+              "similarity": 0.3525208938285251
+            },
+            {
+              "title": "Moneyball",
+              "similarity": 0.3478259104907121
+            },
+            {
+              "title": "Soul",
+              "similarity": 0.2954539750187307
+            },
+            {
+              "title": "Hunt for the Wilderpeople",
+              "similarity": 0.28532217136716365
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

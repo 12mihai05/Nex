@@ -1,12 +1,43 @@
 import type { ContentItem, FilterQuery } from "../domain/types.js";
-import type { TmdbRepository } from "../repositories/tmdb-repository.js";
+import type { TmdbRepository,DiscoverOptions } from "../repositories/tmdb-repository.js";
 import type { UserRepository } from "../repositories/user-repository.js";
 import {canonicalConcept} from "./concepts.js";
+
+type State=Awaited<ReturnType<UserRepository['getRecommendationState']>>;
+export function personalizedSources(catalog:TmdbRepository,state:State,options:DiscoverOptions):Promise<ContentItem[]>[] {
+ const jobs:Promise<ContentItem[]>[]=[];
+ const interests=state.taste.filter(s=>['language','country','combination'].includes(s.dimension)&&s.score>.3&&s.confidence>.5).sort((a,b)=>b.score*b.confidence-a.score*a.confidence);
+ for(const interest of interests){
+   if(jobs.length>=2)break;
+   const conditions=interest.conditions??[{dimension:interest.dimension,values:[interest.key]}];
+   const values=(dimension:string)=>conditions.find(c=>c.dimension===dimension)?.values;
+   const query:DiscoverOptions={...options,limit:12};let targeted=false;
+   if(values('country')?.length){query.originCountries=values('country')!.map(c=>c.toUpperCase());targeted=true;}
+   if(values('language')?.length&&!options.originalLanguages?.length){query.originalLanguages=values('language')!;targeted=true;}
+   if(values('genre')?.length&&!options.genres?.length){query.genres=values('genre')!;targeted=true;}
+   if(values('keyword')?.length&&!options.keywords?.length){query.keywords=values('keyword')!;targeted=true;}
+   if(targeted)jobs.push(catalog.discover(query));
+ }
+ const person=state.taste.filter(s=>['actor','director'].includes(s.dimension)&&s.score>.3&&s.confidence>.5).sort((a,b)=>b.score*b.confidence-a.score*a.confidence)[0];
+ if(person&&catalog.people&&catalog.knowledge)jobs.push((async()=>{
+   const people=(await catalog.people!(person.key)).filter(p=>p.name.toLowerCase()===person.key.toLowerCase());
+   if(people.length!==1)return [];
+   const credits=await catalog.knowledge!('person',people[0]!.id);
+   const records=(person.dimension==='actor'?credits.cast:credits.crew) as Array<{id:number;mediaType?:string;job?:string}>|undefined;
+   const ids=(records??[]).filter(c=>Number.isInteger(c.id)&&(person.dimension==='actor'||c.job==='Director')).slice(0,6);
+   const titles=await Promise.allSettled(ids.map(c=>catalog.getTitle(c.mediaType==='tv'?'series':'movie',c.id,state.country,state.ownedProviderIds)));
+   return titles.flatMap(r=>r.status==='fulfilled'&&r.value?[r.value]:[]);
+ })());
+ return jobs;
+}
 
 export async function generateCandidates(catalog: TmdbRepository, state: Awaited<ReturnType<UserRepository["getRecommendationState"]>>, query: FilterQuery): Promise<ContentItem[]> {
   const options = { region: state.country, providerIds: query.providerIds.length ? query.providerIds : query.availabilityScope === "owned_services" ? state.ownedProviderIds : [], mediaType: query.mediaType, minRuntimeMinutes: query.minRuntimeMinutes, maxRuntimeMinutes: query.maxRuntimeMinutes, genres: query.genres, genreMatch:query.genreMatch, originalLanguages:query.originalLanguages };
   const genres = state.taste.filter((s)=>s.dimension === "genre" && s.score > .3 && s.confidence > .3).sort((a,b)=>b.score*b.confidence-a.score*a.confidence).slice(0,2).map((s)=>s.key);
   const jobs: Promise<ContentItem[]>[] = [catalog.discover(options)];
+  // Explicit language interests need a retrieval source, not just a score bonus
+  // applied after an English-heavy popular pool has already been chosen.
+  jobs.push(...personalizedSources(catalog,state,options));
   if (query.similarTo && catalog.related) {
     jobs.push(catalog.search({query:query.similarTo,region:state.country}).then(async items=>{
       const seed=items.find(i=>i.title.toLowerCase()===query.similarTo!.toLowerCase()||i.originalTitle?.toLowerCase()===query.similarTo!.toLowerCase());

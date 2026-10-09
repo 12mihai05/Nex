@@ -1,4 +1,5 @@
-import { and, eq, gt } from "drizzle-orm";
+import { and, eq, gt, like, desc, inArray } from "drizzle-orm";
+import {rankSearch,titleRelevance} from '../services/search-ranking.js';
 import { getConfig } from "../config.js";
 import { contentItemSchema, type ContentItem, type MediaType } from "../domain/types.js";
 import { fixtureCatalog, fixtureProviders } from "../fixtures/catalog.js";
@@ -26,12 +27,16 @@ export interface DiscoverOptions {
   genreMatch?: "any"|"all";
   keywords?: string[];
   originalLanguages?: string[];
+  originCountries?: string[];
   page?: number;
   sortBy?: "vote_average.desc" | "popularity.desc";
   limit?: number;
 }
 
 export interface TmdbRepository {
+  knowledge?(type:'movie'|'series'|'person',id:number):Promise<Record<string,unknown>>;
+  episodeKnowledge?(seriesId:number,season:number,episode:number):Promise<Record<string,unknown>>;
+  people?(query:string):Promise<Array<{id:number;name:string}>>;
   extras?(mediaType: MediaType,id:number):Promise<TitleExtras>;
   season?(id:number,number:number):Promise<SeasonExtras>;
   titleAliases?(mediaType: MediaType, id: number): Promise<string[]>;
@@ -59,6 +64,7 @@ export class FixtureTmdbRepository implements TmdbRepository {
     return fixtureCatalog.filter((item) => {
       if (options.mediaType && options.mediaType !== "any" && item.mediaType !== options.mediaType) return false;
       if(options.originalLanguages?.length&&!options.originalLanguages.includes(item.originalLanguage??""))return false;
+      if(options.originCountries?.length&&!item.countries?.some(c=>options.originCountries!.includes(c)))return false;
       if (options.maxRuntimeMinutes && item.runtimeMinutes && item.runtimeMinutes > options.maxRuntimeMinutes) return false;
       if (options.minRuntimeMinutes && (!item.runtimeMinutes || item.runtimeMinutes < options.minRuntimeMinutes)) return false;
       if (options.providerIds?.length && !item.availability.some((entry) => options.providerIds?.includes(entry.providerId))) return false;
@@ -81,6 +87,29 @@ export class FixtureTmdbRepository implements TmdbRepository {
 const tmdbResultSchema = contentItemSchema.partial().passthrough();
 
 export class LiveTmdbRepository implements TmdbRepository {
+  async episodeKnowledge(seriesId:number,season:number,episode:number):Promise<Record<string,unknown>> {
+    const data=await this.request<Record<string,unknown>>(`/tv/${seriesId}/season/${season}/episode/${episode}`,{language:'en-US',append_to_response:'credits'});
+    const credits=data.credits as {cast?:Array<Record<string,unknown>>;crew?:Array<Record<string,unknown>>}|undefined;
+    return {id:data.id,name:data.name,overview:data.overview,air_date:data.air_date,runtime:data.runtime,
+      season_number:data.season_number,episode_number:data.episode_number,
+      cast:credits?.cast?.slice(0,30).map(p=>({id:p.id,name:p.name,character:p.character})),
+      crew:credits?.crew?.filter(p=>['Director','Writer','Screenplay'].includes(String(p.job))).slice(0,20).map(p=>({id:p.id,name:p.name,job:p.job}))};
+  }
+  async people(query:string):Promise<Array<{id:number;name:string}>> {
+    const data=await this.request<{results:Array<{id:number;name:string}>}>('/search/person',{query,include_adult:'false'});
+    return data.results.slice(0,5).map(p=>({id:p.id,name:p.name}));
+  }
+  async knowledge(type:'movie'|'series'|'person',id:number):Promise<Record<string,unknown>> {
+    const root=type==='series'?'tv':type;
+    const data=await this.request<Record<string,unknown>>(`/${root}/${id}`,{language:'en-US',append_to_response:type==='person'?'combined_credits':'credits'});
+    // Only public, relevant catalog facts. Do not forward the entire API payload.
+    const fields=['id','name','title','overview','biography','birthday','deathday','place_of_birth','status','in_production','number_of_seasons','number_of_episodes','first_air_date','last_air_date','next_episode_to_air','last_episode_to_air','production_countries','created_by'];
+    const result:Record<string,unknown>=Object.fromEntries(fields.filter(k=>data[k]!==undefined).map(k=>[k,data[k]]));
+    const credits=(data.credits??data.combined_credits??{}) as {cast?:Array<Record<string,unknown>>;crew?:Array<Record<string,unknown>>};
+    result.cast=(credits.cast??[]).slice(0,30).map(p=>({id:p.id,name:p.name,title:p.title??p.name,character:p.character,mediaType:p.media_type}));
+    result.crew=(credits.crew??[]).filter(p=>['Director','Writer','Creator','Screenplay'].includes(String(p.job))).slice(0,20).map(p=>({id:p.id,name:p.name,title:p.title,job:p.job,mediaType:p.media_type}));
+    return result;
+  }
   async extras(mediaType:MediaType,id:number):Promise<TitleExtras> {
     const root=`/${mediaType==="series"?"tv":"movie"}/${id}`;
     const data=await this.request<Record<string,unknown>>(root,{append_to_response:"videos",language:"en-US",include_video_language:"en,null"});
@@ -109,6 +138,7 @@ export class LiveTmdbRepository implements TmdbRepository {
   private readonly baseUrl = "https://api.themoviedb.org/3";
   private readonly imageBaseUrl = "https://image.tmdb.org/t/p";
   private readonly inFlight=new Map<string,Promise<unknown>>();
+  private readonly memoryCache=new Map<string,{value:unknown;expires:number}>();
   private lastPrune=0;
   private readonly titleInFlight=new Map<string,Promise<ContentItem|null>>();
   private activeRequests=0;
@@ -121,7 +151,17 @@ export class LiveTmdbRepository implements TmdbRepository {
       query: options.query, include_adult: "false", language: "en-US", page: String(options.page ?? 1), region: options.region,
     });
     const candidates = (payload.results ?? []).filter((result) => result.media_type === "movie" || result.media_type === "tv").slice(0, 20);
-    return Promise.all(candidates.map((result) => this.summaryToItem(result, options.region, options.summaryOnly)));
+    const found=await Promise.all(candidates.map((result) => this.summaryToItem(result, options.region, options.summaryOnly)));
+    if((options.page??1)===1&&found.length<3&&options.query.trim().length>=5){
+      // A small encountered-title cache helps typos without mirroring TMDB or
+      // inventing corrected titles. Never use cached availability as a fresh claim.
+      const cached=await this.db.select({payload:tmdbCache.payloadJson}).from(tmdbCache).where(and(like(tmdbCache.cacheKey,`title:%:${options.region}`),gt(tmdbCache.expiresAt,new Date()))).orderBy(desc(tmdbCache.updatedAt)).limit(300);
+      for(const row of cached){try{const parsed=contentItemSchema.safeParse(JSON.parse(row.payload));if(parsed.success&&Math.max(titleRelevance(options.query,parsed.data.title),titleRelevance(options.query,parsed.data.originalTitle??''))>=.68&&!found.some(i=>i.id===parsed.data.id&&i.mediaType===parsed.data.mediaType)){
+        const item=options.summaryOnly?{...parsed.data,availability:[]}:await this.getTitle(parsed.data.mediaType,parsed.data.id,options.region);
+        if(item)found.push(item);
+      }}catch{/* Invalid cached metadata is not a search result. */}}
+    }
+    return rankSearch(options.query,found).slice(0,20);
   }
 
   async discover(options: DiscoverOptions): Promise<ContentItem[]> {
@@ -138,6 +178,7 @@ export class LiveTmdbRepository implements TmdbRepository {
       if (options.maxRuntimeMinutes) params["with_runtime.lte"] = String(options.maxRuntimeMinutes);
       if (options.minRuntimeMinutes) params["with_runtime.gte"] = String(options.minRuntimeMinutes);
       if(options.originalLanguages?.length)params.with_original_language=options.originalLanguages.join("|");
+      if(options.originCountries?.length)params.with_origin_country=options.originCountries.join("|");
       if (options.genres?.length) {
         const list = await this.request<{ genres: Array<{ id: number; name: string }> }>(`/genre/${mediaType === "series" ? "tv" : "movie"}/list`, { language: "en-US" });
         const ids = list.genres.filter((g)=>options.genres!.some((name)=>name.toLowerCase() === g.name.toLowerCase())).map((g)=>g.id);
@@ -158,6 +199,7 @@ export class LiveTmdbRepository implements TmdbRepository {
         params.with_keywords=verified.join("|");
       }
       const payload = await this.request<{ results?: Record<string, unknown>[] }>(`/discover/${mediaType === "series" ? "tv" : "movie"}`, params);
+      await this.prefetchTitleCache((payload.results??[]).slice(0,options.limit??12).map(r=>({mediaType,id:Number(r.id)})),options.region);
       const hydrated=await Promise.allSettled((payload.results ?? []).slice(0, options.limit ?? 12).map((result) => this.summaryToItem({ ...result, media_type: mediaType === "series" ? "tv" : "movie" }, options.region)));
       return hydrated.flatMap(r=>r.status === "fulfilled"?[r.value]:[]);
     }));
@@ -185,8 +227,10 @@ export class LiveTmdbRepository implements TmdbRepository {
       const path = `/${mediaType === "series" ? "tv" : "movie"}/${id}`;
       const detail = await this.request<Record<string, unknown>>(path, { append_to_response: "credits,keywords,watch/providers", language: "en-US" });
       const item = this.detailToItem(detail, mediaType, region, ownedProviderIds);
-      await this.writeCache(key, "metadata", item, getConfig().TMDB_METADATA_CACHE_TTL_SECONDS);
-      await this.writeCache(`availability:${mediaType}:${id}:${region}`, "availability", item.availability, getConfig().TMDB_AVAILABILITY_CACHE_TTL_SECONDS);
+      await Promise.all([
+        this.writeCache(key, "metadata", item, getConfig().TMDB_METADATA_CACHE_TTL_SECONDS),
+        this.writeCache(`availability:${mediaType}:${id}:${region}`, "availability", item.availability, getConfig().TMDB_AVAILABILITY_CACHE_TTL_SECONDS),
+      ]);
       return item;
     } catch (error) {
       if (error instanceof TmdbError && error.status === 404) return null;
@@ -272,7 +316,7 @@ export class LiveTmdbRepository implements TmdbRepository {
   }
 
   private async request<T>(path: string, params: Record<string, string>): Promise<T> {
-    const cacheable=/^\/(genre\/|search\/|discover\/)|\/(recommendations|videos)$/.test(path)||params.append_to_response==="videos";
+    const cacheable=/^\/(genre\/|search\/|discover\/)|\/(recommendations|videos)$/.test(path)||Boolean(params.append_to_response);
     const key=`request:${createHash("sha256").update(JSON.stringify([path,Object.entries(params).sort()])).digest("hex")}`;
     if(!cacheable)return this.fetchRequest<T>(path,params);
     const pending=this.inFlight.get(key);if(pending)return pending as Promise<T>;
@@ -301,10 +345,29 @@ export class LiveTmdbRepository implements TmdbRepository {
     }
   }
 
+  private async prefetchTitleCache(items:Array<{mediaType:MediaType;id:number}>,region:string){
+    const now=Date.now();
+    const keys=[...new Set(items.filter(i=>Number.isInteger(i.id)&&i.id>0).flatMap(i=>[`title:${i.mediaType}:${i.id}:${region}`,`availability:${i.mediaType}:${i.id}:${region}`]))]
+      .filter(key=>(this.memoryCache.get(key)?.expires??0)<=now);
+    if(!keys.length)return;
+    // One database round trip per candidate batch, rather than two per title.
+    const rows=await this.db.select().from(tmdbCache).where(and(inArray(tmdbCache.cacheKey,keys),gt(tmdbCache.expiresAt,new Date())));
+    for(const key of keys)this.rememberCache(key,null,now+5000);
+    for(const row of rows){try{this.rememberCache(row.cacheKey,JSON.parse(row.payloadJson),+row.expiresAt);}catch{/* Invalid cache entries are refetched. */}}
+  }
+
   private async readCache(key: string): Promise<unknown | null> {
+    const memory=this.memoryCache.get(key);
+    if(memory&&memory.expires>Date.now())return memory.value;
+    this.memoryCache.delete(key);
     const rows = await this.db.select().from(tmdbCache).where(and(eq(tmdbCache.cacheKey, key), gt(tmdbCache.expiresAt, new Date()))).limit(1);
     if (!rows[0]) return null;
-    try { return JSON.parse(rows[0].payloadJson); } catch { return null; }
+    try { const value=JSON.parse(rows[0].payloadJson);this.rememberCache(key,value,+rows[0].expiresAt);return value; } catch { return null; }
+  }
+
+  private rememberCache(key:string,value:unknown,expires:number){
+    if(this.memoryCache.size>=256)this.memoryCache.delete(this.memoryCache.keys().next().value!);
+    this.memoryCache.set(key,{value,expires:Math.min(expires,Date.now()+60000)});
   }
 
   private async writeCache(key: string, kind: string, payload: unknown, ttlSeconds: number): Promise<void> {
@@ -312,6 +375,7 @@ export class LiveTmdbRepository implements TmdbRepository {
     if(+now-this.lastPrune>3600000){this.lastPrune=+now;await this.db.delete(tmdbCache).where(lt(tmdbCache.expiresAt,now));}
     await this.db.insert(tmdbCache).values({ cacheKey: key, kind, payloadJson: JSON.stringify(payload), expiresAt: new Date(now.getTime() + ttlSeconds * 1000), createdAt: now, updatedAt: now })
       .onConflictDoUpdate({ target: tmdbCache.cacheKey, set: { payloadJson: JSON.stringify(payload), expiresAt: new Date(now.getTime() + ttlSeconds * 1000), updatedAt: now } });
+    this.rememberCache(key,payload,now.getTime()+ttlSeconds*1000);
   }
 }
 

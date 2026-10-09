@@ -13,6 +13,9 @@ import {ChatActions} from './chat-actions.js';
 import {addSuitabilityCaution} from "./composition-intro.js";
 import {chatCapabilityReply} from './chat-help.js';
 import {requestedTvScope,tvFollowup,tvContextSchema,tvReferenceMatches} from './chat-tv.js';
+import {ChatKnowledge} from './chat-knowledge.js';
+import {broadcastReference} from '../domain/entities.js';
+import {personalizationFor} from './personalization.js';
 
 export class ChatService {
   constructor(
@@ -27,12 +30,18 @@ export class ChatService {
     await this.users.addConversationMessage(userId, sessionId, "user", message);
     const help=chatCapabilityReply(message);
     if(help){const blocks:ChatBlock[]=[{type:'text',content:help}];await this.users.addConversationMessage(userId,sessionId,'assistant',help,blocks);return {sessionId,blocks};}
-    const action = await new ChatActions(this.users,this.catalog,this.ai,this.epg).handle(userId,sessionId,message) ?? await this.tryPreference(userId,message);
+    // A normal taste declaration should not pay for an action-parser call first.
+    const preferenceFirst=isPersistentPreference(message)&&! /\b(add|remove|mark|rate|watchlist|seen|remind|confirm|cancel)\b/i.test(message);
+    const action = (preferenceFirst?await this.tryPreference(userId,message):null) ?? await new ChatActions(this.users,this.catalog,this.ai,this.epg).handle(userId,sessionId,message) ?? (preferenceFirst?null:await this.tryPreference(userId,message));
     if (action) {
       const blocks: ChatBlock[] = action;
-      await this.users.addConversationMessage(userId, sessionId, "assistant", blocks.filter(b=>b.type==='text'||b.type==='confirmation').map(b=>b.content).join('\n'), blocks);
+      const id=await this.users.addConversationMessage(userId, sessionId, "assistant", blocks.filter(b=>b.type==='text'||b.type==='confirmation').map(b=>b.content).join('\n'), blocks);
+      const cards=blocks.flatMap(b=>b.type==='library_changes'?b.items:[]);
+      if(cards.length)await this.users.saveDisplayedReferences(userId,sessionId,id,cards.map(item=>({contentType:item.mediaType,externalId:String(item.id),metadata:{title:item.title,year:item.year,source:'tmdb',tmdbId:item.id}})));
       return { sessionId, blocks };
     }
+    const knowledge=await new ChatKnowledge(this.users,this.catalog,this.ai,this.epg).handle(userId,sessionId,message).catch(()=>[{type:'text' as const,content:'I couldn’t verify that answer just now. Please try again.'}]);
+    if(knowledge){await this.users.addConversationMessage(userId,sessionId,'assistant',knowledge.map(b=>'content'in b?b.content:'').join('\n'),knowledge);return {sessionId,blocks:knowledge};}
 
     const storedState = await this.users.getRecommendationState(userId);
     const requestedCountry=explicitCountry(message);
@@ -47,12 +56,12 @@ export class ChatService {
       if(context.success&&references.length===1&&(!requestedCountry||requestedCountry===context.data.country)){
         const result=await this.epg.nextBroadcast(references[0]!,context.data.country,userId);
         programs=result.programs;
-        intro=result.stale?'That listing has changed or expired. Please check the channel’s schedule again.':programs.length?`After ${references[0]!.title} on ${programs[0]!.channel.name} · ${new Intl.DateTimeFormat('en-GB',{timeZone:context.data.timezone,dateStyle:'medium',timeStyle:'short'}).format(programs[0]!.startAt)} (${context.data.timezone})`:'No next listing is available for that channel in the following 48 hours. I haven’t substituted another channel.';
+        intro=result.stale?'That listing has changed or expired. Please check the channel’s schedule again.':programs.length?`After ${references[0]!.title} on ${programs[0]!.channel.name} · ${new Intl.DateTimeFormat('en-GB',{timeZone:context.data.timezone,dateStyle:'medium',timeStyle:'short'}).format(programs[0]!.startAt)}`:'No next listing is available for that channel in the following 48 hours. I haven’t substituted another channel.';
         await this.users.setSessionContext(userId,sessionId,{...savedContext,tv:programs.length?{...context.data,programs:programs.map(p=>({id:p.id,title:p.title,startAt:p.startAt.toISOString()}))}:undefined});
       }
       const blocks:ChatBlock[]=[{type:'text',content:intro},...(programs.length?[{type:'tv_carousel' as const,items:programs}]:[])];
       const id=await this.users.addConversationMessage(userId,sessionId,'assistant',intro,blocks);
-      await this.users.saveDisplayedReferences(userId,sessionId,id,programs.map(p=>({contentType:'liveEvent' as const,externalId:p.id,metadata:{title:p.title,channel:p.channel.name,startsAt:p.startAt.toISOString()}})));
+      await this.users.saveDisplayedReferences(userId,sessionId,id,programs.map(p=>broadcastReference(p,context.success?context.data.country:state.country)));
       return {sessionId,blocks};
     }
     const mightBeTv=/\b(tv|television|channel|broadcast|on|pe|canal)\b|\b(?:at|la)\s*\d/i.test(message);
@@ -65,10 +74,10 @@ export class ChatService {
       const unique=new Map(pages.flat().map(p=>[`${p.title}:${+p.startAt}:${p.channel.name.replace(/\s+(?:HD|SD)$/i,'')}`,p]));
       const programs=[...unique.values()].sort((a,b)=>+a.startAt-+b.startAt).slice(0,12);
       await this.users.setSessionContext(userId,sessionId,{...savedContext,filter:undefined,tv:{country:state.country,timezone:state.timezone,programs:programs.map(p=>({id:p.id,title:p.title,startAt:p.startAt.toISOString()}))}});
-      const intro=programs.length?`${scope.channelName??'TV'} · ${scope.label} · ${state.country}`:`No listing found for ${scope.channelName??'TV'} · ${scope.label} in ${state.country}. I haven’t substituted another channel or time.`;
+      const intro=programs.length?`${scope.channelName??'TV'} — ${scope.label.replace(/ \([^)]*\)/g,'')}`:`No listing found for ${scope.channelName??'TV'} at that time. I haven’t substituted another channel or time.`;
       const blocks:ChatBlock[]=[{type:'text',content:intro},...(programs.length?[{type:'tv_carousel' as const,items:programs}]:[])];
       const id=await this.users.addConversationMessage(userId,sessionId,'assistant',intro,blocks);
-      await this.users.saveDisplayedReferences(userId,sessionId,id,programs.map(p=>({contentType:'liveEvent' as const,externalId:p.id,metadata:{title:p.title,channel:p.channel.name,startsAt:p.startAt.toISOString()}})));
+      await this.users.saveDisplayedReferences(userId,sessionId,id,programs.map(p=>broadcastReference(p,state.country)));
       return {sessionId,blocks};
     }
     const previous = savedContext.country && savedContext.country!==state.country ? undefined : savedContext.filter as import("../domain/types.js").FilterQuery | undefined;
@@ -82,7 +91,7 @@ export class ChatService {
       else if (/\blive|right now\b/i.test(message)) safeQuery.tvWindow="live";
       else if (/\btonight\b/i.test(message)) safeQuery.tvWindow="tonight";
     }
-    await this.users.setSessionContext(userId,sessionId,{filter:safeQuery,country:state.country});
+    await this.users.setSessionContext(userId,sessionId,{...savedContext,filter:safeQuery,country:state.country});
     if (safeQuery.tvWindow || /\b(tv|television|live)\b/i.test(broadcastMessage)) {
       const window=tvWindow(safeQuery.tvWindow,state.timezone);
       const programs = (await this.epg.listWindow(window.start,window.end,state.country,userId)).filter(p=>safeQuery.tvWindow!=="tomorrow"||p.startAt>=window.start).slice(0,12);
@@ -91,14 +100,15 @@ export class ChatService {
         ? [{ type: "text", content: intro }, { type: "tv_carousel", items: programs }, { type: "quick_actions", actions: ["Only movies", "Starting in the next hour", "Something on streaming"] }]
         : [{ type: "empty_state", title: "No TV schedule available", message: "Streaming discovery is still available." }];
       const assistantId = await this.users.addConversationMessage(userId, sessionId, "assistant", intro, blocks);
-      await this.users.saveDisplayedReferences(userId, sessionId, assistantId, programs.map((program) => ({ contentType: "liveEvent" as const, externalId: program.id, metadata: { title: program.title, channel:program.channel.name, startsAt: program.startAt.toISOString() } })));
+      await this.users.saveDisplayedReferences(userId, sessionId, assistantId, programs.map(p=>broadcastReference(p,state.country)));
       return { sessionId, blocks };
     }
     const candidates = safeQuery.intent === "TITLE_LOOKUP" || safeQuery.intent === "AVAILABILITY_LOOKUP"
       ? await this.catalog.search({ query: safeQuery.query, region: state.country })
       : await generateCandidates(this.catalog,state,safeQuery);
     const reviewConcepts=safeQuery.intent==="DISCOVERY"&&(safeQuery.keywords.length>0||safeQuery.moods.length>0||safeQuery.excludedMoods.length>0);
-    const ranked = rankCandidates(candidates, safeQuery, { ...state, viewerIds: [userId], temporaryMoods: safeQuery.moods }, reviewConcepts?12:8);
+    const personal=await personalizationFor(this.users,this.catalog).prepare(candidates,state,userId,safeQuery);
+    const ranked = rankCandidates(candidates, safeQuery, { ...state,...personal, viewerIds: [userId], temporaryMoods: safeQuery.moods }, reviewConcepts?12:8);
     const composed = await this.ai.compose(message, ranked,reviewConcepts,safeQuery).catch(() => ({ intro: ranked.length ? "These are catalog-based candidates; I couldn't verify the more nuanced story fit just now." : "I couldn't find a strong match for that yet.", quickActions: ["Try something lighter", "Under 90 minutes"],selectedKeys:undefined }));
     const delivered=(composed.selectedKeys?ranked.filter(r=>composed.selectedKeys!.includes(titleKey(r.item))):ranked).slice(0,8);
     await this.users.recordRecommendations(userId,delivered,sessionId);
@@ -117,7 +127,9 @@ export class ChatService {
   private async tryPreference(userId:string,message:string):Promise<ChatBlock[]|null> {
     if(/\b(?:do not|don['’]t|never)\s+(?:\w+\s+){0,4}(?:save|change|update|remember|add|mark|rate)\b/i.test(message))return null;
     if(!isPersistentPreference(message))return null;
-    const extracted=await this.ai.extractTaste(message,[]).catch(()=>({signals:[]}));
+    if(/\b(this|that) (kind|type|sort)\b/i.test(message))return [{type:'text',content:'What part wasn’t for you—the story, tone, pacing, or something else? I won’t treat one movie as a dislike of its whole genre.'}];
+    const result=await this.ai.extractTaste(message,[]).catch(()=>({signals:[]}));
+    const extracted={signals:result.signals.filter(s=>s.confidence>=.75 && (s.dimension!=='combination'||(s.conditions?.length??0)>=2))};
     if(!extracted.signals.length)return [{type:"text",content:"I couldn’t extract a clear lasting preference. Nothing changed; you can edit Your Taste."}];
     await this.users.upsertTaste(userId,extracted.signals.map(s=>({...s,source:"chat_explicit"})));
     const labels=(positive:boolean)=>extracted.signals.filter(s=>positive?s.score>0:s.score<0).map(s=>{

@@ -8,7 +8,8 @@ it("coalesces public lookups, keys by country and refreshes expired entries",asy
   const client=createClient({url:":memory:"});
   try{
     for(const file of (await readdir(new URL("../drizzle/",import.meta.url))).filter(f=>f.endsWith(".sql")).sort())await client.executeMultiple((await readFile(new URL(`../drizzle/${file}`,import.meta.url),"utf8")).replaceAll("--> statement-breakpoint",""));
-    const db=drizzle(client,{schema});
+    const queries:string[]=[];
+    const db=drizzle(client,{schema,logger:{logQuery(query){queries.push(query);}}});
     const fetcher=vi.fn(async()=>new Response(JSON.stringify({results:[]}),{status:200,headers:{"content-type":"application/json"}}));vi.stubGlobal("fetch",fetcher);
     const catalog=new LiveTmdbRepository("synthetic-test-token",db);
     const request={region:"RO",mediaType:"movie" as const};
@@ -16,6 +17,8 @@ it("coalesces public lookups, keys by country and refreshes expired entries",asy
     await catalog.discover(request);expect(fetcher).toHaveBeenCalledTimes(1);
     await catalog.discover({...request,region:"GB"});expect(fetcher).toHaveBeenCalledTimes(2);
     await db.update(schema.tmdbCache).set({expiresAt:new Date(0)});
+    // A warm worker may retain public metadata for at most one minute.
+    const now=Date.now();vi.spyOn(Date,'now').mockReturnValue(now+61_000);
     await catalog.discover(request);expect(fetcher).toHaveBeenCalledTimes(3);
     fetcher.mockImplementationOnce(async()=>new Response("",{status:503}));
     await expect(catalog.discover({...request,region:"FR"})).rejects.toThrow();
@@ -27,5 +30,15 @@ it("coalesces public lookups, keys by country and refreshes expired entries",asy
     expect(nonOwner!.availability[0]!.owned).toBe(false);
     expect((await catalog.getTitle("movie",42,"RO",[]))!.availability[0]!.owned).toBe(false);
     expect(fetcher).toHaveBeenCalledTimes(6);
-  }finally{vi.unstubAllGlobals();client.close();}
+    // A fresh worker warms metadata AND country-specific availability in bulk.
+    fetcher.mockImplementation(async()=>new Response(JSON.stringify({results:[{id:42,title:'Shared metadata'}]}),{status:200,headers:{'content-type':'application/json'}}));
+    const fresh=new LiveTmdbRepository('synthetic-test-token',db);
+    queries.length=0;
+    const batch=await fresh.discover({...request,page:2});
+    expect(batch[0]?.title).toBe('Shared metadata');
+    expect(batch[0]?.availability[0]?.providerId).toBe(8);
+    expect(batch[0]?.availability[0]?.owned).toBe(false);
+    expect(fetcher).toHaveBeenCalledTimes(7);
+    expect(queries.filter(q=>q.startsWith('select')&&q.includes('tmdb_cache'))).toHaveLength(2);
+  }finally{vi.restoreAllMocks();vi.unstubAllGlobals();client.close();}
 });

@@ -1,0 +1,209 @@
+{
+  "note": "Intermediate regression retained: a narrower dictionary gloss fixed the competition pair but misranked the career-rebuilding pair. This motivated keeping the original term and broad disadvantage sense.",
+  "case": {
+    "id": "outsiders-through-effort",
+    "preferences": [
+      {
+        "meaning": "underdog",
+        "score": 1,
+        "dimension": "keyword"
+      }
+    ],
+    "arms": {
+      "baseline": {
+        "mode": "baseline",
+        "reason": "selected",
+        "ms": 6,
+        "covered": 0,
+        "embedded": 0,
+        "cacheHits": 0,
+        "pairs": [
+          {
+            "preferred": "Last Place",
+            "comparison": "Masters of the Court",
+            "margin": 0,
+            "credit": 0.5
+          },
+          {
+            "preferred": "Second Career",
+            "comparison": "Office Empire",
+            "margin": 0,
+            "credit": 0.5
+          }
+        ],
+        "top": [
+          {
+            "key": "movie:900001",
+            "title": "Last Place",
+            "score": -1.318,
+            "evidence": []
+          },
+          {
+            "key": "movie:900006",
+            "title": "Last Gun",
+            "score": -1.318,
+            "evidence": []
+          },
+          {
+            "key": "movie:900007",
+            "title": "The Borrowed Table",
+            "score": -1.318,
+            "evidence": []
+          },
+          {
+            "key": "movie:900008",
+            "title": "Dinner for Two",
+            "score": -1.318,
+            "evidence": []
+          },
+          {
+            "key": "movie:900009",
+            "title": "Twelve Minutes",
+            "score": -1.318,
+            "evidence": []
+          },
+          {
+            "key": "movie:900011",
+            "title": "Paper Trail",
+            "score": -1.318,
+            "evidence": []
+          },
+          {
+            "key": "movie:900021",
+            "title": "The Unreliable Room",
+            "score": -1.318,
+            "evidence": []
+          },
+          {
+            "key": "movie:900023",
+            "title": "Reef Watchers",
+            "score": -1.318,
+            "evidence": []
+          }
+        ],
+        "apiCalls": 0
+      },
+      "semantic": {
+        "mode": "semantic",
+        "reason": "selected",
+        "ms": 551,
+        "covered": 32,
+        "embedded": 1,
+        "cacheHits": 32,
+        "pairs": [
+          {
+            "preferred": "Last Place",
+            "comparison": "Masters of the Court",
+            "margin": 0.1621,
+            "credit": 1
+          },
+          {
+            "preferred": "Second Career",
+            "comparison": "Office Empire",
+            "margin": -0.1026,
+            "credit": 0
+          }
+        ],
+        "top": [
+          {
+            "key": "movie:900001",
+            "title": "Last Place",
+            "score": 0.494,
+            "evidence": [
+              {
+                "code": "semantic:interest",
+                "label": "its premise is related to your interests",
+                "weight": 1.8122141370399207
+              }
+            ]
+          },
+          {
+            "key": "movie:900002",
+            "title": "Masters of the Court",
+            "score": 0.332,
+            "evidence": [
+              {
+                "code": "semantic:interest",
+                "label": "its premise is related to your interests",
+                "weight": 1.650075811686526
+              }
+            ]
+          },
+          {
+            "key": "movie:900032",
+            "title": "Instant Fortune",
+            "score": -0.187,
+            "evidence": [
+              {
+                "code": "semantic:interest",
+                "label": "its premise is related to your interests",
+                "weight": 1.1313884991019425
+              }
+            ]
+          },
+          {
+            "key": "movie:900010",
+            "title": "Across the Stars",
+            "score": -0.484,
+            "evidence": [
+              {
+                "code": "semantic:interest",
+                "label": "its premise is related to your interests",
+                "weight": 0.8347953044726416
+              }
+            ]
+          },
+          {
+            "key": "movie:900020",
+            "title": "Perfect Wedding",
+            "score": -0.667,
+            "evidence": [
+              {
+                "code": "semantic:interest",
+                "label": "its premise is related to your interests",
+                "weight": 0.6508431276142472
+              }
+            ]
+          },
+          {
+            "key": "movie:900006",
+            "title": "Last Gun",
+            "score": -0.687,
+            "evidence": [
+              {
+                "code": "semantic:interest",
+                "label": "its premise is related to your interests",
+                "weight": 0.6308846577076578
+              }
+            ]
+          },
+          {
+            "key": "movie:900016",
+            "title": "Office Empire",
+            "score": -0.482,
+            "evidence": [
+              {
+                "code": "semantic:interest",
+                "label": "its premise is related to your interests",
+                "weight": 0.8367417437440786
+              }
+            ]
+          },
+          {
+            "key": "movie:900026",
+            "title": "The Destined Pair",
+            "score": -0.672,
+            "evidence": [
+              {
+                "code": "semantic:interest",
+                "label": "its premise is related to your interests",
+                "weight": 0.6462584714951252
+              }
+            ]
+          }
+        ],
+        "apiCalls": 1
+      }
+    }
+  }
+}

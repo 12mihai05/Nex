@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { filterQuerySchema, mediaTypeSchema, tasteSignalSchema } from "../domain/types.js";
+import { filterQuerySchema, mediaTypeSchema, tasteSignalSchema, recommendationEngineSchema } from "../domain/types.js";
 
 export const paginationSchema = z.object({ page: z.coerce.number().int().min(1).max(100).default(1) });
 export const searchQuerySchema = paginationSchema.extend({ q: z.string().trim().min(1).max(160) });
@@ -12,6 +12,7 @@ export const settingsBodySchema = z.object({
   country: z.string().regex(/^[a-z]{2}$/i).transform((value) => value.toUpperCase()).refine(value=>Boolean(new Intl.DisplayNames(["en"],{type:"region",fallback:"none"}).of(value)),"Unknown country").optional(),
   timezone: z.string().max(80).refine(value=>{try {new Intl.DateTimeFormat("en",{timeZone:value});return true;}catch{return false;}},"Unknown timezone").optional(),
   appearance: z.enum(["system", "light", "dark"]).optional(), behaviorPersonalization: z.boolean().optional(), remindersEnabled: z.boolean().optional(), onboardingComplete: z.boolean().optional(),
+  recommendationEngine: recommendationEngineSchema.optional(),
   services: z.array(z.object({ providerId: z.number().int(), providerName: z.string(), logoPath: z.string().nullable().optional() })).max(30).optional(),
   audioLanguages: z.array(z.string().max(12)).max(12).optional(), subtitleLanguages: z.array(z.string().max(12)).max(12).optional(), preferOriginal: z.boolean().optional(),
 });

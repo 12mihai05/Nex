@@ -2,6 +2,8 @@ import { z } from "zod";
 
 export const mediaTypeSchema = z.enum(["movie", "series"]);
 export type MediaType = z.infer<typeof mediaTypeSchema>;
+export const recommendationEngineSchema = z.enum(["baseline", "semantic", "semantic_ai"]);
+export type RecommendationEngine = z.infer<typeof recommendationEngineSchema>;
 
 export const availabilitySchema = z.object({
   providerId: z.number().int(),
@@ -59,6 +61,7 @@ export const filterQuerySchema = z.object({
 });
 export type FilterQuery = z.infer<typeof filterQuerySchema>;
 
+export const tasteConditionSchema=z.object({dimension:z.enum(['genre','keyword','mood','language','country','format','actor','director','decade']),values:z.array(z.string().min(1).max(80)).min(1).max(20)});
 export const tasteSignalSchema = z.object({
   dimension: z.string(),
   key: z.string(),
@@ -70,10 +73,14 @@ export const tasteSignalSchema = z.object({
   lastEvidenceAt: z.string().optional(),
   updatedAt: z.string().optional(),
   sources: z.array(z.string()).optional(),
+  conditions:z.array(tasteConditionSchema).max(5).optional(),
+  statement: z.string().max(600).optional(),
+  meaning: z.string().max(400).optional(),
 });
 export type TasteSignal = z.infer<typeof tasteSignalSchema>;
 
 export const chatBlockSchema = z.discriminatedUnion("type", [
+  z.object({type:z.literal('knowledge'),content:z.string(),citations:z.array(z.object({title:z.string(),url:z.string().url(),start:z.number().int(),end:z.number().int()})).max(30)}),
   z.object({ type: z.literal("text"), content: z.string() }),
   z.object({type:z.literal('library_changes'),status:z.enum(['preview','saved']),items:z.array(z.object({
     id:z.number().int(),mediaType:z.enum(['movie','series']),title:z.string(),year:z.number().nullable(),posterUrl:z.string().nullable(),changes:z.array(z.string()),

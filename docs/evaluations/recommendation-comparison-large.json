@@ -1,0 +1,1106 @@
+{
+  "createdAt": "2026-10-09T21:41:52.277Z",
+  "method": "Predefined synopsis pairs; same pool, profile and filters for all arms. Synthetic labels are not human satisfaction.",
+  "synthetic": [
+    {
+      "id": "outsiders-through-effort",
+      "preferences": [
+        {
+          "meaning": "underdog",
+          "score": 1,
+          "dimension": "keyword"
+        }
+      ],
+      "arms": {
+        "baseline": {
+          "mode": "baseline",
+          "reason": "selected",
+          "ms": 6,
+          "covered": 0,
+          "embedded": 0,
+          "cacheHits": 0,
+          "pairs": [
+            {
+              "preferred": "Last Place",
+              "comparison": "Masters of the Court",
+              "margin": 0,
+              "credit": 0.5
+            },
+            {
+              "preferred": "Second Career",
+              "comparison": "Office Empire",
+              "margin": 0,
+              "credit": 0.5
+            }
+          ],
+          "top": [
+            {
+              "key": "movie:900001",
+              "title": "Last Place",
+              "score": -1.318,
+              "evidence": []
+            },
+            {
+              "key": "movie:900006",
+              "title": "Last Gun",
+              "score": -1.318,
+              "evidence": []
+            },
+            {
+              "key": "movie:900007",
+              "title": "The Borrowed Table",
+              "score": -1.318,
+              "evidence": []
+            },
+            {
+              "key": "movie:900008",
+              "title": "Dinner for Two",
+              "score": -1.318,
+              "evidence": []
+            },
+            {
+              "key": "movie:900009",
+              "title": "Twelve Minutes",
+              "score": -1.318,
+              "evidence": []
+            },
+            {
+              "key": "movie:900011",
+              "title": "Paper Trail",
+              "score": -1.318,
+              "evidence": []
+            },
+            {
+              "key": "movie:900021",
+              "title": "The Unreliable Room",
+              "score": -1.318,
+              "evidence": []
+            },
+            {
+              "key": "movie:900023",
+              "title": "Reef Watchers",
+              "score": -1.318,
+              "evidence": []
+            }
+          ],
+          "apiCalls": 0
+        },
+        "semantic": {
+          "mode": "semantic",
+          "reason": "selected",
+          "ms": 12,
+          "covered": 32,
+          "embedded": 0,
+          "cacheHits": 32,
+          "pairs": [
+            {
+              "preferred": "Last Place",
+              "comparison": "Masters of the Court",
+              "margin": 0.1139,
+              "credit": 1
+            },
+            {
+              "preferred": "Second Career",
+              "comparison": "Office Empire",
+              "margin": 0.2021,
+              "credit": 1
+            }
+          ],
+          "top": [
+            {
+              "key": "movie:900001",
+              "title": "Last Place",
+              "score": -0.172,
+              "evidence": [
+                {
+                  "code": "semantic:interest",
+                  "label": "its premise is related to your interests",
+                  "weight": 1.146415772681414
+                }
+              ]
+            },
+            {
+              "key": "movie:900032",
+              "title": "Instant Fortune",
+              "score": -0.362,
+              "evidence": [
+                {
+                  "code": "semantic:interest",
+                  "label": "its premise is related to your interests",
+                  "weight": 0.9565854970035405
+                }
+              ]
+            },
+            {
+              "key": "movie:900002",
+              "title": "Masters of the Court",
+              "score": -0.286,
+              "evidence": [
+                {
+                  "code": "semantic:interest",
+                  "label": "its premise is related to your interests",
+                  "weight": 1.0324931847920849
+                }
+              ]
+            },
+            {
+              "key": "movie:900015",
+              "title": "Second Career",
+              "score": -0.476,
+              "evidence": [
+                {
+                  "code": "semantic:interest",
+                  "label": "its premise is related to your interests",
+                  "weight": 0.8422642581909088
+                }
+              ]
+            },
+            {
+              "key": "movie:900011",
+              "title": "Paper Trail",
+              "score": -0.841,
+              "evidence": [
+                {
+                  "code": "semantic:interest",
+                  "label": "its premise is related to your interests",
+                  "weight": 0.47691781731385824
+                }
+              ]
+            },
+            {
+              "key": "movie:900017",
+              "title": "Uncertain Mercy",
+              "score": -0.647,
+              "evidence": [
+                {
+                  "code": "semantic:interest",
+                  "label": "its premise is related to your interests",
+                  "weight": 0.670939012459028
+                }
+              ]
+            },
+            {
+              "key": "movie:900020",
+              "title": "Perfect Wedding",
+              "score": -0.891,
+              "evidence": [
+                {
+                  "code": "semantic:interest",
+                  "label": "its premise is related to your interests",
+                  "weight": 0.42723043946790745
+                }
+              ]
+            },
+            {
+              "key": "movie:900010",
+              "title": "Across the Stars",
+              "score": -0.906,
+              "evidence": [
+                {
+                  "code": "semantic:interest",
+                  "label": "its premise is related to your interests",
+                  "weight": 0.41198536208763414
+                }
+              ]
+            }
+          ],
+          "apiCalls": 0
+        },
+        "semantic_ai": {
+          "mode": "semantic_ai",
+          "reason": "selected",
+          "ms": 30624,
+          "covered": 32,
+          "embedded": 0,
+          "cacheHits": 32,
+          "pairs": [
+            {
+              "preferred": "Last Place",
+              "comparison": "Masters of the Court",
+              "margin": 1.3139,
+              "credit": 1
+            },
+            {
+              "preferred": "Second Career",
+              "comparison": "Office Empire",
+              "margin": 1.1021,
+              "credit": 1
+            }
+          ],
+          "top": [
+            {
+              "key": "movie:900001",
+              "title": "Last Place",
+              "score": 1.028,
+              "evidence": [
+                {
+                  "code": "semantic:interest",
+                  "label": "its premise is related to your interests",
+                  "weight": 1.146415772681414
+                },
+                {
+                  "code": "semantic:review",
+                  "label": "the supplied premise supports a stated interest",
+                  "weight": 1.2000000000000002
+                }
+              ]
+            },
+            {
+              "key": "movie:900015",
+              "title": "Second Career",
+              "score": 0.424,
+              "evidence": [
+                {
+                  "code": "semantic:interest",
+                  "label": "its premise is related to your interests",
+                  "weight": 0.8422642581909088
+                },
+                {
+                  "code": "semantic:review",
+                  "label": "the supplied premise supports a stated interest",
+                  "weight": 0.8999999999999999
+                }
+              ]
+            },
+            {
+              "key": "movie:900011",
+              "title": "Paper Trail",
+              "score": -0.241,
+              "evidence": [
+                {
+                  "code": "semantic:interest",
+                  "label": "its premise is related to your interests",
+                  "weight": 0.47691781731385824
+                },
+                {
+                  "code": "semantic:review",
+                  "label": "the supplied premise supports a stated interest",
+                  "weight": 0.6000000000000001
+                }
+              ]
+            },
+            {
+              "key": "movie:900032",
+              "title": "Instant Fortune",
+              "score": -0.362,
+              "evidence": [
+                {
+                  "code": "semantic:interest",
+                  "label": "its premise is related to your interests",
+                  "weight": 0.9565854970035405
+                }
+              ]
+            },
+            {
+              "key": "movie:900017",
+              "title": "Uncertain Mercy",
+              "score": -0.197,
+              "evidence": [
+                {
+                  "code": "semantic:interest",
+                  "label": "its premise is related to your interests",
+                  "weight": 0.670939012459028
+                },
+                {
+                  "code": "semantic:review",
+                  "label": "the supplied premise supports a stated interest",
+                  "weight": 0.44999999999999996
+                }
+              ]
+            },
+            {
+              "key": "movie:900002",
+              "title": "Masters of the Court",
+              "score": -0.286,
+              "evidence": [
+                {
+                  "code": "semantic:interest",
+                  "label": "its premise is related to your interests",
+                  "weight": 1.0324931847920849
+                }
+              ]
+            },
+            {
+              "key": "movie:900020",
+              "title": "Perfect Wedding",
+              "score": -0.891,
+              "evidence": [
+                {
+                  "code": "semantic:interest",
+                  "label": "its premise is related to your interests",
+                  "weight": 0.42723043946790745
+                }
+              ]
+            },
+            {
+              "key": "movie:900010",
+              "title": "Across the Stars",
+              "score": -0.906,
+              "evidence": [
+                {
+                  "code": "semantic:interest",
+                  "label": "its premise is related to your interests",
+                  "weight": 0.41198536208763414
+                }
+              ]
+            }
+          ],
+          "apiCalls": 1
+        }
+      }
+    },
+    {
+      "id": "repairing-relationships",
+      "preferences": [
+        {
+          "meaning": "people patiently rebuilding broken trust",
+          "score": 1,
+          "dimension": "story"
+        }
+      ],
+      "arms": {
+        "baseline": {
+          "mode": "baseline",
+          "reason": "selected",
+          "ms": 5,
+          "covered": 0,
+          "embedded": 0,
+          "cacheHits": 0,
+          "pairs": [
+            {
+              "preferred": "Broken Bridge",
+              "comparison": "Inheritance War",
+              "margin": 0,
+              "credit": 0.5
+            },
+            {
+              "preferred": "Shared Road",
+              "comparison": "The Lonely Road",
+              "margin": 0,
+              "credit": 0.5
+            }
+          ],
+          "top": [
+            {
+              "key": "movie:900001",
+              "title": "Last Place",
+              "score": -1.318,
+              "evidence": []
+            },
+            {
+              "key": "movie:900006",
+              "title": "Last Gun",
+              "score": -1.318,
+              "evidence": []
+            },
+            {
+              "key": "movie:900007",
+              "title": "The Borrowed Table",
+              "score": -1.318,
+              "evidence": []
+            },
+            {
+              "key": "movie:900008",
+              "title": "Dinner for Two",
+              "score": -1.318,
+              "evidence": []
+            },
+            {
+              "key": "movie:900009",
+              "title": "Twelve Minutes",
+              "score": -1.318,
+              "evidence": []
+            },
+            {
+              "key": "movie:900011",
+              "title": "Paper Trail",
+              "score": -1.318,
+              "evidence": []
+            },
+            {
+              "key": "movie:900021",
+              "title": "The Unreliable Room",
+              "score": -1.318,
+              "evidence": []
+            },
+            {
+              "key": "movie:900023",
+              "title": "Reef Watchers",
+              "score": -1.318,
+              "evidence": []
+            }
+          ],
+          "apiCalls": 0
+        },
+        "semantic": {
+          "mode": "semantic",
+          "reason": "selected",
+          "ms": 14,
+          "covered": 32,
+          "embedded": 0,
+          "cacheHits": 32,
+          "pairs": [
+            {
+              "preferred": "Broken Bridge",
+              "comparison": "Inheritance War",
+              "margin": 1.1774,
+              "credit": 1
+            },
+            {
+              "preferred": "Shared Road",
+              "comparison": "The Lonely Road",
+              "margin": 0.6225,
+              "credit": 1
+            }
+          ],
+          "top": [
+            {
+              "key": "movie:900003",
+              "title": "Broken Bridge",
+              "score": -0.005,
+              "evidence": [
+                {
+                  "code": "semantic:interest",
+                  "label": "its premise is related to your interests",
+                  "weight": 1.3129500386701034
+                }
+              ]
+            },
+            {
+              "key": "movie:900020",
+              "title": "Perfect Wedding",
+              "score": -0.674,
+              "evidence": [
+                {
+                  "code": "semantic:interest",
+                  "label": "its premise is related to your interests",
+                  "weight": 0.6445567471685855
+                }
+              ]
+            },
+            {
+              "key": "movie:900022",
+              "title": "The Clear Record",
+              "score": -0.8,
+              "evidence": [
+                {
+                  "code": "semantic:interest",
+                  "label": "its premise is related to your interests",
+                  "weight": 0.518056095016199
+                }
+              ]
+            },
+            {
+              "key": "movie:900011",
+              "title": "Paper Trail",
+              "score": -0.842,
+              "evidence": [
+                {
+                  "code": "semantic:interest",
+                  "label": "its premise is related to your interests",
+                  "weight": 0.47654945929064213
+                }
+              ]
+            },
+            {
+              "key": "movie:900029",
+              "title": "Shared Road",
+              "score": -0.642,
+              "evidence": [
+                {
+                  "code": "semantic:interest",
+                  "label": "its premise is related to your interests",
+                  "weight": 0.6763145760796909
+                }
+              ]
+            },
+            {
+              "key": "movie:900031",
+              "title": "Patient Hands",
+              "score": -0.648,
+              "evidence": [
+                {
+                  "code": "semantic:interest",
+                  "label": "its premise is related to your interests",
+                  "weight": 0.670575647017195
+                }
+              ]
+            },
+            {
+              "key": "movie:900009",
+              "title": "Twelve Minutes",
+              "score": -0.923,
+              "evidence": [
+                {
+                  "code": "semantic:interest",
+                  "label": "its premise is related to your interests",
+                  "weight": 0.3951217757506411
+                }
+              ]
+            },
+            {
+              "key": "movie:900019",
+              "title": "Night Train Letters",
+              "score": -0.842,
+              "evidence": [
+                {
+                  "code": "semantic:interest",
+                  "label": "its premise is related to your interests",
+                  "weight": 0.47585378797635847
+                }
+              ]
+            }
+          ],
+          "apiCalls": 0
+        },
+        "semantic_ai": {
+          "mode": "semantic_ai",
+          "reason": "selected",
+          "ms": 16,
+          "covered": 32,
+          "embedded": 0,
+          "cacheHits": 32,
+          "pairs": [
+            {
+              "preferred": "Broken Bridge",
+              "comparison": "Inheritance War",
+              "margin": 2.6774,
+              "credit": 1
+            },
+            {
+              "preferred": "Shared Road",
+              "comparison": "The Lonely Road",
+              "margin": 1.6725,
+              "credit": 1
+            }
+          ],
+          "top": [
+            {
+              "key": "movie:900003",
+              "title": "Broken Bridge",
+              "score": 1.495,
+              "evidence": [
+                {
+                  "code": "semantic:interest",
+                  "label": "its premise is related to your interests",
+                  "weight": 1.3129500386701034
+                },
+                {
+                  "code": "semantic:review",
+                  "label": "the supplied premise supports a stated interest",
+                  "weight": 1.5
+                }
+              ]
+            },
+            {
+              "key": "movie:900029",
+              "title": "Shared Road",
+              "score": 0.408,
+              "evidence": [
+                {
+                  "code": "semantic:interest",
+                  "label": "its premise is related to your interests",
+                  "weight": 0.6763145760796909
+                },
+                {
+                  "code": "semantic:review",
+                  "label": "the supplied premise supports a stated interest",
+                  "weight": 1.0499999999999998
+                }
+              ]
+            },
+            {
+              "key": "movie:900020",
+              "title": "Perfect Wedding",
+              "score": -0.674,
+              "evidence": [
+                {
+                  "code": "semantic:interest",
+                  "label": "its premise is related to your interests",
+                  "weight": 0.6445567471685855
+                }
+              ]
+            },
+            {
+              "key": "movie:900022",
+              "title": "The Clear Record",
+              "score": -0.8,
+              "evidence": [
+                {
+                  "code": "semantic:interest",
+                  "label": "its premise is related to your interests",
+                  "weight": 0.518056095016199
+                }
+              ]
+            },
+            {
+              "key": "movie:900011",
+              "title": "Paper Trail",
+              "score": -0.842,
+              "evidence": [
+                {
+                  "code": "semantic:interest",
+                  "label": "its premise is related to your interests",
+                  "weight": 0.47654945929064213
+                }
+              ]
+            },
+            {
+              "key": "movie:900031",
+              "title": "Patient Hands",
+              "score": -0.648,
+              "evidence": [
+                {
+                  "code": "semantic:interest",
+                  "label": "its premise is related to your interests",
+                  "weight": 0.670575647017195
+                }
+              ]
+            },
+            {
+              "key": "movie:900009",
+              "title": "Twelve Minutes",
+              "score": -0.923,
+              "evidence": [
+                {
+                  "code": "semantic:interest",
+                  "label": "its premise is related to your interests",
+                  "weight": 0.3951217757506411
+                }
+              ]
+            },
+            {
+              "key": "movie:900019",
+              "title": "Night Train Letters",
+              "score": -0.842,
+              "evidence": [
+                {
+                  "code": "semantic:interest",
+                  "label": "its premise is related to your interests",
+                  "weight": 0.47585378797635847
+                }
+              ]
+            }
+          ],
+          "apiCalls": 0
+        }
+      }
+    },
+    {
+      "id": "competence-not-violence",
+      "preferences": [
+        {
+          "meaning": "ordinary people solving practical problems together",
+          "score": 1,
+          "dimension": "story"
+        },
+        {
+          "meaning": "conflicts solved through violence",
+          "score": -1,
+          "dimension": "story"
+        }
+      ],
+      "arms": {
+        "baseline": {
+          "mode": "baseline",
+          "reason": "selected",
+          "ms": 4,
+          "covered": 0,
+          "embedded": 0,
+          "cacheHits": 0,
+          "pairs": [
+            {
+              "preferred": "Quiet Repairs",
+              "comparison": "Last Gun",
+              "margin": 0,
+              "credit": 0.5
+            },
+            {
+              "preferred": "Mutual Orbit",
+              "comparison": "Across the Stars",
+              "margin": 0,
+              "credit": 0.5
+            }
+          ],
+          "top": [
+            {
+              "key": "movie:900001",
+              "title": "Last Place",
+              "score": -1.318,
+              "evidence": []
+            },
+            {
+              "key": "movie:900006",
+              "title": "Last Gun",
+              "score": -1.318,
+              "evidence": []
+            },
+            {
+              "key": "movie:900007",
+              "title": "The Borrowed Table",
+              "score": -1.318,
+              "evidence": []
+            },
+            {
+              "key": "movie:900008",
+              "title": "Dinner for Two",
+              "score": -1.318,
+              "evidence": []
+            },
+            {
+              "key": "movie:900009",
+              "title": "Twelve Minutes",
+              "score": -1.318,
+              "evidence": []
+            },
+            {
+              "key": "movie:900011",
+              "title": "Paper Trail",
+              "score": -1.318,
+              "evidence": []
+            },
+            {
+              "key": "movie:900021",
+              "title": "The Unreliable Room",
+              "score": -1.318,
+              "evidence": []
+            },
+            {
+              "key": "movie:900023",
+              "title": "Reef Watchers",
+              "score": -1.318,
+              "evidence": []
+            }
+          ],
+          "apiCalls": 0
+        },
+        "semantic": {
+          "mode": "semantic",
+          "reason": "selected",
+          "ms": 21,
+          "covered": 32,
+          "embedded": 0,
+          "cacheHits": 32,
+          "pairs": [
+            {
+              "preferred": "Quiet Repairs",
+              "comparison": "Last Gun",
+              "margin": 3.6169,
+              "credit": 1
+            },
+            {
+              "preferred": "Mutual Orbit",
+              "comparison": "Across the Stars",
+              "margin": 1.8576,
+              "credit": 1
+            }
+          ],
+          "top": [
+            {
+              "key": "movie:900005",
+              "title": "Quiet Repairs",
+              "score": -0.252,
+              "evidence": [
+                {
+                  "code": "semantic:interest",
+                  "label": "its premise is related to your interests",
+                  "weight": 1.8630123113712242
+                },
+                {
+                  "code": "semantic:avoid",
+                  "label": "its premise may overlap with something you dislike",
+                  "weight": -0.797018896121964
+                }
+              ]
+            },
+            {
+              "key": "movie:900007",
+              "title": "The Borrowed Table",
+              "score": -0.388,
+              "evidence": [
+                {
+                  "code": "semantic:interest",
+                  "label": "its premise is related to your interests",
+                  "weight": 0.93009936645435
+                }
+              ]
+            },
+            {
+              "key": "movie:900001",
+              "title": "Last Place",
+              "score": -0.592,
+              "evidence": [
+                {
+                  "code": "semantic:interest",
+                  "label": "its premise is related to your interests",
+                  "weight": 0.873039734760902
+                },
+                {
+                  "code": "semantic:avoid",
+                  "label": "its premise may overlap with something you dislike",
+                  "weight": -0.14678989291463507
+                }
+              ]
+            },
+            {
+              "key": "movie:900025",
+              "title": "Mutual Orbit",
+              "score": -0.862,
+              "evidence": [
+                {
+                  "code": "semantic:interest",
+                  "label": "its premise is related to your interests",
+                  "weight": 1.1929026145319803
+                },
+                {
+                  "code": "semantic:avoid",
+                  "label": "its premise may overlap with something you dislike",
+                  "weight": -0.7362800672160609
+                }
+              ]
+            },
+            {
+              "key": "movie:900015",
+              "title": "Second Career",
+              "score": -0.715,
+              "evidence": [
+                {
+                  "code": "semantic:interest",
+                  "label": "its premise is related to your interests",
+                  "weight": 0.8349143422102265
+                },
+                {
+                  "code": "semantic:avoid",
+                  "label": "its premise may overlap with something you dislike",
+                  "weight": -0.23118681537033267
+                }
+              ]
+            },
+            {
+              "key": "movie:900019",
+              "title": "Night Train Letters",
+              "score": -0.85,
+              "evidence": [
+                {
+                  "code": "semantic:interest",
+                  "label": "its premise is related to your interests",
+                  "weight": 0.4685007957549248
+                }
+              ]
+            },
+            {
+              "key": "movie:900011",
+              "title": "Paper Trail",
+              "score": -0.999,
+              "evidence": [
+                {
+                  "code": "semantic:interest",
+                  "label": "its premise is related to your interests",
+                  "weight": 0.6441640788528517
+                },
+                {
+                  "code": "semantic:avoid",
+                  "label": "its premise may overlap with something you dislike",
+                  "weight": -0.3247138703956893
+                }
+              ]
+            },
+            {
+              "key": "movie:900023",
+              "title": "Reef Watchers",
+              "score": -1.065,
+              "evidence": [
+                {
+                  "code": "semantic:interest",
+                  "label": "its premise is related to your interests",
+                  "weight": 0.253264856849577
+                }
+              ]
+            }
+          ],
+          "apiCalls": 0
+        },
+        "semantic_ai": {
+          "mode": "semantic_ai",
+          "reason": "selected",
+          "ms": 27948,
+          "covered": 32,
+          "embedded": 0,
+          "cacheHits": 32,
+          "pairs": [
+            {
+              "preferred": "Quiet Repairs",
+              "comparison": "Last Gun",
+              "margin": 4.7115,
+              "credit": 1
+            },
+            {
+              "preferred": "Mutual Orbit",
+              "comparison": "Across the Stars",
+              "margin": 2.9522,
+              "credit": 1
+            }
+          ],
+          "top": [
+            {
+              "key": "movie:900005",
+              "title": "Quiet Repairs",
+              "score": 0.842,
+              "evidence": [
+                {
+                  "code": "semantic:interest",
+                  "label": "its premise is related to your interests",
+                  "weight": 1.8630123113712242
+                },
+                {
+                  "code": "semantic:avoid",
+                  "label": "its premise may overlap with something you dislike",
+                  "weight": -0.797018896121964
+                },
+                {
+                  "code": "semantic:review",
+                  "label": "the supplied premise supports a stated interest",
+                  "weight": 1.0945945945945945
+                }
+              ]
+            },
+            {
+              "key": "movie:900007",
+              "title": "The Borrowed Table",
+              "score": 0.706,
+              "evidence": [
+                {
+                  "code": "semantic:interest",
+                  "label": "its premise is related to your interests",
+                  "weight": 0.93009936645435
+                },
+                {
+                  "code": "semantic:review",
+                  "label": "the supplied premise supports a stated interest",
+                  "weight": 1.0945945945945945
+                }
+              ]
+            },
+            {
+              "key": "movie:900001",
+              "title": "Last Place",
+              "score": 0.503,
+              "evidence": [
+                {
+                  "code": "semantic:interest",
+                  "label": "its premise is related to your interests",
+                  "weight": 0.873039734760902
+                },
+                {
+                  "code": "semantic:avoid",
+                  "label": "its premise may overlap with something you dislike",
+                  "weight": -0.14678989291463507
+                },
+                {
+                  "code": "semantic:review",
+                  "label": "the supplied premise supports a stated interest",
+                  "weight": 1.0945945945945945
+                }
+              ]
+            },
+            {
+              "key": "movie:900025",
+              "title": "Mutual Orbit",
+              "score": 0.233,
+              "evidence": [
+                {
+                  "code": "semantic:interest",
+                  "label": "its premise is related to your interests",
+                  "weight": 1.1929026145319803
+                },
+                {
+                  "code": "semantic:avoid",
+                  "label": "its premise may overlap with something you dislike",
+                  "weight": -0.7362800672160609
+                },
+                {
+                  "code": "semantic:review",
+                  "label": "the supplied premise supports a stated interest",
+                  "weight": 1.0945945945945945
+                }
+              ]
+            },
+            {
+              "key": "movie:900011",
+              "title": "Paper Trail",
+              "score": 0.096,
+              "evidence": [
+                {
+                  "code": "semantic:interest",
+                  "label": "its premise is related to your interests",
+                  "weight": 0.6441640788528517
+                },
+                {
+                  "code": "semantic:avoid",
+                  "label": "its premise may overlap with something you dislike",
+                  "weight": -0.3247138703956893
+                },
+                {
+                  "code": "semantic:review",
+                  "label": "the supplied premise supports a stated interest",
+                  "weight": 1.0945945945945945
+                }
+              ]
+            },
+            {
+              "key": "movie:900015",
+              "title": "Second Career",
+              "score": -0.715,
+              "evidence": [
+                {
+                  "code": "semantic:interest",
+                  "label": "its premise is related to your interests",
+                  "weight": 0.8349143422102265
+                },
+                {
+                  "code": "semantic:avoid",
+                  "label": "its premise may overlap with something you dislike",
+                  "weight": -0.23118681537033267
+                }
+              ]
+            },
+            {
+              "key": "movie:900019",
+              "title": "Night Train Letters",
+              "score": -0.85,
+              "evidence": [
+                {
+                  "code": "semantic:interest",
+                  "label": "its premise is related to your interests",
+                  "weight": 0.4685007957549248
+                }
+              ]
+            },
+            {
+              "key": "movie:900023",
+              "title": "Reef Watchers",
+              "score": -1.065,
+              "evidence": [
+                {
+                  "code": "semantic:interest",
+                  "label": "its premise is related to your interests",
+                  "weight": 0.253264856849577
+                }
+              ]
+            }
+          ],
+          "apiCalls": 1
+        }
+      }
+    }
+  ],
+  "realCatalog": [],
+  "modelVersion": "semantic-1:text-embedding-3-large:1024:gpt-5",
+  "usage": {
+    "embeddingRequests": 0,
+    "embeddingTokens": 0,
+    "reviewRequests": 2,
+    "reviewInputTokens": 1574,
+    "reviewOutputTokens": 3324
+  }
+}

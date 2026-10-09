@@ -13,6 +13,7 @@ export interface RecommendationContext {
   seenHints?: Array<{dimension:string;key:string}>;
   wantHints?: Array<{dimension:string;key:string}>;
   behaviorPersonalization?: boolean;
+  personalAdjustments?: Map<string, RecommendationEvidence[]>;
 }
 export const rankingWeights = { taste: 4, negative: 6, session: 5, availability: 3, unavailable: -2, quality: 1, popularity: .15, watchlist: .2, repetition: 2.5, diversity: .8, seenHint:.12 } as const;
 export const titleKey = (item: Pick<ContentItem, "mediaType" | "id">) => `${item.mediaType}:${item.id}`;
@@ -39,12 +40,17 @@ export function scoreCandidate(item: ContentItem, query: FilterQuery, context: R
   const dimensions = new Set(titleDimensions(item).map((d) => `${d.dimension}:${canonicalTrait(d.key)}`));
   for(const keyword of item.keywords) dimensions.add(`keyword:${canonicalTrait(keyword)}`);
   for(const trait of keys) dimensions.add(`mood:${trait}`);
-  const matches = context.taste.filter((s) => dimensions.has(`${s.dimension}:${canonicalTrait(s.key)}`)||(["keyword","theme"].includes(s.dimension)&&conceptEvidence(item,s.key)));
+  const matches = context.taste.filter((s) => s.dimension!=='story' && (s.conditions?.length ? s.conditions.every(c=>c.values.some(value=>dimensions.has(`${c.dimension}:${canonicalTrait(value)}`)||(c.dimension==='keyword'&&conceptEvidence(item,value)))) : dimensions.has(`${s.dimension}:${canonicalTrait(s.key)}`)||(["keyword","theme"].includes(s.dimension)&&conceptEvidence(item,s.key))));
   const positives = matches.filter((s) => s.score > 0).sort((a,b) => b.score*b.confidence-a.score*a.confidence).slice(0,3);
   // Strongest match leads; two supporting matches give diminishing bonuses.
   // Averaging matches made an extra valid match perversely lower a title's score.
   positives.forEach((s,index)=>add(`${s.confidence >= .5 ? "taste" : "tentative"}:${s.dimension}`, `${s.key} fits your taste`, s.score*s.confidence*rankingWeights.taste*[1,.35,.15][index]!));
-  for (const s of matches.filter((s) => s.score < 0 && s.confidence >= .35).sort((a,b)=>a.score*a.confidence-b.score*b.confidence).slice(0,3)) add(`negative:${s.dimension}`, `less aligned with your preference about ${s.key}`, s.score*s.confidence*rankingWeights.negative);
+  for (const s of matches.filter((s) => s.score < 0 && s.confidence >= .35).sort((a,b)=>a.score*a.confidence-b.score*b.confidence).slice(0,3)) {
+    const direct=['explicit_edit','chat_explicit','onboarding_text','onboarding_explicit'].includes(s.source);
+    // One disliked title is certain about that title, uncertain about its traits.
+    const certainty=direct?1:Math.min(1,.35+.2*(s.evidenceCount-1));
+    add(`negative:${s.dimension}`, `less aligned with your preference about ${s.key}`, s.score*s.confidence*rankingWeights.negative*certainty);
+  }
   // One capped nudge, irrespective of library size. Explicit negative taste wins.
   if(!exact&&context.behaviorPersonalization!==false&&!matches.some(s=>s.score<0)) {
     const hintMatch=(s:{dimension:string;key:string})=>dimensions.has(`${s.dimension}:${canonicalTrait(s.key)}`)||(s.dimension==="keyword"&&Boolean(conceptEvidence(item,s.key)));
@@ -66,6 +72,10 @@ export function scoreCandidate(item: ContentItem, query: FilterQuery, context: R
   score += Math.min(item.popularity / 100, 1) * rankingWeights.popularity;
   const shown = context.recentlyShown?.get(key);
   if (!exact && shown) add("fatigue:shown", "shown recently", -rankingWeights.repetition*Math.pow(.5, (Date.now()-shown)/86_400_000/3));
+  if (!exact) for (const adjustment of context.personalAdjustments?.get(key) ?? []) {
+    // A second layer can reorder eligible titles, never override hard filters.
+    if (Number.isFinite(adjustment.weight)) add(adjustment.code, adjustment.label, adjustment.weight);
+  }
   const reasons = evidence.filter((e) => e.weight > .1 && !e.code.startsWith("quality:") && !e.code.startsWith("tentative:")).sort((a,b)=>b.weight-a.weight).slice(0,2);
   return { item: { ...item, availability: item.availability.map((a) => ({ ...a, owned: context.ownedProviderIds.includes(a.providerId) })) }, score, evidence, reason: reasons.length ? `Because ${reasons.map((e)=>e.label).join(" and ")}.` : "A catalog discovery pick; there is not enough preference evidence for a personal explanation yet." };
 }
@@ -78,12 +88,15 @@ function similarity(a: ContentItem, b: ContentItem): number {
 export function rankCandidates(items: ContentItem[], query: FilterQuery, context: RecommendationContext, limit = 12): RankedContent[] {
   const unique = [...new Map(items.map((i)=>[titleKey(i),i])).values()];
   const remaining = unique.map((i)=>scoreCandidate(i,query,context)).filter((r): r is RankedContent => r !== null).sort((a,b)=>b.score-a.score);
-  // When we have supported topical matches, do not pad a specific request with
-  // unrelated popular films. A shorter honest set is preferable to filler.
-  if(query.keywords.length&&remaining.some(r=>r.evidence.some(e=>e.code==="session:concept"))) {
+  // A topical request must have evidence even when the entire pool misses it.
+  // An empty result is more honest than silently substituting popular titles.
+  if(query.intent==='DISCOVERY'&&query.keywords.length) {
     for(let i=remaining.length-1;i>=0;i--)if(!remaining[i]!.evidence.some(e=>e.code==="session:concept"))remaining.splice(i,1);
   }
   const selected: RankedContent[] = [];
+  // Semantic adjustments have a smaller numerical range than legacy trait sums.
+  // The old .8 penalty could promote an unrelated genre over a real story match.
+  const diversityWeight=context.personalAdjustments?.size ? .24 : rankingWeights.diversity;
   const interests=context.taste.filter(s=>["keyword","theme"].includes(s.dimension)&&s.score>.3&&s.confidence>=.5).map(s=>canonicalConcept(s.key));
   const topics=new Map(remaining.map(r=>[titleKey(r.item),new Set(interests.filter(t=>conceptEvidence(r.item,t)))]));
   const conceptOverlap=(a:ContentItem,b:ContentItem)=>{
@@ -93,7 +106,7 @@ export function rankCandidates(items: ContentItem[], query: FilterQuery, context
   };
   while (remaining.length && selected.length < limit) {
     let best = 0, bestValue = -Infinity;
-    remaining.forEach((r,index)=>{ const overlap = Math.max(0,...selected.map((s)=>Math.max(similarity(r.item,s.item),conceptOverlap(r.item,s.item)))); const value = r.score-rankingWeights.diversity*overlap; if (value>bestValue) { best=index; bestValue=value; } });
+    remaining.forEach((r,index)=>{ const overlap = Math.max(0,...selected.map((s)=>Math.max(similarity(r.item,s.item),conceptOverlap(r.item,s.item)))); const value = r.score-diversityWeight*overlap; if (value>bestValue) { best=index; bestValue=value; } });
     selected.push(remaining.splice(best,1)[0]!);
   }
   return selected;

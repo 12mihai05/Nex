@@ -53,6 +53,27 @@ export function canonicalConcept(value:string):string {
   return Object.entries(groups).find(([,values])=>values.some(v=>normalize(v)===n))?.[0]??n;
 }
 export function conceptTerms(value:string):string[]{const key=canonicalConcept(value);return [...new Set([key,...(groups[key]??[])])];}
+// Context for short legacy tags, not additional preferences or inferred facts.
+// Qualified user-authored meanings take precedence over these dictionary senses.
+export function conceptMeaning(value:string):string {
+  const key=canonicalConcept(value);
+  const definitions:Record<string,string>={
+    underdog:'An underestimated person or disadvantaged group struggles to overcome obstacles with fewer resources, lower status or less power than those around them.',
+    redemption:'People acknowledging past wrongdoing and trying to make amends or earn a second chance.',
+    'found family':'People who are not related forming a caring chosen family and a sense of belonging.',
+    identity:'Characters exploring who they are, their sense of self or personal identity.',
+    memory:'Characters remembering, forgetting or confronting memories of past experiences.',
+    'time loop':'Characters repeatedly experiencing the same interval of time and trying to understand or change the repetition.',
+    'moral dilemma':'Characters facing difficult ethical choices between competing values, with no simple right answer.',
+    teamwork:'People cooperating, combining their abilities and working together toward a shared goal.',
+    'problem solving':'Characters using reasoning, resourcefulness or practical ingenuity to solve difficult problems.',
+    'social satire':'Stories using irony or absurdity to criticize social institutions and customs.',
+    'class conflict':'Conflict arising from unequal wealth, opportunity or social status.',
+    'human connection':'People developing meaningful relationships and finding companionship.',
+    'coming of age':'Young people growing toward adulthood and navigating changes in responsibility and identity.',
+  };
+  return definitions[key]?`${key}: ${definitions[key]}`:`Stories involving ${key}.`;
+}
 function includesPhrase(text:string,phrase:string):boolean {
   const escaped=normalize(phrase).replace(/[.*+?^${}()|[\]\\]/g,"\\$&");
   return new RegExp(`(?:^|[^a-z0-9])${escaped}(?:$|[^a-z0-9])`,"i").test(normalize(text));

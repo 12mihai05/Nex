@@ -31,6 +31,23 @@ describe("user ownership isolation", () => {
   });
 
   afterEach(() => client.close());
+  it('scoped taste survives corrections, deletion is isolated, and displayed batches are complete',async()=>{
+    const signal={dimension:'combination',key:'Chinese romance',score:-1,confidence:1,evidenceCount:1,source:'chat_explicit',conditions:[{dimension:'genre' as const,values:['romance']},{dimension:'country' as const,values:['CN']}]};
+    await repository.upsertTaste('alice',[signal]);
+    await repository.upsertTaste('alice',[{...signal,conditions:undefined,score:1,source:'explicit_edit'}]);
+    expect((await repository.getTaste('alice'))[0]?.conditions).toEqual(signal.conditions);
+    await repository.removeTaste('bob','combination','chinese romance');
+    expect(await repository.getTaste('alice')).toHaveLength(1);
+    await repository.removeTaste('alice','combination','chinese romance');expect(await repository.getTaste('alice')).toHaveLength(0);
+    const session=await repository.createConversation('alice');
+    for(let n=0;n<2;n++){
+      const message=await repository.addConversationMessage('alice',session,'assistant','cards');
+      await repository.saveDisplayedItems('alice',session,message,Array.from({length:30},(_,i)=>({...fixtureCatalog[0]!,id:n*100+i})));
+    }
+    const refs=await repository.recentDisplayedItems('alice',session);
+    expect(refs).toHaveLength(30);expect(refs[0]!.externalId).toBe('100');expect(refs.at(-1)!.position).toBe(30);
+    await expect(repository.recentDisplayedItems('bob',session)).rejects.toThrow();
+  });
 
   it("Chat forwards its guarded current filter to composition on a short follow-up",async()=>{
     const ai=new AiService("");const catalog=new FixtureTmdbRepository();

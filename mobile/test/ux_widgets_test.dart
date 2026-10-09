@@ -21,7 +21,8 @@ void main() {
         home: const PreparationScreen(phase: 'Saving your choices'),
       ),
     );
-    expect(find.text('Saving your choices'), findsOneWidget);
+    expect(find.text('Saving your choices'), findsNothing);
+    expect(find.bySemanticsLabel('Saving your choices'), findsOneWidget);
     expect(find.byType(CircularProgressIndicator), findsNothing);
     expect(find.byType(LinearProgressIndicator), findsNothing);
     await tester.pump(const Duration(seconds: 4));

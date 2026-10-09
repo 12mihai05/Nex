@@ -1,0 +1,93 @@
+{
+  "steps": [
+    {
+      "step": "/api/auth/sign-up/email",
+      "status": 200,
+      "ms": 67
+    },
+    {
+      "step": "/api/me/settings",
+      "status": 200,
+      "ms": 18
+    },
+    {
+      "step": "/api/me/settings",
+      "status": 200,
+      "ms": 2
+    },
+    {
+      "step": "/api/chat",
+      "status": 200,
+      "ms": 7674
+    },
+    {
+      "step": "/api/me/taste",
+      "status": 200,
+      "ms": 3
+    },
+    {
+      "step": "/api/discovery",
+      "status": 200,
+      "ms": 1905
+    },
+    {
+      "step": "/api/me/history",
+      "status": 201,
+      "ms": 13
+    },
+    {
+      "step": "/api/me/watchlist",
+      "status": 201,
+      "ms": 10
+    },
+    {
+      "step": "/api/me/feedback",
+      "status": 200,
+      "ms": 20
+    },
+    {
+      "step": "/api/me/history",
+      "status": 200,
+      "ms": 4
+    },
+    {
+      "step": "/api/surprise",
+      "status": 200,
+      "ms": 3291
+    },
+    {
+      "step": "/api/me/taste",
+      "status": 200,
+      "ms": 18
+    },
+    {
+      "step": "/api/me/taste",
+      "status": 200,
+      "ms": 3
+    },
+    {
+      "step": "/api/me/taste/entry",
+      "status": 204,
+      "ms": 6
+    },
+    {
+      "step": "/api/me/taste",
+      "status": 200,
+      "ms": 3
+    },
+    {
+      "step": "/api/auth/delete-user",
+      "status": 200,
+      "ms": 87
+    }
+  ],
+  "checks": [
+    "Chat → grounded preference → persisted Taste",
+    "Home response includes applied semantic evidence",
+    "Seen, Want to see and Super Like remain independent",
+    "Pick applies semantic ranking and Seen exclusion",
+    "Edit/forget retains meaning or removes signal correctly",
+    "Account deletion cascades new private caches"
+  ],
+  "complete": true
+}

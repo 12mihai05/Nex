@@ -79,7 +79,24 @@ void main() {
         sessionId: chat['sessionId'] as String,
       );
       expect(
-        (action['blocks'] as List).any((b) => b['type'] == 'confirmation'),
+        (action['blocks'] as List).any(
+          (b) => b['type'] == 'library_changes' && b['status'] == 'preview',
+        ),
+        isTrue,
+      );
+      final confirmation = (action['blocks'] as List)
+          .where((b) => b['type'] == 'quick_actions')
+          .expand((b) => b['actions'] as List)
+          .cast<String>()
+          .firstWhere((s) => s.startsWith('Confirm changes '));
+      final saved = await api.chat(
+        confirmation,
+        sessionId: chat['sessionId'] as String,
+      );
+      expect(
+        (saved['blocks'] as List).any(
+          (b) => b['type'] == 'library_changes' && b['status'] == 'saved',
+        ),
         isTrue,
       );
       await api.removeWatchlist(arrival);
@@ -150,7 +167,6 @@ void main() {
       );
       expect(ok, isTrue);
       expect(container.read(appControllerProvider).demoMode, isFalse);
-      expect(controller.catalog, isNotEmpty);
       tester.view.physicalSize = const Size(430, 932);
       tester.view.devicePixelRatio = 1;
       await tester.binding.setSurfaceSize(const Size(430, 932));
@@ -178,9 +194,17 @@ void main() {
           ),
         ),
       );
-      await tester.runAsync(
-        () => Future<void>.delayed(const Duration(seconds: 3)),
-      );
+      for (
+        var attempt = 0;
+        attempt < 60 && controller.catalog.isEmpty;
+        attempt++
+      ) {
+        await tester.runAsync(
+          () => Future<void>.delayed(const Duration(seconds: 1)),
+        );
+        await tester.pump();
+      }
+      expect(controller.catalog, isNotEmpty);
       await tester.pump(const Duration(seconds: 2));
       expect(find.text(controller.catalog.first.title), findsWidgets);
       await tester.runAsync(() async {
@@ -201,10 +225,10 @@ void main() {
           () => Future<void>.delayed(const Duration(seconds: 1)),
         );
         await tester.pump();
-        if (find.byTooltip('Favorite channel').evaluate().isNotEmpty) break;
+        if (find.byTooltip('Favourite channel').evaluate().isNotEmpty) break;
       }
-      expect(find.text('Live now'), findsOneWidget);
-      expect(find.byTooltip('Favorite channel'), findsWidgets);
+      expect(find.text('TV guide'), findsOneWidget);
+      expect(find.byTooltip('Favourite channel'), findsWidgets);
       expect(tester.takeException(), isNull);
       await tester.runAsync(() async {
         final image =

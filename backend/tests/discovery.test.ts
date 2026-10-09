@@ -10,6 +10,13 @@ import { filterQuerySchema } from "../src/domain/types.js";
 const state = () => ({country:"RO",timezone:"Europe/Bucharest",ownedProviderIds:[8],taste:[],watchedIds:new Set<number>(),watchlistIds:new Set<number>(),watchedKeys:new Set<string>(),watchlistKeys:new Set<string>(),ratedKeys:new Set<string>(),rejectedKeys:new Set<string>(),recentlyShown:new Map<string,number>(),wantHints:[],seenHints:[],behaviorPersonalization:true,favorites:[],saved:[]});
 const items = Array.from({length:180},(_,id)=>({...fixtureCatalog[0]!,id:id+1,title:`Title ${id}`,mediaType:id%5===0?"series" as const:"movie" as const,genres:[["Drama"],["Comedy"],["Thriller"],["Animation"]][id%4]!,keywords:id%3===0?["underdog"]:[],moods:[],rating:8,voteCount:500,runtimeMinutes:id%2===0?85:125,year:id%3===0?1990:2026,availability:[{providerId:8,providerName:"Netflix",logoUrl:null,access:"included" as const,owned:true}]}));
 describe("personalized discovery shelves",()=>{
+  it('never repeats a title across paged shelves when prior delivered identities are supplied',()=>{
+    const seen:string[]=[];const s=state(),plan=discoveryShelves(s).map(r=>r.id);
+    for(let batch=0;batch<6;batch++)for(const row of buildDiscoveryRows(items,s,'u',{},batch,plan,seen))for(const r of row.items){
+      const key=`${r.item.mediaType}:${r.item.id}`;expect(seen).not.toContain(key);seen.push(key);
+    }
+    expect(seen.length).toBeGreaterThan(80);
+  });
   it("prioritizes mixed story preferences and suppresses strongly disliked category rows",()=>{
     const s={...state(),taste:[
       {dimension:"keyword",key:"underdog",score:.9,confidence:.9,evidenceCount:3,source:"explicit_edit"},
@@ -50,7 +57,7 @@ describe("personalized discovery shelves",()=>{
     for(let batch=0;batch<6;batch++) {
       calls=0;
       const rows=await discoverHome(catalog,state(),"u",{mediaType:"movie",minRuntimeMinutes:80,maxRuntimeMinutes:90},batch);
-      expect(calls).toBeLessThanOrEqual(6);
+      expect(calls).toBeLessThanOrEqual(9); // Up to three sparse-shelf refill queries.
       expect(rows.length).toBeLessThanOrEqual(6);
       for(const row of rows) {
         expect(ids.has(row.id)).toBe(false);ids.add(row.id);
@@ -105,7 +112,7 @@ describe("personalized discovery shelves",()=>{
     expect(rows[0]!.items).toHaveLength(20);
     const counts=new Map<string,number>();
     for(const row of rows){expect(row.items.length).toBeLessThanOrEqual(20);expect(new Set(row.items.map(r=>r.item.id)).size).toBe(row.items.length);for(const r of row.items)counts.set(r.item.title,(counts.get(r.item.title)??0)+1);}
-    expect(Math.max(...counts.values())).toBeLessThanOrEqual(3);
+    expect(Math.max(...counts.values())).toBe(1);
     expect(rows.find(r=>r.id==="short")!.items.every(r=>r.item.runtimeMinutes!<=100&&r.item.mediaType==="movie")).toBe(true);
     expect(rows.find(r=>r.id==="series")!.items.every(r=>r.item.mediaType==="series")).toBe(true);
   });

@@ -28,6 +28,11 @@ void showChatHelp(BuildContext context) => showModalBottomSheet<void>(
         ),
         const SizedBox(height: 12),
         const _HelpItem(
+          Icons.info_outline,
+          'Go beyond the synopsis',
+          'Ask about cast, creators, seasons or entertainment news. Refer to a recent card by title or position. Current web answers include links to their sources.',
+        ),
+        const _HelpItem(
           Icons.movie_outlined,
           'Find your next watch',
           'Describe a story, mood, genre or time limit. Mention the services you want.',

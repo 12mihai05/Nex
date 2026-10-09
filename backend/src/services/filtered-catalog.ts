@@ -4,6 +4,7 @@ import type { TmdbRepository } from "../repositories/tmdb-repository.js";
 import type { UserRepository } from "../repositories/user-repository.js";
 import { rankCandidates } from "./recommendation.js";
 import { watchedCandidates } from "./discovery.js";
+import type { PersonalizationService } from './personalization.js';
 
 export const catalogFilterSchema = z.object({
   mediaType: z.enum(["any", "movie", "series"]).default("any"),
@@ -20,17 +21,18 @@ export const catalogFilterSchema = z.object({
 
 export async function filteredCatalog(catalog: TmdbRepository,
   state: Awaited<ReturnType<UserRepository["getRecommendationState"]>>, userId: string,
-  input: z.infer<typeof catalogFilterSchema>) {
+  input: z.infer<typeof catalogFilterSchema>,personalizer?:PersonalizationService) {
   const query = filterQuerySchema.parse({intent: "DISCOVERY", mediaType: input.mediaType,
     genres: input.genre ? [input.genre] : [], minRuntimeMinutes: input.minMinutes,
     maxRuntimeMinutes: input.maxMinutes,providerIds:input.providerIds,
     excludeWatched:input.watchStatus!=="again"&&input.watchStatus!=="either"});
   if(input.providerIds?.some(id=>!state.ownedProviderIds.includes(id))) return {data:[],meta:{page:input.page,hasMore:false}};
-  // No AI or preference writes. Shared TMDB metadata remains cached; ranking is per viewer.
+  // Shared TMDB metadata remains cached; ranking is per viewer.
   const pool = input.watchStatus==="again" ? await watchedCandidates(catalog,state) : await catalog.discover({...query, region: state.country, providerIds: input.providerIds??state.ownedProviderIds,
     page: input.page, limit: 20});
   if(input.watchStatus==="either") pool.push(...await watchedCandidates(catalog,state));
-  const ranked = rankCandidates(pool, query, {...state, viewerIds: [userId], temporaryMoods: []}, 40);
+  const personal=await personalizer?.prepare(pool,state,userId,query);
+  const ranked = rankCandidates(pool, query, {...state,...personal, viewerIds: [userId], temporaryMoods: []}, 40);
   return {data: ranked.map(r => r.item), meta: {page: input.page,
     // Keep paging even if some candidates were removed by hard filters.
     hasMore: input.watchStatus!=="again" && catalog.mode === "live" && pool.length > 0 && input.page < 500}};

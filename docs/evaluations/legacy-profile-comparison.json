@@ -1,0 +1,1657 @@
+{
+  "method": "Frozen pre-experiment extraction → legacy scoring on the same predefined synopsis pairs. Missing calls are not counted as successes.",
+  "cases": [
+    {
+      "id": "outsiders-through-effort",
+      "status": "ok",
+      "description": "I like underdog.",
+      "ms": 1926,
+      "signals": [
+        {
+          "dimension": "keyword",
+          "key": "underdog",
+          "score": 0.8,
+          "confidence": 0.7297297297297297
+        }
+      ],
+      "pairs": [
+        {
+          "preferred": "Last Place",
+          "comparison": "Masters of the Court",
+          "margin": 0,
+          "credit": 0.5
+        },
+        {
+          "preferred": "Second Career",
+          "comparison": "Office Empire",
+          "margin": 0,
+          "credit": 0.5
+        }
+      ],
+      "top": [
+        {
+          "title": "Last Place",
+          "score": -1.318
+        },
+        {
+          "title": "Last Gun",
+          "score": -1.318
+        },
+        {
+          "title": "The Borrowed Table",
+          "score": -1.318
+        },
+        {
+          "title": "Dinner for Two",
+          "score": -1.318
+        },
+        {
+          "title": "Twelve Minutes",
+          "score": -1.318
+        },
+        {
+          "title": "Paper Trail",
+          "score": -1.318
+        },
+        {
+          "title": "The Unreliable Room",
+          "score": -1.318
+        },
+        {
+          "title": "Reef Watchers",
+          "score": -1.318
+        }
+      ]
+    },
+    {
+      "id": "repairing-relationships",
+      "status": "ok",
+      "description": "I like people patiently rebuilding broken trust.",
+      "ms": 3167,
+      "signals": [
+        {
+          "dimension": "keyword",
+          "key": "redemption",
+          "score": 0.9,
+          "confidence": 0.7297297297297297
+        },
+        {
+          "dimension": "keyword",
+          "key": "friendship",
+          "score": 0.6,
+          "confidence": 0.7058823529411765
+        }
+      ],
+      "pairs": [
+        {
+          "preferred": "Broken Bridge",
+          "comparison": "Inheritance War",
+          "margin": 0,
+          "credit": 0.5
+        },
+        {
+          "preferred": "Shared Road",
+          "comparison": "The Lonely Road",
+          "margin": 0,
+          "credit": 0.5
+        }
+      ],
+      "top": [
+        {
+          "title": "Mutual Orbit",
+          "score": 0.376
+        },
+        {
+          "title": "Last Place",
+          "score": -1.318
+        },
+        {
+          "title": "Last Gun",
+          "score": -1.318
+        },
+        {
+          "title": "The Borrowed Table",
+          "score": -1.318
+        },
+        {
+          "title": "Dinner for Two",
+          "score": -1.318
+        },
+        {
+          "title": "Paper Trail",
+          "score": -1.318
+        },
+        {
+          "title": "The Unreliable Room",
+          "score": -1.318
+        },
+        {
+          "title": "Reef Watchers",
+          "score": -1.318
+        }
+      ]
+    },
+    {
+      "id": "competence-not-violence",
+      "status": "ok",
+      "description": "I like ordinary people solving practical problems together. I dislike conflicts solved through violence.",
+      "ms": 9374,
+      "signals": [
+        {
+          "dimension": "keyword",
+          "key": "teamwork",
+          "score": 0.7,
+          "confidence": 0.7206703910614525
+        },
+        {
+          "dimension": "keyword",
+          "key": "violence",
+          "score": -0.8,
+          "confidence": 0.7297297297297297
+        }
+      ],
+      "pairs": [
+        {
+          "preferred": "Quiet Repairs",
+          "comparison": "Last Gun",
+          "margin": 2.0179,
+          "credit": 1
+        },
+        {
+          "preferred": "Mutual Orbit",
+          "comparison": "Across the Stars",
+          "margin": 2.0179,
+          "credit": 1
+        }
+      ],
+      "top": [
+        {
+          "title": "Last Place",
+          "score": 0.7
+        },
+        {
+          "title": "Mutual Orbit",
+          "score": 0.7
+        },
+        {
+          "title": "The Borrowed Table",
+          "score": -1.318
+        },
+        {
+          "title": "Dinner for Two",
+          "score": -1.318
+        },
+        {
+          "title": "Paper Trail",
+          "score": -1.318
+        },
+        {
+          "title": "The Unreliable Room",
+          "score": -1.318
+        },
+        {
+          "title": "Reef Watchers",
+          "score": -1.318
+        },
+        {
+          "title": "Instant Fortune",
+          "score": -1.318
+        }
+      ]
+    },
+    {
+      "id": "warm-belonging-not-romance",
+      "status": "ok",
+      "description": "I like lonely people finding belonging through everyday kindness. I dislike glamorous romantic fantasies.",
+      "ms": 9189,
+      "signals": [
+        {
+          "dimension": "keyword",
+          "key": "found family",
+          "score": 0.8,
+          "confidence": 0.7005988023952096
+        },
+        {
+          "dimension": "keyword",
+          "key": "friendship",
+          "score": 0.6,
+          "confidence": 0.6835443037974683
+        },
+        {
+          "dimension": "combination",
+          "key": "romantic fantasy",
+          "score": -0.7,
+          "confidence": 0.6774193548387096,
+          "conditions": [
+            {
+              "dimension": "genre",
+              "values": [
+                "romance"
+              ]
+            },
+            {
+              "dimension": "genre",
+              "values": [
+                "fantasy"
+              ]
+            }
+          ]
+        }
+      ],
+      "pairs": [
+        {
+          "preferred": "The Borrowed Table",
+          "comparison": "Dinner for Two",
+          "margin": 2.2419,
+          "credit": 1
+        },
+        {
+          "preferred": "The Borrowed Table",
+          "comparison": "Perfect Wedding",
+          "margin": 2.2419,
+          "credit": 1
+        }
+      ],
+      "top": [
+        {
+          "title": "The Borrowed Table",
+          "score": 0.924
+        },
+        {
+          "title": "Mutual Orbit",
+          "score": 0.322
+        },
+        {
+          "title": "Last Place",
+          "score": -1.318
+        },
+        {
+          "title": "Last Gun",
+          "score": -1.318
+        },
+        {
+          "title": "Dinner for Two",
+          "score": -1.318
+        },
+        {
+          "title": "Paper Trail",
+          "score": -1.318
+        },
+        {
+          "title": "The Unreliable Room",
+          "score": -1.318
+        },
+        {
+          "title": "Reef Watchers",
+          "score": -1.318
+        }
+      ]
+    },
+    {
+      "id": "time-puzzles-not-space-wars",
+      "status": "ok",
+      "description": "I like time loop. I dislike war.",
+      "ms": 2196,
+      "signals": [
+        {
+          "dimension": "keyword",
+          "key": "time loop",
+          "score": 0.8,
+          "confidence": 0.7297297297297297
+        },
+        {
+          "dimension": "genre",
+          "key": "war",
+          "score": -0.9,
+          "confidence": 0.7297297297297297
+        }
+      ],
+      "pairs": [
+        {
+          "preferred": "Twelve Minutes",
+          "comparison": "Across the Stars",
+          "margin": 2.3351,
+          "credit": 1
+        }
+      ],
+      "top": [
+        {
+          "title": "Twelve Minutes",
+          "score": 1.017
+        },
+        {
+          "title": "Last Place",
+          "score": -1.318
+        },
+        {
+          "title": "Last Gun",
+          "score": -1.318
+        },
+        {
+          "title": "The Borrowed Table",
+          "score": -1.318
+        },
+        {
+          "title": "Dinner for Two",
+          "score": -1.318
+        },
+        {
+          "title": "Paper Trail",
+          "score": -1.318
+        },
+        {
+          "title": "The Unreliable Room",
+          "score": -1.318
+        },
+        {
+          "title": "Reef Watchers",
+          "score": -1.318
+        }
+      ]
+    },
+    {
+      "id": "investigative-process",
+      "status": "ok",
+      "description": "I like patient evidence gathering that exposes institutional wrongdoing.",
+      "ms": 2190,
+      "signals": [
+        {
+          "dimension": "keyword",
+          "key": "moral dilemma",
+          "score": 0.8,
+          "confidence": 0.7058823529411765
+        }
+      ],
+      "pairs": [
+        {
+          "preferred": "Paper Trail",
+          "comparison": "The Chase",
+          "margin": 0,
+          "credit": 0.5
+        },
+        {
+          "preferred": "Paper Trail",
+          "comparison": "Courtroom Champion",
+          "margin": 0,
+          "credit": 0.5
+        }
+      ],
+      "top": [
+        {
+          "title": "Last Place",
+          "score": -1.318
+        },
+        {
+          "title": "Last Gun",
+          "score": -1.318
+        },
+        {
+          "title": "The Borrowed Table",
+          "score": -1.318
+        },
+        {
+          "title": "Dinner for Two",
+          "score": -1.318
+        },
+        {
+          "title": "Twelve Minutes",
+          "score": -1.318
+        },
+        {
+          "title": "Paper Trail",
+          "score": -1.318
+        },
+        {
+          "title": "The Unreliable Room",
+          "score": -1.318
+        },
+        {
+          "title": "Reef Watchers",
+          "score": -1.318
+        }
+      ]
+    },
+    {
+      "id": "cozy-mystery-no-gore",
+      "status": "ok",
+      "description": "I like affectionate village mysteries solved by ordinary neighbors. I dislike gore.",
+      "ms": 5285,
+      "signals": [
+        {
+          "dimension": "genre",
+          "key": "mystery",
+          "score": 0.9,
+          "confidence": 0.7297297297297297
+        },
+        {
+          "dimension": "keyword",
+          "key": "found family",
+          "score": 0.7,
+          "confidence": 0.7058823529411765
+        },
+        {
+          "dimension": "keyword",
+          "key": "underdog",
+          "score": 0.7,
+          "confidence": 0.7058823529411765
+        },
+        {
+          "dimension": "keyword",
+          "key": "gore",
+          "score": -0.9000000000000001,
+          "confidence": 0.7402597402597403
+        }
+      ],
+      "pairs": [
+        {
+          "preferred": "Small Town Puzzle",
+          "comparison": "The Cellar",
+          "margin": 6.6244,
+          "credit": 1
+        },
+        {
+          "preferred": "Small Town Puzzle",
+          "comparison": "The Chase",
+          "margin": 2.627,
+          "credit": 1
+        }
+      ],
+      "top": [
+        {
+          "title": "Small Town Puzzle",
+          "score": 1.309
+        },
+        {
+          "title": "The Unreliable Room",
+          "score": 1.309
+        },
+        {
+          "title": "The Clear Record",
+          "score": 1.309
+        },
+        {
+          "title": "The Borrowed Table",
+          "score": 0.658
+        },
+        {
+          "title": "Last Place",
+          "score": -1.318
+        },
+        {
+          "title": "Last Gun",
+          "score": -1.318
+        },
+        {
+          "title": "Dinner for Two",
+          "score": -1.318
+        },
+        {
+          "title": "Twelve Minutes",
+          "score": -1.318
+        }
+      ]
+    },
+    {
+      "id": "adult-second-chances",
+      "status": "ok",
+      "description": "I like middle aged people rebuilding their lives through learning and setbacks.",
+      "ms": 4064,
+      "signals": [
+        {
+          "dimension": "keyword",
+          "key": "redemption",
+          "score": 0.8,
+          "confidence": 0.7297297297297297
+        }
+      ],
+      "pairs": [
+        {
+          "preferred": "Second Career",
+          "comparison": "Office Empire",
+          "margin": 0,
+          "credit": 0.5
+        },
+        {
+          "preferred": "Second Career",
+          "comparison": "Instant Fortune",
+          "margin": 0,
+          "credit": 0.5
+        }
+      ],
+      "top": [
+        {
+          "title": "Last Place",
+          "score": -1.318
+        },
+        {
+          "title": "Last Gun",
+          "score": -1.318
+        },
+        {
+          "title": "The Borrowed Table",
+          "score": -1.318
+        },
+        {
+          "title": "Dinner for Two",
+          "score": -1.318
+        },
+        {
+          "title": "Twelve Minutes",
+          "score": -1.318
+        },
+        {
+          "title": "Paper Trail",
+          "score": -1.318
+        },
+        {
+          "title": "The Unreliable Room",
+          "score": -1.318
+        },
+        {
+          "title": "Reef Watchers",
+          "score": -1.318
+        }
+      ]
+    },
+    {
+      "id": "moral-cost",
+      "status": "ok",
+      "description": "I like principled people facing ethical choices where every option has a cost.",
+      "ms": 1706,
+      "signals": [
+        {
+          "dimension": "keyword",
+          "key": "moral dilemma",
+          "score": 0.8,
+          "confidence": 0.7297297297297297
+        }
+      ],
+      "pairs": [
+        {
+          "preferred": "Uncertain Mercy",
+          "comparison": "Courtroom Champion",
+          "margin": 0,
+          "credit": 0.5
+        },
+        {
+          "preferred": "Uncertain Mercy",
+          "comparison": "Last Gun",
+          "margin": 0,
+          "credit": 0.5
+        }
+      ],
+      "top": [
+        {
+          "title": "Last Place",
+          "score": -1.318
+        },
+        {
+          "title": "Last Gun",
+          "score": -1.318
+        },
+        {
+          "title": "The Borrowed Table",
+          "score": -1.318
+        },
+        {
+          "title": "Dinner for Two",
+          "score": -1.318
+        },
+        {
+          "title": "Twelve Minutes",
+          "score": -1.318
+        },
+        {
+          "title": "Paper Trail",
+          "score": -1.318
+        },
+        {
+          "title": "The Unreliable Room",
+          "score": -1.318
+        },
+        {
+          "title": "Reef Watchers",
+          "score": -1.318
+        }
+      ]
+    },
+    {
+      "id": "brief-bittersweet-connection",
+      "status": "ok",
+      "description": "I like fleeting connections that remain meaningful without a conventional happy romance.",
+      "ms": 2669,
+      "signals": [
+        {
+          "dimension": "keyword",
+          "key": "friendship",
+          "score": 0.8,
+          "confidence": 0.6774193548387096
+        }
+      ],
+      "pairs": [
+        {
+          "preferred": "Night Train Letters",
+          "comparison": "Perfect Wedding",
+          "margin": 0,
+          "credit": 0.5
+        },
+        {
+          "preferred": "Night Train Letters",
+          "comparison": "Dinner for Two",
+          "margin": 0,
+          "credit": 0.5
+        }
+      ],
+      "top": [
+        {
+          "title": "Mutual Orbit",
+          "score": 0.849
+        },
+        {
+          "title": "Last Place",
+          "score": -1.318
+        },
+        {
+          "title": "Last Gun",
+          "score": -1.318
+        },
+        {
+          "title": "The Borrowed Table",
+          "score": -1.318
+        },
+        {
+          "title": "Dinner for Two",
+          "score": -1.318
+        },
+        {
+          "title": "Paper Trail",
+          "score": -1.318
+        },
+        {
+          "title": "The Unreliable Room",
+          "score": -1.318
+        },
+        {
+          "title": "Reef Watchers",
+          "score": -1.318
+        }
+      ]
+    },
+    {
+      "id": "unreliable-memory",
+      "status": "ok",
+      "description": "I like stories that make me question conflicting memories and what really happened.",
+      "ms": 2970,
+      "signals": [
+        {
+          "dimension": "keyword",
+          "key": "memory",
+          "score": 0.8,
+          "confidence": 0.7297297297297297
+        }
+      ],
+      "pairs": [
+        {
+          "preferred": "The Unreliable Room",
+          "comparison": "The Clear Record",
+          "margin": 2.3351,
+          "credit": 1
+        },
+        {
+          "preferred": "The Unreliable Room",
+          "comparison": "Across the Stars",
+          "margin": 2.3351,
+          "credit": 1
+        }
+      ],
+      "top": [
+        {
+          "title": "Night Train Letters",
+          "score": 1.017
+        },
+        {
+          "title": "The Unreliable Room",
+          "score": 1.017
+        },
+        {
+          "title": "Last Gun",
+          "score": -1.318
+        },
+        {
+          "title": "The Borrowed Table",
+          "score": -1.318
+        },
+        {
+          "title": "Twelve Minutes",
+          "score": -1.318
+        },
+        {
+          "title": "Paper Trail",
+          "score": -1.318
+        },
+        {
+          "title": "Reef Watchers",
+          "score": -1.318
+        },
+        {
+          "title": "Instant Fortune",
+          "score": -1.318
+        }
+      ]
+    },
+    {
+      "id": "nature-not-celebrity",
+      "status": "ok",
+      "description": "I like quiet observation of ecosystems and animal relationships. I dislike celebrity worship.",
+      "ms": 2470,
+      "signals": [
+        {
+          "dimension": "keyword",
+          "key": "nature",
+          "score": 0.8,
+          "confidence": 0.7297297297297297
+        },
+        {
+          "dimension": "keyword",
+          "key": "celebrity worship",
+          "score": -0.8,
+          "confidence": 0.7297297297297297
+        }
+      ],
+      "pairs": [
+        {
+          "preferred": "Reef Watchers",
+          "comparison": "Stage Lights",
+          "margin": 2.3351,
+          "credit": 1
+        },
+        {
+          "preferred": "Reef Watchers",
+          "comparison": "Dinner for Two",
+          "margin": 2.3351,
+          "credit": 1
+        }
+      ],
+      "top": [
+        {
+          "title": "Reef Watchers",
+          "score": 1.017
+        },
+        {
+          "title": "Last Place",
+          "score": -1.318
+        },
+        {
+          "title": "Last Gun",
+          "score": -1.318
+        },
+        {
+          "title": "The Borrowed Table",
+          "score": -1.318
+        },
+        {
+          "title": "Dinner for Two",
+          "score": -1.318
+        },
+        {
+          "title": "Twelve Minutes",
+          "score": -1.318
+        },
+        {
+          "title": "Paper Trail",
+          "score": -1.318
+        },
+        {
+          "title": "The Unreliable Room",
+          "score": -1.318
+        }
+      ]
+    },
+    {
+      "id": "women-with-agency",
+      "status": "ok",
+      "description": "I like women solving technical problems as friends, with goals beyond romance.",
+      "ms": 5164,
+      "signals": [
+        {
+          "dimension": "keyword",
+          "key": "female led",
+          "score": 0.8,
+          "confidence": 0.7297297297297297
+        },
+        {
+          "dimension": "keyword",
+          "key": "engineering",
+          "score": 0.7,
+          "confidence": 0.7058823529411765
+        },
+        {
+          "dimension": "keyword",
+          "key": "friendship",
+          "score": 0.8,
+          "confidence": 0.7297297297297297
+        },
+        {
+          "dimension": "keyword",
+          "key": "non romantic focus",
+          "score": 0.7,
+          "confidence": 0.7183098591549295
+        }
+      ],
+      "pairs": [
+        {
+          "preferred": "Mutual Orbit",
+          "comparison": "The Destined Pair",
+          "margin": 2.3351,
+          "credit": 1
+        },
+        {
+          "preferred": "Mutual Orbit",
+          "comparison": "Dinner for Two",
+          "margin": 2.3351,
+          "credit": 1
+        }
+      ],
+      "top": [
+        {
+          "title": "Mutual Orbit",
+          "score": 1.017
+        },
+        {
+          "title": "Last Place",
+          "score": -1.318
+        },
+        {
+          "title": "Last Gun",
+          "score": -1.318
+        },
+        {
+          "title": "The Borrowed Table",
+          "score": -1.318
+        },
+        {
+          "title": "Dinner for Two",
+          "score": -1.318
+        },
+        {
+          "title": "Paper Trail",
+          "score": -1.318
+        },
+        {
+          "title": "The Unreliable Room",
+          "score": -1.318
+        },
+        {
+          "title": "Reef Watchers",
+          "score": -1.318
+        }
+      ]
+    },
+    {
+      "id": "absurd-systems-not-slapstick",
+      "status": "ok",
+      "description": "I like surreal satire about oppressive bureaucracy. I dislike bodily slapstick humiliation.",
+      "ms": 5478,
+      "signals": [
+        {
+          "dimension": "keyword",
+          "key": "surrealism",
+          "score": 0.8,
+          "confidence": 0.7297297297297297
+        },
+        {
+          "dimension": "keyword",
+          "key": "social satire",
+          "score": 0.9000000000000001,
+          "confidence": 0.7402597402597403
+        },
+        {
+          "dimension": "keyword",
+          "key": "bureaucracy",
+          "score": 0.8499999999999999,
+          "confidence": 0.7297297297297297
+        },
+        {
+          "dimension": "keyword",
+          "key": "slapstick",
+          "score": -0.9000000000000001,
+          "confidence": 0.7402597402597403
+        },
+        {
+          "dimension": "keyword",
+          "key": "humiliation",
+          "score": -0.8,
+          "confidence": 0.7297297297297297
+        }
+      ],
+      "pairs": [
+        {
+          "preferred": "Impossible Office",
+          "comparison": "Office Pranks",
+          "margin": 7.2958,
+          "credit": 1
+        },
+        {
+          "preferred": "Impossible Office",
+          "comparison": "Office Empire",
+          "margin": 3.2984,
+          "credit": 1
+        }
+      ],
+      "top": [
+        {
+          "title": "Impossible Office",
+          "score": 1.98
+        },
+        {
+          "title": "Last Place",
+          "score": -1.318
+        },
+        {
+          "title": "Last Gun",
+          "score": -1.318
+        },
+        {
+          "title": "Dinner for Two",
+          "score": -1.318
+        },
+        {
+          "title": "Twelve Minutes",
+          "score": -1.318
+        },
+        {
+          "title": "Paper Trail",
+          "score": -1.318
+        },
+        {
+          "title": "The Unreliable Room",
+          "score": -1.318
+        },
+        {
+          "title": "Reef Watchers",
+          "score": -1.318
+        }
+      ]
+    },
+    {
+      "id": "family-road-not-racing",
+      "status": "ok",
+      "description": "I like family members reconnecting during a journey.",
+      "ms": 3062,
+      "signals": [
+        {
+          "dimension": "keyword",
+          "key": "friendship",
+          "score": 0.8,
+          "confidence": 0.7058823529411765
+        }
+      ],
+      "pairs": [
+        {
+          "preferred": "Shared Road",
+          "comparison": "The Lonely Road",
+          "margin": 0,
+          "credit": 0.5
+        },
+        {
+          "preferred": "Shared Road",
+          "comparison": "The Chase",
+          "margin": 0,
+          "credit": 0.5
+        }
+      ],
+      "top": [
+        {
+          "title": "Mutual Orbit",
+          "score": 0.94
+        },
+        {
+          "title": "Last Place",
+          "score": -1.318
+        },
+        {
+          "title": "Last Gun",
+          "score": -1.318
+        },
+        {
+          "title": "The Borrowed Table",
+          "score": -1.318
+        },
+        {
+          "title": "Dinner for Two",
+          "score": -1.318
+        },
+        {
+          "title": "Paper Trail",
+          "score": -1.318
+        },
+        {
+          "title": "The Unreliable Room",
+          "score": -1.318
+        },
+        {
+          "title": "Reef Watchers",
+          "score": -1.318
+        }
+      ]
+    },
+    {
+      "id": "craft-over-instant-fame",
+      "status": "ok",
+      "description": "I like patient mastery of a craft through mentorship and practice.",
+      "ms": 2919,
+      "signals": [
+        {
+          "dimension": "keyword",
+          "key": "teamwork",
+          "score": 0.8,
+          "confidence": 0.7297297297297297
+        }
+      ],
+      "pairs": [
+        {
+          "preferred": "Patient Hands",
+          "comparison": "Instant Fortune",
+          "margin": 0,
+          "credit": 0.5
+        },
+        {
+          "preferred": "Patient Hands",
+          "comparison": "Masters of the Court",
+          "margin": 0,
+          "credit": 0.5
+        }
+      ],
+      "top": [
+        {
+          "title": "Last Place",
+          "score": 1.017
+        },
+        {
+          "title": "Quiet Repairs",
+          "score": 1.017
+        },
+        {
+          "title": "Mutual Orbit",
+          "score": 1.017
+        },
+        {
+          "title": "Last Gun",
+          "score": -1.318
+        },
+        {
+          "title": "The Borrowed Table",
+          "score": -1.318
+        },
+        {
+          "title": "Dinner for Two",
+          "score": -1.318
+        },
+        {
+          "title": "Paper Trail",
+          "score": -1.318
+        },
+        {
+          "title": "The Unreliable Room",
+          "score": -1.318
+        }
+      ]
+    },
+    {
+      "id": "two-independent-interests",
+      "status": "ok",
+      "description": "I like time loop. I like patient mastery of a craft through mentorship.",
+      "ms": 3066,
+      "signals": [
+        {
+          "dimension": "keyword",
+          "key": "time loop",
+          "score": 0.9,
+          "confidence": 0.7297297297297297
+        },
+        {
+          "dimension": "keyword",
+          "key": "underdog",
+          "score": 0.8,
+          "confidence": 0.7183098591549295
+        }
+      ],
+      "pairs": [
+        {
+          "preferred": "Twelve Minutes",
+          "comparison": "Across the Stars",
+          "margin": 2.627,
+          "credit": 1
+        },
+        {
+          "preferred": "Patient Hands",
+          "comparison": "Instant Fortune",
+          "margin": 0,
+          "credit": 0.5
+        }
+      ],
+      "top": [
+        {
+          "title": "Twelve Minutes",
+          "score": 1.309
+        },
+        {
+          "title": "Last Place",
+          "score": -1.318
+        },
+        {
+          "title": "Last Gun",
+          "score": -1.318
+        },
+        {
+          "title": "The Borrowed Table",
+          "score": -1.318
+        },
+        {
+          "title": "Dinner for Two",
+          "score": -1.318
+        },
+        {
+          "title": "Paper Trail",
+          "score": -1.318
+        },
+        {
+          "title": "The Unreliable Room",
+          "score": -1.318
+        },
+        {
+          "title": "Reef Watchers",
+          "score": -1.318
+        }
+      ]
+    },
+    {
+      "id": "contrasting-comfort-and-ideas",
+      "status": "ok",
+      "description": "I like warm communities built around shared meals. I like difficult moral choices in unjust institutions.",
+      "ms": 9599,
+      "signals": [
+        {
+          "dimension": "keyword",
+          "key": "found family",
+          "score": 0.6,
+          "confidence": 0.7058823529411765
+        },
+        {
+          "dimension": "keyword",
+          "key": "friendship",
+          "score": 0.5,
+          "confidence": 0.6774193548387096
+        },
+        {
+          "dimension": "mood",
+          "key": "heartwarming",
+          "score": 0.6,
+          "confidence": 0.7058823529411765
+        },
+        {
+          "dimension": "keyword",
+          "key": "cooking",
+          "score": 0.6,
+          "confidence": 0.7058823529411765
+        },
+        {
+          "dimension": "keyword",
+          "key": "moral dilemma",
+          "score": 0.7,
+          "confidence": 0.7183098591549295
+        },
+        {
+          "dimension": "keyword",
+          "key": "institutional injustice",
+          "score": 0.6,
+          "confidence": 0.6774193548387096
+        }
+      ],
+      "pairs": [
+        {
+          "preferred": "The Borrowed Table",
+          "comparison": "Dinner for Two",
+          "margin": 2.2871,
+          "credit": 1
+        },
+        {
+          "preferred": "Uncertain Mercy",
+          "comparison": "Courtroom Champion",
+          "margin": 0,
+          "credit": 0.5
+        }
+      ],
+      "top": [
+        {
+          "title": "The Borrowed Table",
+          "score": 0.969
+        },
+        {
+          "title": "Mutual Orbit",
+          "score": 0.037
+        },
+        {
+          "title": "Last Place",
+          "score": -1.318
+        },
+        {
+          "title": "Last Gun",
+          "score": -1.318
+        },
+        {
+          "title": "Dinner for Two",
+          "score": -1.318
+        },
+        {
+          "title": "Paper Trail",
+          "score": -1.318
+        },
+        {
+          "title": "The Unreliable Room",
+          "score": -1.318
+        },
+        {
+          "title": "Reef Watchers",
+          "score": -1.318
+        }
+      ]
+    },
+    {
+      "id": "dislike-is-not-general-negativity",
+      "status": "ok",
+      "description": "I dislike humiliation of vulnerable workers. I like rebuilding a working life after failure.",
+      "ms": 3480,
+      "signals": [
+        {
+          "dimension": "keyword",
+          "key": "class conflict",
+          "score": -0.9,
+          "confidence": 0.7297297297297297
+        },
+        {
+          "dimension": "keyword",
+          "key": "redemption",
+          "score": 0.9,
+          "confidence": 0.7297297297297297
+        }
+      ],
+      "pairs": [
+        {
+          "preferred": "Second Career",
+          "comparison": "Office Empire",
+          "margin": 0,
+          "credit": 0.5
+        },
+        {
+          "preferred": "Quiet Repairs",
+          "comparison": "Office Empire",
+          "margin": 0,
+          "credit": 0.5
+        }
+      ],
+      "top": [
+        {
+          "title": "Last Place",
+          "score": -1.318
+        },
+        {
+          "title": "Last Gun",
+          "score": -1.318
+        },
+        {
+          "title": "The Borrowed Table",
+          "score": -1.318
+        },
+        {
+          "title": "Dinner for Two",
+          "score": -1.318
+        },
+        {
+          "title": "Twelve Minutes",
+          "score": -1.318
+        },
+        {
+          "title": "Paper Trail",
+          "score": -1.318
+        },
+        {
+          "title": "The Unreliable Room",
+          "score": -1.318
+        },
+        {
+          "title": "Reef Watchers",
+          "score": -1.318
+        }
+      ]
+    },
+    {
+      "id": "romanian-free-text",
+      "status": "ok",
+      "description": "I like oameni obișnuiți care colaborează și rezolvă probleme prin pricepere, nu prin violență.",
+      "ms": 2771,
+      "signals": [
+        {
+          "dimension": "keyword",
+          "key": "teamwork",
+          "score": 0.9,
+          "confidence": 0.7297297297297297
+        },
+        {
+          "dimension": "keyword",
+          "key": "underdog",
+          "score": 0.6,
+          "confidence": 0.6774193548387096
+        }
+      ],
+      "pairs": [
+        {
+          "preferred": "Quiet Repairs",
+          "comparison": "Last Gun",
+          "margin": 2.627,
+          "credit": 1
+        },
+        {
+          "preferred": "Mutual Orbit",
+          "comparison": "The Chase",
+          "margin": 2.627,
+          "credit": 1
+        }
+      ],
+      "top": [
+        {
+          "title": "Last Place",
+          "score": 1.309
+        },
+        {
+          "title": "Quiet Repairs",
+          "score": 1.309
+        },
+        {
+          "title": "Mutual Orbit",
+          "score": 1.309
+        },
+        {
+          "title": "Last Gun",
+          "score": -1.318
+        },
+        {
+          "title": "The Borrowed Table",
+          "score": -1.318
+        },
+        {
+          "title": "Dinner for Two",
+          "score": -1.318
+        },
+        {
+          "title": "Paper Trail",
+          "score": -1.318
+        },
+        {
+          "title": "The Unreliable Room",
+          "score": -1.318
+        }
+      ]
+    },
+    {
+      "id": "genre-with-story",
+      "status": "ok",
+      "description": "I like Comedy. I like chosen families created through food and small kindnesses.",
+      "ms": 2573,
+      "signals": [
+        {
+          "dimension": "genre",
+          "key": "comedy",
+          "score": 0.9,
+          "confidence": 0.7297297297297297
+        },
+        {
+          "dimension": "keyword",
+          "key": "found family",
+          "score": 0.8,
+          "confidence": 0.7297297297297297
+        }
+      ],
+      "pairs": [
+        {
+          "preferred": "The Borrowed Table",
+          "comparison": "Office Pranks",
+          "margin": 0.8173,
+          "credit": 1
+        },
+        {
+          "preferred": "The Borrowed Table",
+          "comparison": "Dinner for Two",
+          "margin": 3.4443,
+          "credit": 1
+        }
+      ],
+      "top": [
+        {
+          "title": "The Borrowed Table",
+          "score": 2.126
+        },
+        {
+          "title": "Small Town Puzzle",
+          "score": 1.309
+        },
+        {
+          "title": "Impossible Office",
+          "score": 1.309
+        },
+        {
+          "title": "Office Pranks",
+          "score": 1.309
+        },
+        {
+          "title": "Last Place",
+          "score": -1.318
+        },
+        {
+          "title": "Last Gun",
+          "score": -1.318
+        },
+        {
+          "title": "Dinner for Two",
+          "score": -1.318
+        },
+        {
+          "title": "Twelve Minutes",
+          "score": -1.318
+        }
+      ]
+    },
+    {
+      "id": "known-simple-keyword",
+      "status": "ok",
+      "description": "I like time loop.",
+      "ms": 1656,
+      "signals": [
+        {
+          "dimension": "keyword",
+          "key": "time loop",
+          "score": 0.9,
+          "confidence": 0.7297297297297297
+        }
+      ],
+      "pairs": [
+        {
+          "preferred": "Twelve Minutes",
+          "comparison": "Across the Stars",
+          "margin": 2.627,
+          "credit": 1
+        }
+      ],
+      "top": [
+        {
+          "title": "Twelve Minutes",
+          "score": 1.309
+        },
+        {
+          "title": "Last Place",
+          "score": -1.318
+        },
+        {
+          "title": "Last Gun",
+          "score": -1.318
+        },
+        {
+          "title": "The Borrowed Table",
+          "score": -1.318
+        },
+        {
+          "title": "Dinner for Two",
+          "score": -1.318
+        },
+        {
+          "title": "Paper Trail",
+          "score": -1.318
+        },
+        {
+          "title": "The Unreliable Room",
+          "score": -1.318
+        },
+        {
+          "title": "Reef Watchers",
+          "score": -1.318
+        }
+      ]
+    },
+    {
+      "id": "explicit-negative-keyword",
+      "status": "ok",
+      "description": "I dislike torture.",
+      "ms": 1834,
+      "signals": [
+        {
+          "dimension": "keyword",
+          "key": "torture",
+          "score": -0.9,
+          "confidence": 0.7297297297297297
+        }
+      ],
+      "pairs": [
+        {
+          "preferred": "Small Town Puzzle",
+          "comparison": "The Cellar",
+          "margin": 3.9405,
+          "credit": 1
+        },
+        {
+          "preferred": "The Clear Record",
+          "comparison": "The Cellar",
+          "margin": 3.9405,
+          "credit": 1
+        }
+      ],
+      "top": [
+        {
+          "title": "Last Place",
+          "score": -1.318
+        },
+        {
+          "title": "Last Gun",
+          "score": -1.318
+        },
+        {
+          "title": "The Borrowed Table",
+          "score": -1.318
+        },
+        {
+          "title": "Dinner for Two",
+          "score": -1.318
+        },
+        {
+          "title": "Twelve Minutes",
+          "score": -1.318
+        },
+        {
+          "title": "Paper Trail",
+          "score": -1.318
+        },
+        {
+          "title": "The Unreliable Room",
+          "score": -1.318
+        },
+        {
+          "title": "Reef Watchers",
+          "score": -1.318
+        }
+      ]
+    },
+    {
+      "id": "mixed-strengths",
+      "status": "ok",
+      "description": "I like practical teamwork. I like space travel. I dislike glorified violence.",
+      "ms": 4160,
+      "signals": [
+        {
+          "dimension": "keyword",
+          "key": "teamwork",
+          "score": 0.9,
+          "confidence": 0.7297297297297297
+        },
+        {
+          "dimension": "keyword",
+          "key": "space travel",
+          "score": 0.9,
+          "confidence": 0.7297297297297297
+        },
+        {
+          "dimension": "keyword",
+          "key": "glorified violence",
+          "score": -0.9,
+          "confidence": 0.7297297297297297
+        }
+      ],
+      "pairs": [
+        {
+          "preferred": "Mutual Orbit",
+          "comparison": "Across the Stars",
+          "margin": 2.627,
+          "credit": 1
+        },
+        {
+          "preferred": "Quiet Repairs",
+          "comparison": "Last Gun",
+          "margin": 2.627,
+          "credit": 1
+        }
+      ],
+      "top": [
+        {
+          "title": "Last Place",
+          "score": 1.309
+        },
+        {
+          "title": "Quiet Repairs",
+          "score": 1.309
+        },
+        {
+          "title": "Mutual Orbit",
+          "score": 1.309
+        },
+        {
+          "title": "Last Gun",
+          "score": -1.318
+        },
+        {
+          "title": "The Borrowed Table",
+          "score": -1.318
+        },
+        {
+          "title": "Dinner for Two",
+          "score": -1.318
+        },
+        {
+          "title": "Paper Trail",
+          "score": -1.318
+        },
+        {
+          "title": "The Unreliable Room",
+          "score": -1.318
+        }
+      ]
+    }
+  ]
+}

@@ -141,8 +141,9 @@ class LoadingTasteApi extends ChatActionsApi {
   Completer<List<Map<String, dynamic>>>? pendingTaste;
   @override
   Future<List<Map<String, dynamic>>> list(String path) {
-    if (path == '/api/me/taste' && pendingTaste != null)
+    if (path == '/api/me/taste' && pendingTaste != null) {
       return pendingTaste!.future;
+    }
     return super.list(path);
   }
 }
@@ -168,9 +169,9 @@ void main() {
       expect(find.byType(NexSkeleton), findsWidgets);
       api.pendingTaste!.completeError(StateError('Offline'));
       await tester.pumpAndSettle();
-      expect(find.textContaining('Tap to retry'), findsOneWidget);
+      expect(find.textContaining('Could not refresh'), findsOneWidget);
       api.pendingTaste = Completer<List<Map<String, dynamic>>>();
-      await tester.tap(find.textContaining('Tap to retry'));
+      await tester.tap(find.textContaining('Could not refresh'));
       await tester.pump();
       api.pendingTaste!.complete([
         {
@@ -277,10 +278,19 @@ void main() {
           child: const MaterialApp(home: TasteScreen()),
         ),
       );
-      expect(find.text('Korean-language titles'), findsWidgets);
-      expect(find.text('K-pop'), findsWidgets);
-      expect(find.text('K-drama'), findsWidgets);
+      await tester.pumpAndSettle();
+      expect(find.textContaining('Korean-language titles'), findsWidgets);
+      await tester.enterText(find.byType(TextField),'Korean');
+      await tester.pumpAndSettle();
+      await tester.scrollUntilVisible(find.text('Korean-language titles'),200,scrollable:find.byType(Scrollable).first);
+      expect(find.text('Korean-language titles'), findsOneWidget);
+      await tester.drag(find.byType(CustomScrollView),const Offset(0,700));
+      await tester.pumpAndSettle();
+      await tester.enterText(find.byType(TextField),'');
+      await tester.pumpAndSettle();
       expect(controller.tasteEntries, hasLength(43));
+      await tester.tap(find.text('Include learned patterns'));
+      await tester.pumpAndSettle();
       final reads = api.tasteReads;
       await tester.scrollUntilVisible(
         find.text('inferred 39'),

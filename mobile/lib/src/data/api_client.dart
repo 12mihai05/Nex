@@ -186,6 +186,10 @@ class NexApiClient {
   Future<void> saveTasteSignals(List<Map<String, dynamic>> signals) =>
       _dio.put<void>('/api/me/taste', data: {'signals': signals});
   Future<void> resetTaste() => _dio.delete<void>('/api/me/taste');
+  Future<void> removeTaste(String dimension, String key) => _dio.delete<void>(
+    '/api/me/taste/entry',
+    queryParameters: {'dimension': dimension, 'key': key},
+  );
   Future<Map<String, dynamic>> saveReminder(
     String epgProgramId,
     int offsetMinutes,
@@ -206,10 +210,12 @@ class NexApiClient {
               as Map)
           .cast<String, dynamic>();
   final _homePlans = <String, String>{};
+  final _homeSeen = <String, Set<String>>{};
   final _planVersions = <String, int>{};
   int _planSerial = 0, _planEpoch = 0;
   void _resetHomePlans() {
     _homePlans.clear();
+    _homeSeen.clear();
     _planVersions.clear();
     _planEpoch++;
   }
@@ -231,14 +237,36 @@ class NexApiClient {
       params['plan'] = _homePlans[key]!;
       uri = uri.replace(queryParameters: params);
     }
-    final response = (await _dio.get<Map<String, dynamic>>(uri.toString()))
-        .data!;
+    final capturedVersion = _planVersions[key];
+    final response = discovery && params['batch'] != '0'
+        ? (await _dio.post<Map<String, dynamic>>(
+            '/api/discovery',
+            data: {...params, 'seen': (_homeSeen[key] ?? {}).toList()},
+          )).data!
+        : (await _dio.get<Map<String, dynamic>>(uri.toString())).data!;
+    if (discovery &&
+        epoch == _planEpoch &&
+        capturedVersion == _planVersions[key]) {
+      if (params['batch'] == '0') _homeSeen[key] = {};
+      final seen = _homeSeen.putIfAbsent(key, () => {});
+      for (final row in response['data'] as List) {
+        for (final ranked in row['items'] as List) {
+          final item = ranked['item'];
+          seen.add('${item['mediaType']}:${item['id']}');
+        }
+      }
+    }
     if (discovery &&
         epoch == _planEpoch &&
         _planVersions[key] == version &&
         params['batch'] == '0' &&
         response['meta']?['plan'] is List) {
-      if (_homePlans.length >= 16) _homePlans.clear();
+      if (_homePlans.length >= 16 && !_homePlans.containsKey(key)) {
+        final oldest = _homePlans.keys.first;
+        _homePlans.remove(oldest);
+        _homeSeen.remove(oldest);
+        _planVersions.remove(oldest);
+      }
       _homePlans[key] = jsonEncode(response['meta']['plan']);
     }
     return (response['data'] as List)

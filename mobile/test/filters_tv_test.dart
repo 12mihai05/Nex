@@ -15,6 +15,23 @@ class ChannelApi extends OfflineCatalogApi {
   final queries = <String>[];
   final save = Completer<void>();
   @override
+  Future<Map<String, dynamic>> object(String path) async {
+    if (!path.startsWith('/api/tv/guide')) return super.object(path);
+    queries.add(path);
+    return {
+      'hasMore': false,
+      'channels': [
+        {
+          'id': 'ro:test',
+          'name': 'Test channel',
+          'favorite': false,
+          'programs': [],
+        },
+      ],
+    };
+  }
+
+  @override
   Future<Map<String, dynamic>> tvDiscover() async {
     schedules++;
     return {'live': [], 'upcoming': []};
@@ -40,6 +57,38 @@ class ChannelApi extends OfflineCatalogApi {
 
 class BusyTvApi extends ChannelApi {
   @override
+  Future<Map<String, dynamic>> object(String path) async {
+    final page = int.parse(Uri.parse(path).queryParameters['offset'] ?? '0');
+    queries.add(path);
+    return {
+      'hasMore': page == 0,
+      'channels': List.generate(page == 0 ? 20 : 12, (j) {
+        final i = page + j;
+        return {
+          'id': 'c$i',
+          'name': 'Channel $i',
+          'favorite': i < 30,
+          'programs': [
+            {
+              'id': 'p$i',
+              'title': 'Programme $i',
+              'channel': {'id': 'c$i', 'name': 'Channel $i'},
+              'startAt': DateTime.now()
+                  .subtract(const Duration(minutes: 20))
+                  .toUtc()
+                  .toIso8601String(),
+              'endAt': DateTime.now()
+                  .add(const Duration(minutes: 40))
+                  .toUtc()
+                  .toIso8601String(),
+            },
+          ],
+        };
+      }),
+    };
+  }
+
+  @override
   Future<Map<String, dynamic>> tvDiscover() async => {
     'live': List.generate(
       32,
@@ -64,7 +113,7 @@ class BusyTvApi extends ChannelApi {
 
 void main() {
   testWidgets(
-    'TV shelves keep thirty favorites and other channels, with a full-list escape hatch',
+    'unified guide lazily loads thirty favorites and other channels in batches',
     (tester) async {
       final c = ProviderContainer(
         overrides: [nexApiClientProvider.overrideWithValue(BusyTvApi())],
@@ -78,19 +127,19 @@ void main() {
         ),
       );
       await tester.pumpAndSettle();
-      final shelf = tester.widget<ListView>(
-        find
-            .byWidgetPredicate(
-              (w) => w is ListView && w.scrollDirection == Axis.horizontal,
-            )
-            .first,
+      expect(find.text('Channel 0'), findsOneWidget);
+      expect(find.text('Channel 31'), findsNothing);
+      await tester.scrollUntilVisible(
+        find.text('Channel 31'),
+        500,
+        scrollable: find.descendant(
+          of: find.byType(ListView),
+          matching: find.byType(Scrollable),
+        ),
+        maxScrolls: 40,
       );
-      expect(
-        (shelf.childrenDelegate as SliverChildBuilderDelegate)
-            .estimatedChildCount,
-        63,
-      );
-      expect(find.text('See all'), findsWidgets);
+      expect(find.text('Channel 31'), findsOneWidget);
+      expect(tester.takeException(), isNull);
       await tester.pumpWidget(const SizedBox());
     },
   );
@@ -114,10 +163,7 @@ void main() {
       );
       await tester.pumpAndSettle();
       final before = api.schedules;
-      await tester.enterText(
-        find.byKey(const ValueKey('channel-search')),
-        'Test',
-      );
+      await tester.enterText(find.byType(TextField), 'Test');
       await tester.pump(const Duration(milliseconds: 400));
       await tester.pumpAndSettle();
       expect(
@@ -125,13 +171,13 @@ void main() {
         'Test',
       );
       expect(api.schedules, before);
-      await tester.tap(find.byTooltip('Favorite channel'));
+      await tester.tap(find.byTooltip('Favourite channel'));
       await tester.pump();
-      expect(find.byTooltip('Unfavorite channel'), findsOneWidget);
+      expect(find.byTooltip('Remove favourite'), findsOneWidget);
       expect(api.schedules, before);
       api.save.completeError(Exception('offline'));
       await tester.pumpAndSettle();
-      expect(find.byTooltip('Favorite channel'), findsOneWidget);
+      expect(find.byTooltip('Favourite channel'), findsOneWidget);
       expect(
         tester.widget<TextField>(find.byType(TextField)).controller!.text,
         'Test',

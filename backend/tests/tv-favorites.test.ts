@@ -26,6 +26,22 @@ beforeEach(async()=>{
   epg=new EpgService(db,{sourceId:"fixture",load:async()=>({channels:[],programs:[],sourceTimestamp:null})},new FixtureTmdbRepository());
 });
 afterEach(()=>client.close());
+it('guide batches align programmes to one window, put favourites first and isolate countries/users',async()=>{
+ await epg.setChannelFavorite('alice','RO','c0',true);
+ const first=await epg.guide('alice','RO',now,new Date(+now+6*3600000));
+ expect(first.channels).toHaveLength(20);expect(first.hasMore).toBe(true);
+ expect(first.channels[0]!.id).toBe('c0');expect(first.channels[0]!.programs.map(p=>p.id)).toEqual(['favorite','later']);
+ const second=await epg.guide('alice','RO',now,new Date(+now+6*3600000),'',20);
+ expect(second.channels).toHaveLength(2);expect(second.hasMore).toBe(false);
+ expect(new Set([...first.channels,...second.channels].map(c=>c.id)).size).toBe(22);
+ expect((await epg.guide('bob','RO',now,new Date(+now+6*3600000),'',0,true)).channels).toHaveLength(0);
+ expect((await epg.guide('alice','GB',now,new Date(+now+6*3600000))).channels.map(c=>c.id)).toEqual(['c22']);
+ const bob=await epg.guide('bob','RO',now,new Date(+now+6*3600000));
+ expect(bob.channels.slice(0,3).every(c=>c.programs.length>0)).toBe(true);
+ await epg.setChannelFavorite('alice','RO','c20',true);
+ const favorites=await epg.guide('alice','RO',now,new Date(+now+6*3600000),'',0,true);
+ expect(favorites.channels.map(c=>c.id)).toContain('c20');
+});
 it("title broadcasts include non-favorites, translated titles and live shows, but not remakes, expired or foreign entries",async()=>{
   const db=drizzle(client,{schema});
   const item={...fixtureCatalog[0]!,id:336843,mediaType:"movie" as const,title:"Maze Runner: The Death Cure",originalTitle:"Maze Runner: The Death Cure",year:2018};

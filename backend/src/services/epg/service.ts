@@ -13,8 +13,28 @@ import {localDayWindow} from '../tv-window.js';
 export class EpgService {
   constructor(private readonly db: NexDatabase = getDatabase(), private readonly provider: EpgProvider = createEpgProvider(), private readonly catalog: TmdbRepository = createTmdbRepository()) {}
 
+  async guide(userId:string,country:string,start:Date,end:Date,search='',offset=0,favoritesOnly=false){
+    const favorite=sql<boolean>`exists(select 1 from channel_favorites f where f.channel_id=${channels.id} and f.user_id=${userId})`.mapWith(Boolean);
+    const available=sql<boolean>`exists(select 1 from epg_programs p where p.channel_id=${channels.id} and p.start_at < ${+end} and p.end_at > ${+start})`.mapWith(Boolean);
+    const page=await this.db.select({id:channels.id,name:channels.displayName,logoUrl:channels.logoUrl,favorite}).from(channels)
+      .where(and(eq(channels.country,country),eq(channels.active,true),sql`instr(lower(${channels.displayName}),lower(${search}))>0`,favoritesOnly?favorite:undefined))
+      .orderBy(desc(favorite),desc(available),channels.displayName,channels.id).limit(21).offset(offset);
+    const selected=page.slice(0,20);
+    const programs=selected.length?await this.db.select({id:epgPrograms.id,channelId:epgPrograms.channelId,title:epgPrograms.title,startAt:epgPrograms.startAt,endAt:epgPrograms.endAt,description:epgPrograms.description})
+      .from(epgPrograms).where(and(inArray(epgPrograms.channelId,selected.map(c=>c.id)),lt(epgPrograms.startAt,end),gt(epgPrograms.endAt,start)))
+      .orderBy(epgPrograms.channelId,epgPrograms.startAt,epgPrograms.id):[];
+    const grouped=new Map<string,typeof programs>();
+    for(const p of programs){const group=grouped.get(p.channelId)??[];group.push(p);grouped.set(p.channelId,group);}
+    return {channels:selected.map(c=>({...c,programs:(grouped.get(c.id)??[]).map(p=>({...p,channel:{id:c.id,name:c.name},favorite:c.favorite}))})),hasMore:page.length>20,start:start.toISOString(),end:end.toISOString()};
+  }
+
   async chatChannels(country:string){
     return this.db.select({id:channels.id,name:channels.displayName}).from(channels).where(and(eq(channels.country,country),eq(channels.active,true)));
+  }
+  async broadcastDetails(id:string,country:string){
+    const [row]=await this.db.select({program:epgPrograms,channelName:channels.displayName}).from(epgPrograms).innerJoin(channels,eq(channels.id,epgPrograms.channelId))
+      .where(and(eq(epgPrograms.id,id),eq(channels.country,country),eq(channels.active,true))).limit(1);
+    return row?{title:row.program.title,description:row.program.description,subtitle:row.program.subtitle,channelName:row.channelName,startAt:row.program.startAt,endAt:row.program.endAt}:null;
   }
 
   async nextBroadcast(anchor:{id:string;title:string;startAt:string},country:string,userId:string){

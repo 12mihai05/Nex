@@ -15,6 +15,7 @@ import type {ChatActionIntent,ChatActionPlan,TitleChange} from '../src/services/
 import {localDayWindow} from '../src/services/tv-window.js';
 import {localClockTime} from '../src/services/tv-window.js';
 import {ChatService} from '../src/services/chat.js';
+import {ChatKnowledge} from '../src/services/chat-knowledge.js';
 
 let client:ReturnType<typeof createClient>,db:ReturnType<typeof drizzle<typeof schema>>,users:UserRepository,session:string,actions:ChatActions,ai:AiService,catalog:FixtureTmdbRepository;
 const items=Array.from({length:50},(_,i)=>({...fixtureCatalog[0]!,id:1000+i,title:`Test Film ${i+1}`,year:2000+i%20,mediaType:'movie' as const}));
@@ -34,6 +35,61 @@ beforeEach(async()=>{
  actions=new ChatActions(users,catalog,ai,new EpgService(db));
 });
 afterEach(()=>{vi.restoreAllMocks();client.close();});
+
+it('keeps ordinal card references distinct from the focused person',async()=>{
+ const id=await users.addConversationMessage('alice',session,'assistant','Cards');
+ await users.saveDisplayedItems('alice',session,id,items.slice(0,2));
+ await users.setSessionContext('alice',session,{focus:{type:'person',id:'77',source:'tmdb',title:'Test Director'}});
+ const facts=vi.fn().mockResolvedValue({overview:'Verified synopsis'});
+ const knowledge=new ChatKnowledge(users,{...catalog,knowledge:facts} as unknown as FixtureTmdbRepository,ai,new EpgService(db));
+ const answer=vi.spyOn(ai,'answerKnowledge').mockResolvedValue({type:'knowledge',content:'Verified synopsis',citations:[]});
+ await knowledge.handle('alice',session,'Tell me more about the first movie');
+ expect(facts).toHaveBeenCalledWith('movie',items[0]!.id);expect(answer).toHaveBeenCalled();
+});
+
+it('reuses a verified series identity for episode questions without a new title search',async()=>{
+ await users.setSessionContext('alice',session,{focus:{type:'series',id:'1399',source:'tmdb',title:'Game of Thrones'}});
+ const episode=vi.fn().mockResolvedValue({id:63056,name:'Winter Is Coming',crew:[{id:196,job:'Director',name:'Tim Van Patten'}]});
+ const catalogWithEpisodes=Object.assign(catalog,{episodeKnowledge:episode,season:vi.fn().mockResolvedValue({episodes:[]})});
+ const subject=vi.spyOn(ai,'knowledgeSubject');vi.spyOn(ai,'answerKnowledge').mockResolvedValue({type:'knowledge',content:'Tim Van Patten directed it.',citations:[]});
+ await new ChatKnowledge(users,catalogWithEpisodes,ai,new EpgService(db)).handle('alice',session,'Who directed season 1 episode 1?');
+ expect(episode).toHaveBeenCalledWith(1399,1,1);expect(subject).not.toHaveBeenCalled();
+ expect((await users.getSessionContext('alice',session)).focus).toMatchObject({type:'person',id:'196'});
+});
+
+it('asks before an ambiguous singular action and uses the focused movie when unambiguous',async()=>{
+ const id=await users.addConversationMessage('alice',session,'assistant','Cards');
+ await users.saveDisplayedItems('alice',session,id,items.slice(0,2));
+ const parse=vi.spyOn(ai,'parseActions').mockResolvedValue(proposal([change(1,{position:1})]));
+ expect(JSON.stringify(await actions.handle('alice',session,'Add this to my watchlist'))).toContain('Which one');
+ expect(parse).not.toHaveBeenCalled();expect(await plan()).toBeUndefined();
+ const context=await users.getSessionContext('alice',session);
+ await users.setSessionContext('alice',session,{...context,focus:{type:'movie',id:String(items[1]!.id),title:items[1]!.title,source:'tmdb'}});
+ await actions.handle('alice',session,'Add this to my watchlist');
+ expect((await plan()).entries[0]!.item.id).toBe(items[1]!.id);
+ expect(await users.listWatchlist('alice')).toHaveLength(0);
+});
+
+it('includes library preview cards in the active conversation without applying changes',async()=>{
+ vi.spyOn(ai,'parseActions').mockResolvedValue(proposal([change(0),change(1)]));
+ await new ChatService(users,catalog,ai,new EpgService(db)).respond('alice','Add Test Film 1 and Test Film 2 to my watchlist',session);
+ expect((await users.recentDisplayedItems('alice',session)).map(r=>r.externalId)).toEqual([String(items[0]!.id),String(items[1]!.id)]);
+ expect(await users.listWatchlist('alice')).toHaveLength(0);
+});
+
+it('retains a foreign broadcast country and day for a this-card reminder',async()=>{
+ const startAt=new Date(Date.now()+3*86400000);
+ await db.insert(schema.channels).values({id:'uk',sourceId:'test',externalId:'uk',displayName:'UK Channel',country:'GB'});
+ await db.insert(schema.epgPrograms).values({id:'uk-airing',sourceId:'test',sourceProgramId:'uk-airing',channelId:'uk',title:'Future programme',startAt,endAt:new Date(+startAt+3600000)});
+ const id=await users.addConversationMessage('alice',session,'assistant','TV');
+ await users.saveDisplayedReferences('alice',session,id,[{contentType:'liveEvent',externalId:'uk-airing',metadata:{title:'Future programme',country:'GB',startsAt:startAt.toISOString()}}]);
+ const context=await users.getSessionContext('alice',session);
+ await users.setSessionContext('alice',session,{...context,focus:{type:'broadcast',source:'epg',id:'uk-airing',title:'Future programme',country:'GB',startsAt:startAt.toISOString()}});
+ vi.spyOn(ai,'parseActions').mockResolvedValue({kind:'reminder',entries:[],requestedCount:1,unresolved:[],reminder:{title:'',channel:'',date:new Date().toISOString().slice(0,10),localTime:null,offsetMinutes:15,country:null,position:1}});
+ await actions.handle('alice',session,'Remind me 15 minutes before this');
+ expect(await plan()).toMatchObject({country:'GB',timezone:'Europe/London',reminder:{id:'uk-airing',startAt:startAt.toISOString(),offsetMinutes:15}});
+ expect(await users.listReminders('alice')).toHaveLength(0);
+});
 
 it('routes contracted dislikes to durable taste, persists them and confirms their actual meaning',async()=>{
  const extract=vi.spyOn(ai,'extractTaste').mockResolvedValue({summary:'Dislikes',mode:'live',signals:[{dimension:'language',key:'ko',score:-.9,confidence:.9,evidenceCount:1,source:'onboarding_text'}]});

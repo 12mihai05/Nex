@@ -13,6 +13,10 @@ const context = {
 };
 
 describe("recommendation scoring", () => {
+  it('does not substitute unrelated titles when no candidate supports the requested concept',()=>{
+    const query={...detectSearchIntent('recommend a movie'),keywords:['nonexistent verified story concept']};
+    expect(rankCandidates(fixtureCatalog,query,context)).toEqual([]);
+  });
   it('explicit Korean-language dislike lowers otherwise equivalent movies and series without banning exact lookup',()=>{
     for(const mediaType of ['movie','series'] as const){
       const base={...fixtureCatalog[0]!,mediaType,genres:[],keywords:[],moods:[],countries:[]};

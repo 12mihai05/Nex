@@ -1,0 +1,1596 @@
+{
+  "method": "Current live extractor → persisted Taste → semantic ranking. Exact same statements and labeled pairs as frozen legacy extraction.",
+  "cases": [
+    {
+      "id": "outsiders-through-effort",
+      "status": "ok",
+      "description": "I like underdog.",
+      "ms": 2760,
+      "signals": [
+        {
+          "dimension": "keyword",
+          "key": "underdog",
+          "meaning": "stories featuring characters or teams overcoming long odds or disadvantaged positions",
+          "statement": "I like underdog.",
+          "score": 0.9
+        }
+      ],
+      "pairs": [
+        {
+          "preferred": "Last Place",
+          "comparison": "Masters of the Court",
+          "margin": 0.1775,
+          "credit": 1
+        },
+        {
+          "preferred": "Second Career",
+          "comparison": "Office Empire",
+          "margin": 0.171,
+          "credit": 1
+        }
+      ],
+      "top": [
+        {
+          "title": "Last Place",
+          "score": -0.117
+        },
+        {
+          "title": "Instant Fortune",
+          "score": -0.368
+        },
+        {
+          "title": "Masters of the Court",
+          "score": -0.295
+        },
+        {
+          "title": "Mutual Orbit",
+          "score": -0.569
+        },
+        {
+          "title": "Perfect Wedding",
+          "score": -0.769
+        },
+        {
+          "title": "Uncertain Mercy",
+          "score": -0.687
+        },
+        {
+          "title": "Broken Bridge",
+          "score": -0.707
+        },
+        {
+          "title": "Across the Stars",
+          "score": -0.713
+        }
+      ]
+    },
+    {
+      "id": "repairing-relationships",
+      "status": "ok",
+      "description": "I like people patiently rebuilding broken trust.",
+      "ms": 2509,
+      "signals": [
+        {
+          "dimension": "story",
+          "key": "rebuilding trust",
+          "meaning": "Narratives focused on characters slowly repairing relationships and restoring trust through patient, sustained efforts.",
+          "statement": "I like people patiently rebuilding broken trust.",
+          "score": 0.8
+        }
+      ],
+      "pairs": [
+        {
+          "preferred": "Broken Bridge",
+          "comparison": "Inheritance War",
+          "margin": 1.0117,
+          "credit": 1
+        },
+        {
+          "preferred": "Shared Road",
+          "comparison": "The Lonely Road",
+          "margin": 0.714,
+          "credit": 1
+        }
+      ],
+      "top": [
+        {
+          "title": "Broken Bridge",
+          "score": 0.193
+        },
+        {
+          "title": "Perfect Wedding",
+          "score": -0.27
+        },
+        {
+          "title": "Shared Road",
+          "score": -0.244
+        },
+        {
+          "title": "Mutual Orbit",
+          "score": -0.55
+        },
+        {
+          "title": "The Borrowed Table",
+          "score": -0.57
+        },
+        {
+          "title": "Patient Hands",
+          "score": -0.391
+        },
+        {
+          "title": "Night Train Letters",
+          "score": -0.575
+        },
+        {
+          "title": "The Clear Record",
+          "score": -0.747
+        }
+      ]
+    },
+    {
+      "id": "competence-not-violence",
+      "status": "ok",
+      "description": "I like ordinary people solving practical problems together. I dislike conflicts solved through violence.",
+      "ms": 15844,
+      "signals": [
+        {
+          "dimension": "story",
+          "key": "ordinary people solving problems together",
+          "meaning": "Ordinary people collaborate to solve practical problems through ingenuity and teamwork.",
+          "statement": "I like ordinary people solving practical problems together.",
+          "score": 0.8499999999999999
+        },
+        {
+          "dimension": "story",
+          "key": "conflicts resolved through violence",
+          "meaning": "Conflicts are resolved primarily by violent means.",
+          "statement": "I dislike conflicts solved through violence.",
+          "score": -0.8499999999999999
+        }
+      ],
+      "pairs": [
+        {
+          "preferred": "Quiet Repairs",
+          "comparison": "Last Gun",
+          "margin": 3.3399,
+          "credit": 1
+        },
+        {
+          "preferred": "Mutual Orbit",
+          "comparison": "Across the Stars",
+          "margin": 2.0123,
+          "credit": 1
+        }
+      ],
+      "top": [
+        {
+          "title": "Quiet Repairs",
+          "score": -0.143
+        },
+        {
+          "title": "Mutual Orbit",
+          "score": -0.447
+        },
+        {
+          "title": "The Borrowed Table",
+          "score": -0.59
+        },
+        {
+          "title": "Last Place",
+          "score": -0.454
+        },
+        {
+          "title": "Small Town Puzzle",
+          "score": -0.864
+        },
+        {
+          "title": "Second Career",
+          "score": -0.806
+        },
+        {
+          "title": "Paper Trail",
+          "score": -1.049
+        },
+        {
+          "title": "Reef Watchers",
+          "score": -1.064
+        }
+      ]
+    },
+    {
+      "id": "warm-belonging-not-romance",
+      "status": "ok",
+      "description": "I like lonely people finding belonging through everyday kindness. I dislike glamorous romantic fantasies.",
+      "ms": 9014,
+      "signals": [
+        {
+          "dimension": "story",
+          "key": "lonely people find belonging through everyday kindness",
+          "meaning": "Lonely individuals gradually build a sense of belonging through small, everyday acts of kindness.",
+          "statement": "I like lonely people finding belonging through everyday kindness.",
+          "score": 0.82
+        },
+        {
+          "dimension": "story",
+          "key": "glamorous romantic fantasies",
+          "meaning": "Idealized, glossy romantic fantasy scenarios centered on aspiration and glamor.",
+          "statement": "I dislike glamorous romantic fantasies.",
+          "score": -0.75
+        }
+      ],
+      "pairs": [
+        {
+          "preferred": "The Borrowed Table",
+          "comparison": "Dinner for Two",
+          "margin": 2.0538,
+          "credit": 1
+        },
+        {
+          "preferred": "The Borrowed Table",
+          "comparison": "Perfect Wedding",
+          "margin": 1.7191,
+          "credit": 1
+        }
+      ],
+      "top": [
+        {
+          "title": "Quiet Repairs",
+          "score": -0.82
+        },
+        {
+          "title": "The Borrowed Table",
+          "score": -0.915
+        },
+        {
+          "title": "Reef Watchers",
+          "score": -1.136
+        },
+        {
+          "title": "Second Career",
+          "score": -1.012
+        },
+        {
+          "title": "Broken Bridge",
+          "score": -1.026
+        },
+        {
+          "title": "Last Place",
+          "score": -1.063
+        },
+        {
+          "title": "Small Town Puzzle",
+          "score": -1.241
+        },
+        {
+          "title": "Twelve Minutes",
+          "score": -1.434
+        }
+      ]
+    },
+    {
+      "id": "time-puzzles-not-space-wars",
+      "status": "ok",
+      "description": "I like time loop. I dislike war.",
+      "ms": 2846,
+      "signals": [
+        {
+          "dimension": "keyword",
+          "key": "time loop",
+          "meaning": "Stories featuring repeated temporal cycles where events loop and characters relive time until a resolution",
+          "statement": "I like time loop.",
+          "score": 0.9
+        },
+        {
+          "dimension": "keyword",
+          "key": "war",
+          "meaning": "Narratives focused on armed conflict, warfare, or military campaigns",
+          "statement": "I dislike war.",
+          "score": -0.9
+        }
+      ],
+      "pairs": [
+        {
+          "preferred": "Twelve Minutes",
+          "comparison": "Across the Stars",
+          "margin": 9.4171,
+          "credit": 1
+        }
+      ],
+      "top": [
+        {
+          "title": "Twelve Minutes",
+          "score": 2.822
+        },
+        {
+          "title": "The Unreliable Room",
+          "score": -0.709
+        },
+        {
+          "title": "Night Train Letters",
+          "score": -0.824
+        },
+        {
+          "title": "Impossible Office",
+          "score": -0.902
+        },
+        {
+          "title": "Perfect Wedding",
+          "score": -0.844
+        },
+        {
+          "title": "Instant Fortune",
+          "score": -0.993
+        },
+        {
+          "title": "Broken Bridge",
+          "score": -0.894
+        },
+        {
+          "title": "The Clear Record",
+          "score": -0.788
+        }
+      ]
+    },
+    {
+      "id": "investigative-process",
+      "status": "ok",
+      "description": "I like patient evidence gathering that exposes institutional wrongdoing.",
+      "ms": 3419,
+      "signals": [
+        {
+          "dimension": "story",
+          "key": "methodical institutional investigation",
+          "meaning": "Narratives focused on slow, methodical collection and presentation of evidence that reveal systemic or institutional corruption or wrongdoing.",
+          "statement": "I like patient evidence gathering that exposes institutional wrongdoing.",
+          "score": 0.9
+        }
+      ],
+      "pairs": [
+        {
+          "preferred": "Paper Trail",
+          "comparison": "The Chase",
+          "margin": 1.5903,
+          "credit": 1
+        },
+        {
+          "preferred": "Paper Trail",
+          "comparison": "Courtroom Champion",
+          "margin": 1.0415,
+          "credit": 1
+        }
+      ],
+      "top": [
+        {
+          "title": "Paper Trail",
+          "score": 0.698
+        },
+        {
+          "title": "The Clear Record",
+          "score": 0.053
+        },
+        {
+          "title": "Courtroom Champion",
+          "score": -0.343
+        },
+        {
+          "title": "The Unreliable Room",
+          "score": -0.378
+        },
+        {
+          "title": "Reef Watchers",
+          "score": -0.705
+        },
+        {
+          "title": "Uncertain Mercy",
+          "score": -0.601
+        },
+        {
+          "title": "Last Gun",
+          "score": -0.862
+        },
+        {
+          "title": "Twelve Minutes",
+          "score": -0.863
+        }
+      ]
+    },
+    {
+      "id": "cozy-mystery-no-gore",
+      "status": "ok",
+      "description": "I like affectionate village mysteries solved by ordinary neighbors. I dislike gore.",
+      "ms": 2903,
+      "signals": [
+        {
+          "dimension": "story",
+          "key": "affectionate village mystery",
+          "meaning": "Mysteries set in small villages or close-knit communities, focusing on ordinary neighbors collaboratively solving cases with warmth and affection.",
+          "statement": "I like affectionate village mysteries solved by ordinary neighbors.",
+          "score": 0.8
+        },
+        {
+          "dimension": "keyword",
+          "key": "gore",
+          "meaning": "Graphic, explicit depictions of blood, guts, or extreme physical injury.",
+          "statement": "I dislike gore.",
+          "score": -0.9000000000000001
+        }
+      ],
+      "pairs": [
+        {
+          "preferred": "Small Town Puzzle",
+          "comparison": "The Cellar",
+          "margin": 7.479,
+          "credit": 1
+        },
+        {
+          "preferred": "Small Town Puzzle",
+          "comparison": "The Chase",
+          "margin": 1.7147,
+          "credit": 1
+        }
+      ],
+      "top": [
+        {
+          "title": "Small Town Puzzle",
+          "score": 0.123
+        },
+        {
+          "title": "The Borrowed Table",
+          "score": -0.162
+        },
+        {
+          "title": "Broken Bridge",
+          "score": -0.657
+        },
+        {
+          "title": "Perfect Wedding",
+          "score": -0.722
+        },
+        {
+          "title": "The Clear Record",
+          "score": -0.622
+        },
+        {
+          "title": "Mutual Orbit",
+          "score": -0.77
+        },
+        {
+          "title": "Paper Trail",
+          "score": -0.926
+        },
+        {
+          "title": "Dinner for Two",
+          "score": -0.829
+        }
+      ]
+    },
+    {
+      "id": "adult-second-chances",
+      "status": "ok",
+      "description": "I like middle aged people rebuilding their lives through learning and setbacks.",
+      "ms": 2316,
+      "signals": [
+        {
+          "dimension": "story",
+          "key": "middle-aged people rebuilding their lives",
+          "meaning": "Narratives focused on middle-aged characters who undergo personal growth and recovery by learning from mistakes and facing setbacks.",
+          "statement": "I like middle aged people rebuilding their lives through learning and setbacks.",
+          "score": 0.8
+        }
+      ],
+      "pairs": [
+        {
+          "preferred": "Second Career",
+          "comparison": "Office Empire",
+          "margin": 0.9835,
+          "credit": 1
+        },
+        {
+          "preferred": "Second Career",
+          "comparison": "Instant Fortune",
+          "margin": 0.702,
+          "credit": 1
+        }
+      ],
+      "top": [
+        {
+          "title": "Second Career",
+          "score": 0.034
+        },
+        {
+          "title": "Perfect Wedding",
+          "score": -0.441
+        },
+        {
+          "title": "Broken Bridge",
+          "score": -0.281
+        },
+        {
+          "title": "Shared Road",
+          "score": -0.4
+        },
+        {
+          "title": "The Borrowed Table",
+          "score": -0.659
+        },
+        {
+          "title": "Instant Fortune",
+          "score": -0.668
+        },
+        {
+          "title": "Patient Hands",
+          "score": -0.487
+        },
+        {
+          "title": "Twelve Minutes",
+          "score": -0.77
+        }
+      ]
+    },
+    {
+      "id": "moral-cost",
+      "status": "ok",
+      "description": "I like principled people facing ethical choices where every option has a cost.",
+      "ms": 3008,
+      "signals": [
+        {
+          "dimension": "story",
+          "key": "principled ethical dilemmas",
+          "meaning": "Narratives focused on characters who must make difficult moral decisions, where available choices each carry significant consequences and trade‑offs.",
+          "statement": "I like principled people facing ethical choices where every option has a cost.",
+          "score": 0.9000000000000001
+        }
+      ],
+      "pairs": [
+        {
+          "preferred": "Uncertain Mercy",
+          "comparison": "Courtroom Champion",
+          "margin": 0.8672,
+          "credit": 1
+        },
+        {
+          "preferred": "Uncertain Mercy",
+          "comparison": "Last Gun",
+          "margin": 0.482,
+          "credit": 1
+        }
+      ],
+      "top": [
+        {
+          "title": "Uncertain Mercy",
+          "score": -0.155
+        },
+        {
+          "title": "The Unreliable Room",
+          "score": -0.633
+        },
+        {
+          "title": "Last Gun",
+          "score": -0.637
+        },
+        {
+          "title": "Paper Trail",
+          "score": -0.734
+        },
+        {
+          "title": "Twelve Minutes",
+          "score": -0.747
+        },
+        {
+          "title": "Instant Fortune",
+          "score": -0.816
+        },
+        {
+          "title": "The Lonely Road",
+          "score": -0.604
+        },
+        {
+          "title": "The Destined Pair",
+          "score": -0.783
+        }
+      ]
+    },
+    {
+      "id": "brief-bittersweet-connection",
+      "status": "ok",
+      "description": "I like fleeting connections that remain meaningful without a conventional happy romance.",
+      "ms": 3228,
+      "signals": [
+        {
+          "dimension": "story",
+          "key": "fleeting meaningful connections",
+          "meaning": "Stories focused on brief or transient interpersonal relationships that are emotionally significant and do not conclude with a traditional happy-romance resolution.",
+          "statement": "I like fleeting connections that remain meaningful without a conventional happy romance.",
+          "score": 0.8
+        }
+      ],
+      "pairs": [
+        {
+          "preferred": "Night Train Letters",
+          "comparison": "Perfect Wedding",
+          "margin": 0.4079,
+          "credit": 1
+        },
+        {
+          "preferred": "Night Train Letters",
+          "comparison": "Dinner for Two",
+          "margin": 0.3957,
+          "credit": 1
+        }
+      ],
+      "top": [
+        {
+          "title": "Night Train Letters",
+          "score": 0.112
+        },
+        {
+          "title": "The Destined Pair",
+          "score": -0.228
+        },
+        {
+          "title": "Dinner for Two",
+          "score": -0.283
+        },
+        {
+          "title": "Perfect Wedding",
+          "score": -0.296
+        },
+        {
+          "title": "The Borrowed Table",
+          "score": -0.574
+        },
+        {
+          "title": "Broken Bridge",
+          "score": -0.634
+        },
+        {
+          "title": "Mutual Orbit",
+          "score": -0.715
+        },
+        {
+          "title": "The Unreliable Room",
+          "score": -0.868
+        }
+      ]
+    },
+    {
+      "id": "unreliable-memory",
+      "status": "ok",
+      "description": "I like stories that make me question conflicting memories and what really happened.",
+      "ms": 2378,
+      "signals": [
+        {
+          "dimension": "story",
+          "key": "unreliable memory",
+          "meaning": "Narratives that explore conflicting or unreliable memories, ambiguous recollections, and uncertainty about past events.",
+          "statement": "I like stories that make me question conflicting memories and what really happened.",
+          "score": 0.9
+        }
+      ],
+      "pairs": [
+        {
+          "preferred": "The Unreliable Room",
+          "comparison": "The Clear Record",
+          "margin": 0.882,
+          "credit": 1
+        },
+        {
+          "preferred": "The Unreliable Room",
+          "comparison": "Across the Stars",
+          "margin": 1.6366,
+          "credit": 1
+        }
+      ],
+      "top": [
+        {
+          "title": "The Unreliable Room",
+          "score": 0.485
+        },
+        {
+          "title": "Twelve Minutes",
+          "score": -0.341
+        },
+        {
+          "title": "Night Train Letters",
+          "score": -0.617
+        },
+        {
+          "title": "The Clear Record",
+          "score": -0.397
+        },
+        {
+          "title": "Paper Trail",
+          "score": -0.66
+        },
+        {
+          "title": "Impossible Office",
+          "score": -0.704
+        },
+        {
+          "title": "Broken Bridge",
+          "score": -0.664
+        },
+        {
+          "title": "The Destined Pair",
+          "score": -0.788
+        }
+      ]
+    },
+    {
+      "id": "nature-not-celebrity",
+      "status": "ok",
+      "description": "I like quiet observation of ecosystems and animal relationships. I dislike celebrity worship.",
+      "ms": 3372,
+      "signals": [
+        {
+          "dimension": "keyword",
+          "key": "nature",
+          "meaning": "calm, observant portrayals of ecosystems and interspecies relationships, focusing on natural behavior and environments rather than action or spectacle.",
+          "statement": "I like quiet observation of ecosystems and animal relationships.",
+          "score": 0.9
+        },
+        {
+          "dimension": "keyword",
+          "key": "celebrity worship",
+          "meaning": "stories or coverage that center on idolizing famous people, celebrity gossip, and fame-focused culture.",
+          "statement": "I dislike celebrity worship.",
+          "score": -0.9
+        }
+      ],
+      "pairs": [
+        {
+          "preferred": "Reef Watchers",
+          "comparison": "Stage Lights",
+          "margin": 5.1986,
+          "credit": 1
+        },
+        {
+          "preferred": "Reef Watchers",
+          "comparison": "Dinner for Two",
+          "margin": 5.0211,
+          "credit": 1
+        }
+      ],
+      "top": [
+        {
+          "title": "Reef Watchers",
+          "score": 2.863
+        },
+        {
+          "title": "Mutual Orbit",
+          "score": -0.547
+        },
+        {
+          "title": "Patient Hands",
+          "score": -0.593
+        },
+        {
+          "title": "The Clear Record",
+          "score": -0.601
+        },
+        {
+          "title": "Small Town Puzzle",
+          "score": -0.601
+        },
+        {
+          "title": "Across the Stars",
+          "score": -0.559
+        },
+        {
+          "title": "Broken Bridge",
+          "score": -0.602
+        },
+        {
+          "title": "The Destined Pair",
+          "score": -0.811
+        }
+      ]
+    },
+    {
+      "id": "women-with-agency",
+      "status": "ok",
+      "description": "I like women solving technical problems as friends, with goals beyond romance.",
+      "ms": 2899,
+      "signals": [
+        {
+          "dimension": "story",
+          "key": "women solving technical problems",
+          "meaning": "Women collaborating as friends to solve technical or engineering problems while pursuing goals that are not centered on romance.",
+          "statement": "I like women solving technical problems as friends, with goals beyond romance.",
+          "score": 0.9
+        }
+      ],
+      "pairs": [
+        {
+          "preferred": "Mutual Orbit",
+          "comparison": "The Destined Pair",
+          "margin": 1.12,
+          "credit": 1
+        },
+        {
+          "preferred": "Mutual Orbit",
+          "comparison": "Dinner for Two",
+          "margin": 1.746,
+          "credit": 1
+        }
+      ],
+      "top": [
+        {
+          "title": "Mutual Orbit",
+          "score": 0.944
+        },
+        {
+          "title": "Quiet Repairs",
+          "score": -0.225
+        },
+        {
+          "title": "The Destined Pair",
+          "score": -0.176
+        },
+        {
+          "title": "The Borrowed Table",
+          "score": -0.642
+        },
+        {
+          "title": "Dinner for Two",
+          "score": -0.802
+        },
+        {
+          "title": "Broken Bridge",
+          "score": -0.704
+        },
+        {
+          "title": "Office Pranks",
+          "score": -0.727
+        },
+        {
+          "title": "Instant Fortune",
+          "score": -0.968
+        }
+      ]
+    },
+    {
+      "id": "absurd-systems-not-slapstick",
+      "status": "ok",
+      "description": "I like surreal satire about oppressive bureaucracy. I dislike bodily slapstick humiliation.",
+      "ms": 3335,
+      "signals": [
+        {
+          "dimension": "story",
+          "key": "surreal satire about oppressive bureaucracy",
+          "meaning": "Satirical, surreal narratives that critique or lampoon bureaucratic oppression and institutional absurdity.",
+          "statement": "I like surreal satire about oppressive bureaucracy.",
+          "score": 0.9
+        },
+        {
+          "dimension": "keyword",
+          "key": "slapstick",
+          "meaning": "Physical-comedy focused on bodily embarrassment and humiliating pratfalls or gags.",
+          "statement": "I dislike bodily slapstick humiliation.",
+          "score": -0.9
+        }
+      ],
+      "pairs": [
+        {
+          "preferred": "Impossible Office",
+          "comparison": "Office Pranks",
+          "margin": 6.422,
+          "credit": 1
+        },
+        {
+          "preferred": "Impossible Office",
+          "comparison": "Office Empire",
+          "margin": 0.6345,
+          "credit": 1
+        }
+      ],
+      "top": [
+        {
+          "title": "Impossible Office",
+          "score": -0.587
+        },
+        {
+          "title": "Paper Trail",
+          "score": -0.701
+        },
+        {
+          "title": "Uncertain Mercy",
+          "score": -1.002
+        },
+        {
+          "title": "The Unreliable Room",
+          "score": -1.027
+        },
+        {
+          "title": "Twelve Minutes",
+          "score": -1.174
+        },
+        {
+          "title": "Reef Watchers",
+          "score": -1.193
+        },
+        {
+          "title": "The Destined Pair",
+          "score": -1.326
+        },
+        {
+          "title": "Office Empire",
+          "score": -1.222
+        }
+      ]
+    },
+    {
+      "id": "family-road-not-racing",
+      "status": "ok",
+      "description": "I like family members reconnecting during a journey.",
+      "ms": 2720,
+      "signals": [
+        {
+          "dimension": "story",
+          "key": "family reconnection on a journey",
+          "meaning": "Family members rebuilding or deepening their relationships while traveling together or undertaking a shared journey.",
+          "statement": "I like family members reconnecting during a journey.",
+          "score": 0.8
+        }
+      ],
+      "pairs": [
+        {
+          "preferred": "Shared Road",
+          "comparison": "The Lonely Road",
+          "margin": 0.7225,
+          "credit": 1
+        },
+        {
+          "preferred": "Shared Road",
+          "comparison": "The Chase",
+          "margin": 1.369,
+          "credit": 1
+        }
+      ],
+      "top": [
+        {
+          "title": "Shared Road",
+          "score": 0.194
+        },
+        {
+          "title": "Broken Bridge",
+          "score": 0.081
+        },
+        {
+          "title": "Perfect Wedding",
+          "score": -0.346
+        },
+        {
+          "title": "The Borrowed Table",
+          "score": -0.352
+        },
+        {
+          "title": "Night Train Letters",
+          "score": -0.457
+        },
+        {
+          "title": "Twelve Minutes",
+          "score": -0.645
+        },
+        {
+          "title": "Dinner for Two",
+          "score": -0.516
+        },
+        {
+          "title": "The Lonely Road",
+          "score": -0.529
+        }
+      ]
+    },
+    {
+      "id": "craft-over-instant-fame",
+      "status": "ok",
+      "description": "I like patient mastery of a craft through mentorship and practice.",
+      "ms": 3305,
+      "signals": [
+        {
+          "dimension": "story",
+          "key": "mastery through mentorship",
+          "meaning": "A narrative focused on a character gradually developing skill in a craft through patient mentorship and sustained deliberate practice.",
+          "statement": "I like patient mastery of a craft through mentorship and practice.",
+          "score": 0.9
+        }
+      ],
+      "pairs": [
+        {
+          "preferred": "Patient Hands",
+          "comparison": "Instant Fortune",
+          "margin": 0.7814,
+          "credit": 1
+        },
+        {
+          "preferred": "Patient Hands",
+          "comparison": "Masters of the Court",
+          "margin": 1.1403,
+          "credit": 1
+        }
+      ],
+      "top": [
+        {
+          "title": "Patient Hands",
+          "score": 0.528
+        },
+        {
+          "title": "Instant Fortune",
+          "score": -0.254
+        },
+        {
+          "title": "Second Career",
+          "score": -0.021
+        },
+        {
+          "title": "Last Place",
+          "score": -0.446
+        },
+        {
+          "title": "Broken Bridge",
+          "score": -0.48
+        },
+        {
+          "title": "The Clear Record",
+          "score": -0.788
+        },
+        {
+          "title": "Mutual Orbit",
+          "score": -0.808
+        },
+        {
+          "title": "The Borrowed Table",
+          "score": -0.827
+        }
+      ]
+    },
+    {
+      "id": "two-independent-interests",
+      "status": "ok",
+      "description": "I like time loop. I like patient mastery of a craft through mentorship.",
+      "ms": 2762,
+      "signals": [
+        {
+          "dimension": "keyword",
+          "key": "time loop",
+          "meaning": "Stories structured around a loop in time where events repeat or reset, often with iteration and variation.",
+          "statement": "I like time loop.",
+          "score": 0.9
+        },
+        {
+          "dimension": "story",
+          "key": "patient mastery through mentorship",
+          "meaning": "Narratives focusing on a protagonist gradually mastering a skill or craft over time under the guidance of a mentor, emphasizing patient learning, practice, and growth.",
+          "statement": "I like patient mastery of a craft through mentorship.",
+          "score": 0.9
+        }
+      ],
+      "pairs": [
+        {
+          "preferred": "Twelve Minutes",
+          "comparison": "Across the Stars",
+          "margin": 3.9661,
+          "credit": 1
+        },
+        {
+          "preferred": "Patient Hands",
+          "comparison": "Instant Fortune",
+          "margin": 0.3621,
+          "credit": 1
+        }
+      ],
+      "top": [
+        {
+          "title": "Twelve Minutes",
+          "score": 2.958
+        },
+        {
+          "title": "Patient Hands",
+          "score": 0.359
+        },
+        {
+          "title": "Instant Fortune",
+          "score": -0.003
+        },
+        {
+          "title": "Second Career",
+          "score": -0.115
+        },
+        {
+          "title": "The Unreliable Room",
+          "score": -0.546
+        },
+        {
+          "title": "Broken Bridge",
+          "score": -0.381
+        },
+        {
+          "title": "Perfect Wedding",
+          "score": -0.646
+        },
+        {
+          "title": "Last Place",
+          "score": -0.471
+        }
+      ]
+    },
+    {
+      "id": "contrasting-comfort-and-ideas",
+      "status": "ok",
+      "description": "I like warm communities built around shared meals. I like difficult moral choices in unjust institutions.",
+      "ms": 6672,
+      "signals": [
+        {
+          "dimension": "story",
+          "key": "community through shared meals",
+          "meaning": "Warm, supportive communities that form and deepen through the act of sharing meals together.",
+          "statement": "I like warm communities built around shared meals.",
+          "score": 0.8499999999999999
+        },
+        {
+          "dimension": "story",
+          "key": "moral dilemmas in unjust institutions",
+          "meaning": "Characters facing difficult moral choices while navigating corrupt or unjust institutions.",
+          "statement": "I like difficult moral choices in unjust institutions.",
+          "score": 0.8499999999999999
+        }
+      ],
+      "pairs": [
+        {
+          "preferred": "The Borrowed Table",
+          "comparison": "Dinner for Two",
+          "margin": 1.1692,
+          "credit": 1
+        },
+        {
+          "preferred": "Uncertain Mercy",
+          "comparison": "Courtroom Champion",
+          "margin": 0.548,
+          "credit": 1
+        }
+      ],
+      "top": [
+        {
+          "title": "The Borrowed Table",
+          "score": 0.414
+        },
+        {
+          "title": "Uncertain Mercy",
+          "score": 0.088
+        },
+        {
+          "title": "Paper Trail",
+          "score": -0.04
+        },
+        {
+          "title": "Mutual Orbit",
+          "score": -0.467
+        },
+        {
+          "title": "Broken Bridge",
+          "score": -0.278
+        },
+        {
+          "title": "The Unreliable Room",
+          "score": -0.525
+        },
+        {
+          "title": "Instant Fortune",
+          "score": -0.531
+        },
+        {
+          "title": "Perfect Wedding",
+          "score": -0.585
+        }
+      ]
+    },
+    {
+      "id": "dislike-is-not-general-negativity",
+      "status": "ok",
+      "description": "I dislike humiliation of vulnerable workers. I like rebuilding a working life after failure.",
+      "ms": 3482,
+      "signals": [
+        {
+          "dimension": "keyword",
+          "key": "humiliation",
+          "meaning": "Depictions of vulnerable workers being humiliated or degraded in the story.",
+          "statement": "I dislike humiliation of vulnerable workers.",
+          "score": -0.9
+        },
+        {
+          "dimension": "story",
+          "key": "rebuilding after failure",
+          "meaning": "Stories focused on people rebuilding their working life after a personal or professional failure.",
+          "statement": "I like rebuilding a working life after failure.",
+          "score": 0.9
+        }
+      ],
+      "pairs": [
+        {
+          "preferred": "Second Career",
+          "comparison": "Office Empire",
+          "margin": 0.9469,
+          "credit": 1
+        },
+        {
+          "preferred": "Quiet Repairs",
+          "comparison": "Office Empire",
+          "margin": 0.5062,
+          "credit": 1
+        }
+      ],
+      "top": [
+        {
+          "title": "Broken Bridge",
+          "score": -0.538
+        },
+        {
+          "title": "Twelve Minutes",
+          "score": -0.732
+        },
+        {
+          "title": "Perfect Wedding",
+          "score": -0.925
+        },
+        {
+          "title": "Shared Road",
+          "score": -0.768
+        },
+        {
+          "title": "The Unreliable Room",
+          "score": -1.047
+        },
+        {
+          "title": "The Destined Pair",
+          "score": -1.005
+        },
+        {
+          "title": "Last Place",
+          "score": -0.967
+        },
+        {
+          "title": "Instant Fortune",
+          "score": -1.245
+        }
+      ]
+    },
+    {
+      "id": "romanian-free-text",
+      "status": "ok",
+      "description": "I like oameni obișnuiți care colaborează și rezolvă probleme prin pricepere, nu prin violență.",
+      "ms": 4284,
+      "signals": [
+        {
+          "dimension": "story",
+          "key": "competent ordinary people collaborating",
+          "meaning": "Stories focused on ordinary people working together and using cleverness or skill to solve problems rather than relying on exceptional heroes.",
+          "statement": "I like oameni obișnuiți care colaborează și rezolvă probleme prin pricepere, nu prin violență.",
+          "score": 0.9
+        },
+        {
+          "dimension": "keyword",
+          "key": "glorified violence",
+          "meaning": "Narratives that celebrate or emphasize violence as spectacle or the primary means of problem-solving.",
+          "statement": "I like oameni obișnuiți care colaborează și rezolvă probleme prin pricepere, nu prin violență.",
+          "score": -0.9
+        }
+      ],
+      "pairs": [
+        {
+          "preferred": "Quiet Repairs",
+          "comparison": "Last Gun",
+          "margin": 2.4502,
+          "credit": 1
+        },
+        {
+          "preferred": "Mutual Orbit",
+          "comparison": "The Chase",
+          "margin": 1.0842,
+          "credit": 1
+        }
+      ],
+      "top": [
+        {
+          "title": "The Borrowed Table",
+          "score": -0.479
+        },
+        {
+          "title": "Quiet Repairs",
+          "score": -0.599
+        },
+        {
+          "title": "Mutual Orbit",
+          "score": -0.701
+        },
+        {
+          "title": "Small Town Puzzle",
+          "score": -0.614
+        },
+        {
+          "title": "Second Career",
+          "score": -0.84
+        },
+        {
+          "title": "Broken Bridge",
+          "score": -0.84
+        },
+        {
+          "title": "Reef Watchers",
+          "score": -1.104
+        },
+        {
+          "title": "Night Train Letters",
+          "score": -0.986
+        }
+      ]
+    },
+    {
+      "id": "genre-with-story",
+      "status": "ok",
+      "description": "I like Comedy. I like chosen families created through food and small kindnesses.",
+      "ms": 2698,
+      "signals": [
+        {
+          "dimension": "genre",
+          "key": "comedy",
+          "meaning": "films or series intended to provoke laughter and amusement, often using humor and comedic situations.",
+          "statement": "I like Comedy.",
+          "score": 0.9
+        },
+        {
+          "dimension": "story",
+          "key": "chosen families through food and small kindnesses",
+          "meaning": "stories focusing on people who form chosen-family relationships, bonded and sustained by shared meals, acts of care, and everyday small kindnesses rather than biological ties.",
+          "statement": "I like chosen families created through food and small kindnesses.",
+          "score": 0.9
+        }
+      ],
+      "pairs": [
+        {
+          "preferred": "The Borrowed Table",
+          "comparison": "Office Pranks",
+          "margin": 1.5357,
+          "credit": 1
+        },
+        {
+          "preferred": "The Borrowed Table",
+          "comparison": "Dinner for Two",
+          "margin": 3.7761,
+          "credit": 1
+        }
+      ],
+      "top": [
+        {
+          "title": "The Borrowed Table",
+          "score": 2.962
+        },
+        {
+          "title": "Small Town Puzzle",
+          "score": 1.532
+        },
+        {
+          "title": "Office Pranks",
+          "score": 1.426
+        },
+        {
+          "title": "Impossible Office",
+          "score": 1.385
+        },
+        {
+          "title": "Broken Bridge",
+          "score": -0.208
+        },
+        {
+          "title": "Perfect Wedding",
+          "score": -0.567
+        },
+        {
+          "title": "Mutual Orbit",
+          "score": -0.629
+        },
+        {
+          "title": "Night Train Letters",
+          "score": -0.555
+        }
+      ]
+    },
+    {
+      "id": "known-simple-keyword",
+      "status": "ok",
+      "description": "I like time loop.",
+      "ms": 2370,
+      "signals": [
+        {
+          "dimension": "keyword",
+          "key": "time loop",
+          "meaning": "Stories where characters experience the same period of time repeatedly, often learning or changing outcomes across iterations.",
+          "statement": "I like time loop.",
+          "score": 0.9
+        }
+      ],
+      "pairs": [
+        {
+          "preferred": "Twelve Minutes",
+          "comparison": "Across the Stars",
+          "margin": 4.0448,
+          "credit": 1
+        }
+      ],
+      "top": [
+        {
+          "title": "Twelve Minutes",
+          "score": 2.972
+        },
+        {
+          "title": "The Unreliable Room",
+          "score": -0.529
+        },
+        {
+          "title": "Instant Fortune",
+          "score": -0.699
+        },
+        {
+          "title": "Night Train Letters",
+          "score": -0.828
+        },
+        {
+          "title": "The Destined Pair",
+          "score": -0.824
+        },
+        {
+          "title": "Impossible Office",
+          "score": -0.963
+        },
+        {
+          "title": "Second Career",
+          "score": -0.883
+        },
+        {
+          "title": "Perfect Wedding",
+          "score": -0.92
+        }
+      ]
+    },
+    {
+      "id": "explicit-negative-keyword",
+      "status": "ok",
+      "description": "I dislike torture.",
+      "ms": 2739,
+      "signals": [
+        {
+          "dimension": "keyword",
+          "key": "torture",
+          "meaning": "Depictions of people being subjected to prolonged physical or psychological harm intended to coerce, punish, or inflict suffering.",
+          "statement": "I dislike torture.",
+          "score": -0.9
+        }
+      ],
+      "pairs": [
+        {
+          "preferred": "Small Town Puzzle",
+          "comparison": "The Cellar",
+          "margin": 5.8917,
+          "credit": 1
+        },
+        {
+          "preferred": "The Clear Record",
+          "comparison": "The Cellar",
+          "margin": 5.4908,
+          "credit": 1
+        }
+      ],
+      "top": [
+        {
+          "title": "Last Place",
+          "score": -1.318
+        },
+        {
+          "title": "The Borrowed Table",
+          "score": -1.318
+        },
+        {
+          "title": "Dinner for Two",
+          "score": -1.318
+        },
+        {
+          "title": "Reef Watchers",
+          "score": -1.318
+        },
+        {
+          "title": "Mutual Orbit",
+          "score": -1.318
+        },
+        {
+          "title": "Small Town Puzzle",
+          "score": -1.318
+        },
+        {
+          "title": "Stage Lights",
+          "score": -1.318
+        },
+        {
+          "title": "The Chase",
+          "score": -1.492
+        }
+      ]
+    },
+    {
+      "id": "mixed-strengths",
+      "status": "ok",
+      "description": "I like practical teamwork. I like space travel. I dislike glorified violence.",
+      "ms": 5140,
+      "signals": [
+        {
+          "dimension": "story",
+          "key": "practical teamwork",
+          "meaning": "Stories focusing on people solving problems together through pragmatic, cooperative effort rather than grand heroics or lone genius approaches.",
+          "statement": "I like practical teamwork.",
+          "score": 0.9
+        },
+        {
+          "dimension": "keyword",
+          "key": "space travel",
+          "meaning": "Narratives that center on travel between planets, interstellar voyages, or journeys through space.",
+          "statement": "I like space travel.",
+          "score": 0.8
+        },
+        {
+          "dimension": "keyword",
+          "key": "glorified violence",
+          "meaning": "Content that presents violence as glamorous, celebratory, or central heroic spectacle.",
+          "statement": "I dislike glorified violence.",
+          "score": -0.9
+        }
+      ],
+      "pairs": [
+        {
+          "preferred": "Mutual Orbit",
+          "comparison": "Across the Stars",
+          "margin": 1.4744,
+          "credit": 1
+        },
+        {
+          "preferred": "Quiet Repairs",
+          "comparison": "Last Gun",
+          "margin": 2.8002,
+          "credit": 1
+        }
+      ],
+      "top": [
+        {
+          "title": "Quiet Repairs",
+          "score": 0.04
+        },
+        {
+          "title": "Mutual Orbit",
+          "score": -0.152
+        },
+        {
+          "title": "The Borrowed Table",
+          "score": -0.509
+        },
+        {
+          "title": "Twelve Minutes",
+          "score": -0.296
+        },
+        {
+          "title": "Night Train Letters",
+          "score": -0.735
+        },
+        {
+          "title": "Last Place",
+          "score": -0.648
+        },
+        {
+          "title": "Broken Bridge",
+          "score": -0.657
+        },
+        {
+          "title": "Small Town Puzzle",
+          "score": -0.813
+        }
+      ]
+    }
+  ]
+}

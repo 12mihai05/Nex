@@ -12,6 +12,12 @@ sealed class NexChatBlock {
   const NexChatBlock();
 }
 
+class KnowledgeChatBlock extends NexChatBlock {
+  const KnowledgeChatBlock(this.text, this.citations);
+  final String text;
+  final List<Map<String, dynamic>> citations;
+}
+
 class TextChatBlock extends NexChatBlock {
   const TextChatBlock(this.text);
   final String text;

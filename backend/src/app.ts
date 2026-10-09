@@ -17,6 +17,7 @@ import { rankCandidates } from "./services/recommendation.js";
 import { generateCandidates } from "./services/candidates.js";
 import { discoverHome, discoveryShelves } from "./services/discovery.js";
 import { pickTitle } from "./services/pick.js";
+import { personalizationFor } from './services/personalization.js';
 import { catalogFilterSchema, filteredCatalog } from "./services/filtered-catalog.js";
 import { createEpgProvider } from "./services/epg/provider.js";
 import { getDatabase } from "./db/client.js";
@@ -33,6 +34,7 @@ const catalog = createTmdbRepository();
 const ai = new AiService();
 const epg = new EpgService();
 const chat = new ChatService(users, catalog, ai);
+const personalizer = personalizationFor(users,catalog);
 app.use("/api/*",bodyLimit({maxSize:128*1024,onError:(c)=>c.json({error:{code:"REQUEST_TOO_LARGE",message:"Request is too large."}},413)}));
 
 app.use("/api/*", cors({ origin: (origin) => config.ALLOWED_ORIGINS.split(",").includes(origin) ? origin : config.ALLOWED_ORIGINS.split(",")[0]!, allowHeaders: ["Content-Type", "Authorization", "X-Nex-Invite"], exposeHeaders: ["Set-Auth-Token"], credentials: true }));
@@ -90,7 +92,7 @@ app.get("/api/providers", async (c) => {
 app.get("/api/search", async (c) => {
   const { q, page } = searchQuerySchema.parse(c.req.query());
   const userId = c.get("authSession").user.id;
-  if (c.req.query("mode") === "onboarding") {
+  if (["onboarding","title"].includes(c.req.query("mode")??'')) {
     const {profile} = await users.getSettings(userId);
     const items = await catalog.search({query:q,region:profile.country,page,summaryOnly:true});
     return c.json({data:items.map(i=>({...i,metadataOnly:true})),meta:{page,source:catalog.mode}});
@@ -99,7 +101,7 @@ app.get("/api/search", async (c) => {
   const intent = detectSearchIntent(q);
   if(c.req.query("mode")==="title") { intent.intent="TITLE_LOOKUP";intent.availabilityScope="all_providers";intent.query=q; }
   const results = intent.intent === "DISCOVERY"
-    ? rankCandidates(await generateCandidates(catalog,state,intent),intent,{...state,viewerIds:[userId],temporaryMoods:intent.moods}).map(r=>r.item)
+    ? await (async()=>{const pool=await generateCandidates(catalog,state,intent);const personal=await personalizer.prepare(pool,state,userId,intent);return rankCandidates(pool,intent,{...state,...personal,viewerIds:[userId],temporaryMoods:intent.moods}).map(r=>r.item);})()
     : await catalog.search({ query: intent.query, region: state.country, page });
   const ownedResults = results.map(item=>({...item,availability:item.availability.map(a=>({...a,owned:state.ownedProviderIds.includes(a.providerId)}))}));
   return c.json({ data: ownedResults, meta: { intent: intent.intent, availabilityScope: intent.availabilityScope, page, source: catalog.mode } });
@@ -131,17 +133,18 @@ app.get("/api/title/:mediaType/:tmdbId/broadcasts", async c=>{
   return c.json({data:await epg.broadcastsForTitle(item,profile.country)});
 });
 
-app.get("/api/discovery", async c => {
+app.on(['GET','POST'],"/api/discovery", async c => {
   const userId=c.get("authSession").user.id;
-  const {batch:rawBatch,plan:rawPlan,...query}=c.req.query();
+  const {batch:rawBatch,plan:rawPlan,seen:rawSeen,...query}=z.record(z.string(),z.unknown()).parse(c.req.method==='POST'?await c.req.json():c.req.query());
+  const seen=rawSeen===undefined?[]:z.array(z.string().regex(/^(movie|series):\d+$/)).max(720).parse(rawSeen);
   const input=catalogFilterSchema.parse(query);
   const filters=Object.keys(query).length?{mediaType:input.mediaType,genres:input.genre?[input.genre]:[],minRuntimeMinutes:input.minMinutes??null,maxRuntimeMinutes:input.maxMinutes??null,...(input.watchStatus?{watchStatus:input.watchStatus}:{}),...(input.providerIds?{providerIds:input.providerIds}:{})}:{};
   const batch=rawBatch===undefined?undefined:z.coerce.number().int().min(0).max(5).parse(rawBatch);
   const state=await users.getRecommendationState(userId);
   let decoded:unknown;
-  try{decoded=rawPlan?JSON.parse(rawPlan):undefined;}catch{throw new HTTPException(400,{message:"Invalid discovery plan."});}
+  try{decoded=rawPlan?JSON.parse(z.string().parse(rawPlan)):undefined;}catch{throw new HTTPException(400,{message:"Invalid discovery plan."});}
   const plan=decoded===undefined?discoveryShelves(state).map(s=>s.id):z.array(z.string().max(160)).max(36).parse(decoded);
-  const rows=await discoverHome(catalog,state,userId,filters,batch,plan);
+  const rows=await discoverHome(catalog,state,userId,filters,batch,plan,seen,personalizer);
   // Record only the lead shelf, not hundreds of titles below the fold.
   if(batch===undefined||batch===0) await users.recordRecommendations(userId,rows[0]?.items??[],"discovery-lead");
   c.header("Cache-Control","private, no-store");
@@ -151,7 +154,7 @@ app.get("/api/discovery", async c => {
 app.get("/api/catalog", async c => {
   const query = catalogFilterSchema.parse(c.req.query());
   const userId = c.get("authSession").user.id;
-  return c.json(await filteredCatalog(catalog, await users.getRecommendationState(userId), userId, query));
+  return c.json(await filteredCatalog(catalog, await users.getRecommendationState(userId), userId, query,personalizer));
 });
 
 app.post("/api/recommend", async (c) => {
@@ -162,7 +165,8 @@ app.post("/api/recommend", async (c) => {
   const filter = detectSearchIntent("");
   Object.assign(filter, body.filter, { intent: "DISCOVERY" });
   const candidates = await generateCandidates(catalog,state,filter);
-  const ranked = rankCandidates(candidates, filter, { ...state, viewerIds: [userId], temporaryMoods: filter.moods });
+  const personal=await personalizer.prepare(candidates,state,userId,filter);
+  const ranked = rankCandidates(candidates, filter, { ...state,...personal, viewerIds: [userId], temporaryMoods: filter.moods });
   await users.recordRecommendations(userId,ranked,"browse");
   return c.json({ data: ranked });
 });
@@ -178,7 +182,7 @@ app.post("/api/surprise", async (c) => {
   filter.genres = body.genres;
   filter.providerIds = body.providerIds ?? [];
   filter.intent = "DISCOVERY";
-  const result = await pickTitle(catalog,state,userId,filter,body.watchStatus,body.excludedIds);
+  const result = await pickTitle(catalog,state,userId,filter,body.watchStatus,body.excludedIds,personalizer);
   if (!result) throw new HTTPException(404, { message: "No grounded pick matched those constraints." });
   await users.recordRecommendations(userId,[result],"surprise");
   return c.json({ data: result });
@@ -217,6 +221,14 @@ app.get("/api/tv/channels",async c=>{
   const userId=c.get("authSession").user.id;const {profile}=await users.getSettings(userId);
   const q=z.string().max(100).parse(c.req.query("q")??"");const offset=z.coerce.number().int().min(0).max(10000).parse(c.req.query("offset")??0);
   return c.json({data:await epg.listChannels(userId,profile.country,q,offset,c.req.query("favorites")==="true")});
+});
+app.get('/api/tv/guide',async c=>{
+  const input=z.object({start:z.iso.datetime(),q:z.string().max(100).default(''),offset:z.coerce.number().int().min(0).max(10000).default(0),favorites:z.enum(['true','false']).default('false')}).parse(c.req.query());
+  const start=new Date(input.start);
+  if(+start<Date.now()-86400000||+start>Date.now()+14*86400000)throw new HTTPException(400,{message:'Choose a day within the available TV guide.'});
+  const userId=c.get('authSession').user.id,{profile}=await users.getSettings(userId);
+  c.header('Cache-Control','private, no-store');
+  return c.json({data:await epg.guide(userId,profile.country,start,new Date(+start+6*3600000),input.q,input.offset,input.favorites==='true')});
 });
 app.put("/api/me/channel-favorites",async c=>{
   const body=z.object({channelId:z.string().min(1).max(500),favorite:z.boolean()}).strict().parse(await c.req.json());
@@ -274,6 +286,10 @@ app.put("/api/me/settings", async (c) => {
 app.get("/api/me/taste", async (c) => c.json({ data: await users.getTaste(c.get("authSession").user.id) }));
 app.put("/api/me/taste", async (c) => { const body = tasteBodySchema.parse(await c.req.json()); await users.upsertTaste(c.get("authSession").user.id, body.signals.map((s)=>({ ...s, source: "explicit_edit" }))); return c.json({ data: body.signals }); });
 app.delete("/api/me/taste", async (c) => { await users.clearTaste(c.get("authSession").user.id); return c.body(null, 204); });
+app.delete('/api/me/taste/entry',async c=>{
+  const {dimension,key}=z.object({dimension:z.string().min(1).max(80),key:z.string().min(1).max(300)}).parse(c.req.query());
+  await users.removeTaste(c.get('authSession').user.id,dimension,key);return c.body(null,204);
+});
 app.get("/api/me/watchlist", async (c) => c.json({ data: await users.listWatchlist(c.get("authSession").user.id) }));
 app.post("/api/me/watchlist", async (c) => { const body = titleActionSchema.parse(await c.req.json()); const userId=c.get("authSession").user.id; const {profile}=await users.getSettings(userId); const item=await catalog.getTitle(body.mediaType,body.tmdbId,profile.country); if (!item) throw new HTTPException(404); await users.addWatchlist(userId,item); await users.learnFromTitle(userId,item,"watchlist"); return c.json({ data: { saved: true } }, 201); });
 app.delete("/api/me/watchlist/:mediaType/:tmdbId", async (c) => { const params = titleParamsSchema.parse(c.req.param()); await users.removeWatchlist(c.get("authSession").user.id, params.mediaType, params.tmdbId); return c.body(null, 204); });

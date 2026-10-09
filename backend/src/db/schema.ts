@@ -57,6 +57,7 @@ export const profiles = sqliteTable("profiles", {
   onboardingComplete: integer("onboarding_complete", { mode: "boolean" }).notNull().default(false),
   appearance: text("appearance", { enum: ["system", "light", "dark"] }).notNull().default("system"),
   behaviorPersonalization: integer("behavior_personalization", { mode: "boolean" }).notNull().default(true),
+  recommendationEngine: text("recommendation_engine", { enum: ["baseline", "semantic", "semantic_ai"] }).notNull().default("baseline"),
   remindersEnabled: integer("reminders_enabled", { mode: "boolean" }).notNull().default(true),
   createdAt: createdAt(),
   updatedAt: updatedAt(),
@@ -93,6 +94,20 @@ export const userTastePreferences = sqliteTable("user_taste_preferences", {
   createdAt: createdAt(),
   updatedAt: updatedAt(),
 }, (table) => [uniqueIndex("taste_user_dimension_key_unique").on(table.userId, table.dimension, table.key), index("taste_user_idx").on(table.userId)]);
+
+// Public catalog representations contain no user preferences or account data.
+export const contentEmbeddings = sqliteTable("content_embeddings", {
+  key: text("key").primaryKey(),
+  vectorJson: text("vector_json").notNull(),
+  expiresAt: integer("expires_at", { mode: "timestamp_ms" }).notNull(),
+}, table => [index("content_embeddings_expiry_idx").on(table.expiresAt)]);
+
+export const userRecommendationCache = sqliteTable("user_recommendation_cache", {
+  userId: text("user_id").notNull().references(() => user.id, { onDelete: "cascade" }),
+  key: text("key").notNull(),
+  payloadJson: text("payload_json").notNull(),
+  expiresAt: integer("expires_at", { mode: "timestamp_ms" }).notNull(),
+}, table => [primaryKey({ columns: [table.userId, table.key] }), index("recommendation_cache_expiry_idx").on(table.expiresAt)]);
 
 export const userTitleFeedback = sqliteTable("user_title_feedback", {
   userId: text("user_id").notNull().references(() => user.id, { onDelete: "cascade" }),
@@ -265,5 +280,5 @@ export const schema = {
   userLanguagePreferences, userTastePreferences, userTitleFeedback, watchlist,
   watchHistory, channels, channelFavorites, epgPrograms, epgTmdbMatches, epgSyncRuns, reminders,
   conversationSessions, conversationMessages, conversationDisplayedItems,
-  userEvents, sessionContext, tmdbCache, aiUsage,
+  userEvents, sessionContext, tmdbCache, aiUsage, contentEmbeddings, userRecommendationCache,
 };

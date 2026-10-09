@@ -21,6 +21,7 @@ class AppState {
     this.busy = false,
     this.remindersEnabled = true,
     this.behaviorPersonalization = true,
+    this.recommendationEngine = 'baseline',
     this.error,
     this.appearance = ThemeMode.system,
     this.country = 'RO',
@@ -49,7 +50,7 @@ class AppState {
       behaviorPersonalization;
   final String? error, chatSessionId;
   final ThemeMode appearance;
-  final String country, tasteDescription, displayName;
+  final String country, tasteDescription, displayName, recommendationEngine;
   final Set<int> providers, favoriteIds;
   final Set<String> audioLanguages,
       subtitleLanguages,
@@ -70,6 +71,7 @@ class AppState {
     bool? busy,
     bool? remindersEnabled,
     bool? behaviorPersonalization,
+    String? recommendationEngine,
     String? error,
     bool clearError = false,
     ThemeMode? appearance,
@@ -99,6 +101,7 @@ class AppState {
     remindersEnabled: remindersEnabled ?? this.remindersEnabled,
     behaviorPersonalization:
         behaviorPersonalization ?? this.behaviorPersonalization,
+    recommendationEngine: recommendationEngine ?? this.recommendationEngine,
     error: clearError ? null : error ?? this.error,
     appearance: appearance ?? this.appearance,
     country: country ?? this.country,
@@ -319,6 +322,12 @@ class AppController extends Notifier<AppState> {
     await _refreshTasteAfterMutation();
   }
 
+  Future<void> removeTaste(String dimension, String key) async {
+    if (state.demoMode) return;
+    await _api.removeTaste(dimension, key);
+    await _refreshTasteAfterMutation();
+  }
+
   String reasonFor(ContentItem item) =>
       _reasons[item.key] ??
       'No personal recommendation explanation is available for this title yet.';
@@ -510,6 +519,8 @@ class AppController extends Notifier<AppState> {
             .toSet(),
         remindersEnabled: profile['remindersEnabled'] as bool,
         behaviorPersonalization: profile['behaviorPersonalization'] as bool,
+        recommendationEngine:
+            profile['recommendationEngine'] as String? ?? 'baseline',
       );
       List<Map<String, dynamic>> shelves = [];
       // Old deployments remain usable during a rolling backend/mobile upgrade.
@@ -691,6 +702,8 @@ class AppController extends Notifier<AppState> {
             .toSet(),
         remindersEnabled: profile['remindersEnabled'] as bool,
         behaviorPersonalization: profile['behaviorPersonalization'] as bool,
+        recommendationEngine:
+            profile['recommendationEngine'] as String? ?? 'baseline',
       );
       _pendingAuth = null;
       if (state.onboardingComplete) {
@@ -1086,6 +1099,15 @@ class AppController extends Notifier<AppState> {
       for (final raw in (response['blocks'] as List? ?? [])) {
         final block = (raw as Map).cast<String, dynamic>();
         switch (block['type']) {
+          case 'knowledge':
+            blocks.add(
+              KnowledgeChatBlock(
+                block['content'] as String,
+                (block['citations'] as List)
+                    .map((e) => (e as Map).cast<String, dynamic>())
+                    .toList(),
+              ),
+            );
           case 'text':
             if (!hasLibraryCards) {
               blocks.add(TextChatBlock(block['content'] as String));
@@ -1479,6 +1501,15 @@ class AppController extends Notifier<AppState> {
       remindersEnabled: value,
       reminderProgramIds: value ? state.reminderProgramIds : <String>{},
     );
+  }
+
+  Future<void> setRecommendationEngine(String value) async {
+    if (!const {'baseline', 'semantic', 'semantic_ai'}.contains(value)) return;
+    if (!state.demoMode) {
+      await _api.saveSettings({'recommendationEngine': value});
+    }
+    state = state.copyWith(recommendationEngine: value);
+    // Keep the visible Home stable. Its next deliberate refresh uses this choice.
   }
 
   void setBehaviorPersonalization(bool value) {

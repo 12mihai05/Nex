@@ -16,7 +16,10 @@ async function api(path:string,body?:unknown){
   return response.json() as Promise<Record<string,unknown>>;
 }
 try {
-  if(process.argv[2]==='status'){
+  if(process.argv[2]==='latest'){
+    const list=await api(`/v6/deployments?projectId=${encodeURIComponent(project)}&limit=3&target=production`);
+    console.log(JSON.stringify({deployments:(list.deployments as Array<Record<string,any>>).map(d=>({id:d.uid,state:d.readyState??d.state,url:d.url,commit:d.meta?.githubCommitSha}))}));
+  } else if(process.argv[2]==='status'){
     if(!/^dpl_[a-zA-Z0-9]+$/.test(process.argv[3]??''))throw new Error('DEPLOYMENT_ID_REQUIRED');
     const d=await api(`/v13/deployments/${process.argv[3]}`);
     console.log(JSON.stringify({id:d.id,state:d.readyState,url:d.url,alias:d.alias,errorCode:d.errorCode}));
