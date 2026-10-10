@@ -12,7 +12,7 @@ try {
       const result = await new EpgService(getDatabase(), createEpgProvider(country)).sync();
       console.log(JSON.stringify({ country, ...result }));
     } catch (error) {
-      console.log(JSON.stringify({ country, status: "failed", code: error instanceof EpgSyncError ? error.code : syncErrorCode(error), stage: error instanceof EpgSyncError ? error.stage : 'startup' }));
+      console.log(JSON.stringify({ country, status: "failed", code: error instanceof EpgSyncError ? error.code : syncErrorCode(error), stage: error instanceof EpgSyncError ? error.stage : 'startup', ...(error instanceof EpgSyncError ? {snapshotBytes:error.snapshotBytes,programCount:error.programCount}: {}) }));
       process.exitCode = 1;
     }
     if (getConfig().EPG_SOURCE_TYPE === "fixture") break;

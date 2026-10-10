@@ -9,7 +9,7 @@ import { createEpgProvider, type EpgProvider } from "./provider.js";
 import { bestEpgMatch, type MatchResult } from "./matcher.js";
 import { normalizeEpgTitle, type NormalizedProgram } from "./xmltv.js";
 import {localDayWindow} from '../tv-window.js';
-import { EpgSyncError, syncErrorCode } from './sync-error.js';
+import { EpgSyncError, syncErrorCode, retrySnapshot } from './sync-error.js';
 
 export class EpgService {
   constructor(private readonly db: NexDatabase = getDatabase(), private readonly provider: EpgProvider = createEpgProvider(), private readonly catalog: TmdbRepository = createTmdbRepository()) {}
@@ -88,6 +88,7 @@ export class EpgService {
     try { await this.db.insert(epgSyncRuns).values({ id: runId, sourceId: this.provider.sourceId, status: "running", startedAt: now }); }
     catch { throw new Error("EPG_SYNC_BUSY_OR_UNAVAILABLE"); }
     let stage = 'load';
+    let snapshotBytes=0,programCount=0;
     try {
       const favorites=await this.db.selectDistinct({externalId:channels.externalId}).from(channelFavorites).innerJoin(channels,eq(channels.id,channelFavorites.channelId)).where(eq(channels.sourceId,this.provider.sourceId));
       const parsed = await this.provider.load({preferredExternalIds:new Set(favorites.map(f=>f.externalId))});
@@ -132,7 +133,9 @@ export class EpgService {
         }
         // Remove replaced schedules only after the complete new snapshot has been imported.
       const removeReplaced = this.db.delete(epgPrograms).where(and(eq(epgPrograms.sourceId, this.provider.sourceId), gt(epgPrograms.endAt, now), lt(epgPrograms.updatedAt, now)));
-      await this.db.batch([deactivate, ...channelWrites, ...programWrites, removeReplaced]);
+      const snapshot=[deactivate, ...channelWrites, ...programWrites, removeReplaced] as const;
+      snapshotBytes=Buffer.byteLength(JSON.stringify(snapshot.map(q=>q.toSQL())));programCount=rows.length;
+      await retrySnapshot(()=>this.db.batch([...snapshot]));
       stage = 'finalize';
       const removed = await this.db.delete(epgPrograms).where(and(eq(epgPrograms.sourceId, this.provider.sourceId), or(lt(epgPrograms.endAt, minDate), gt(epgPrograms.startAt, maxDate)))).returning({ id: epgPrograms.id });
       await this.db.update(epgSyncRuns).set({ status: "success", finishedAt: new Date(), sourceTimestamp: parsed.sourceTimestamp, importedRows, deletedRows: removed.length+expired.length }).where(eq(epgSyncRuns.id, runId));
@@ -141,7 +144,7 @@ export class EpgService {
     } catch (error) {
       const code = syncErrorCode(error);
       await this.db.update(epgSyncRuns).set({ status: "failed", finishedAt: new Date(), errorCode: `${stage}:${code}` }).where(eq(epgSyncRuns.id, runId));
-      throw new EpgSyncError(code, stage);
+      throw new EpgSyncError(code, stage, snapshotBytes, programCount);
     }
   }
 
