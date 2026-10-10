@@ -31,7 +31,7 @@ Old push-device/delivery database tables are retained unused to avoid destructiv
 
 ## Known separate limitation
 
-The verification pass found Germany's Upcoming discovery can return older cinema re-releases on early pages. Filtering them out can produce a misleading empty-state message while later pages exist. This notification replacement does not claim to fix that separate discovery issue.
+Germany's Upcoming discovery can return older cinema re-releases on early pages. Filtering them out leaves an empty page while later pages still exist. The UI now distinguishes this from an exhausted country list and keeps Show more available. Upcoming is accessible inside Home's Filters popup and explicitly describes TMDB coverage limits. A fresh check on 2026-10-10 found no Romanian theatrical release record for Avengers: Doomsday, although other countries have dates. Search remains available; foreign dates are not relabelled as Romanian.
 
 ## Verification history
 

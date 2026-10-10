@@ -11,6 +11,11 @@ import 'package:nex/src/state/app_controller.dart';
 import 'package:nex/src/screens/upcoming_movies.dart';
 import 'package:nex/src/widgets/programme_sheet.dart';
 import 'package:nex/src/screens/notifications_screen.dart';
+import 'package:nex/src/screens/library_screen.dart';
+import 'package:nex/src/widgets/catalog_filter_sheet.dart';
+
+import 'library_filters_test.dart' show LibraryApi;
+
 import 'package:shared_preferences/shared_preferences.dart';
 
 import 'release_inbox_test.dart' show InboxApi;
@@ -141,6 +146,45 @@ void main() {
       );
       await tester.pumpAndSettle();
       await capture('notifications');
+      final libraryContainer = ProviderContainer(
+        overrides: [nexApiClientProvider.overrideWithValue(LibraryApi())],
+      );
+      addTearDown(libraryContainer.dispose);
+      await libraryContainer
+          .read(appControllerProvider.notifier)
+          .restoreSession();
+      await tester.pumpWidget(
+        UncontrolledProviderScope(
+          container: libraryContainer,
+          child: MaterialApp(
+            theme: dark ? NexTheme.dark : NexTheme.light,
+            home: RepaintBoundary(
+              key: key,
+              child: const LibraryScreen(watched: true),
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      await capture('library');
+      await tester.pumpWidget(
+        UncontrolledProviderScope(
+          container: libraryContainer,
+          child: MaterialApp(
+            theme: dark ? NexTheme.dark : NexTheme.light,
+            home: RepaintBoundary(
+              key: key,
+              child: Scaffold(
+                body: SafeArea(
+                  child: CatalogFilterSheet(type: 'movie', onUpcoming: () {}),
+                ),
+              ),
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      await capture('filters');
       expect(tester.takeException(), isNull);
     }, skip: Platform.environment['NEX_VISUAL_QA'] != '1');
   }

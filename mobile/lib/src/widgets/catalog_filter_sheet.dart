@@ -41,6 +41,8 @@ class CatalogFilterSheet extends StatefulWidget {
     this.watchStatus = 'new',
     this.services = const {},
     this.providers,
+    this.onUpcoming,
+    this.libraryMode = false,
   });
   final String type;
   final String? genre;
@@ -48,6 +50,8 @@ class CatalogFilterSheet extends StatefulWidget {
   final String watchStatus;
   final Map<int, String> services;
   final Set<int>? providers;
+  final VoidCallback? onUpcoming;
+  final bool libraryMode;
   @override
   State<CatalogFilterSheet> createState() => _CatalogFilterSheetState();
 }
@@ -55,6 +59,7 @@ class CatalogFilterSheet extends StatefulWidget {
 class _CatalogFilterSheetState extends State<CatalogFilterSheet> {
   late String? genre = widget.genre;
   late String watchStatus = widget.watchStatus;
+  late bool restrictServices = widget.providers != null;
   late Set<int> providers = Set.of(
     widget.providers ?? widget.services.keys.toSet(),
   );
@@ -95,6 +100,24 @@ class _CatalogFilterSheetState extends State<CatalogFilterSheet> {
           children: [
             Text('Filters', style: Theme.of(context).textTheme.headlineSmall),
             const SizedBox(height: 20),
+            if (widget.onUpcoming != null) ...[
+              Card(
+                margin: EdgeInsets.zero,
+                child: ListTile(
+                  leading: const Icon(Icons.event_outlined),
+                  title: const Text('Upcoming in cinemas'),
+                  subtitle: const Text(
+                    'Browse listed cinema dates for your country.',
+                  ),
+                  trailing: const Icon(Icons.chevron_right),
+                  onTap: () {
+                    Navigator.pop(context);
+                    widget.onUpcoming!();
+                  },
+                ),
+              ),
+              const SizedBox(height: 24),
+            ],
             DropdownButtonFormField<String>(
               initialValue: genre ?? '',
               isExpanded: true,
@@ -149,36 +172,54 @@ class _CatalogFilterSheetState extends State<CatalogFilterSheet> {
               ),
             ],
             const SizedBox(height: 24),
-            const Text('Viewing'),
-            const SizedBox(height: 8),
-            Wrap(
-              spacing: 8,
-              children: [
-                for (final option in [
-                  ('new', 'New to me'),
-                  ('again', 'Watch again'),
-                  ('either', 'Either'),
-                ])
-                  ChoiceChip(
-                    label: Text(option.$2),
-                    selected: watchStatus == option.$1,
-                    onSelected: (_) => setState(() => watchStatus = option.$1),
-                  ),
-              ],
-            ),
+            if (!widget.libraryMode) ...[
+              const Text('Viewing'),
+              const SizedBox(height: 8),
+              Wrap(
+                spacing: 8,
+                children: [
+                  for (final option in [
+                    ('new', 'New to me'),
+                    ('again', 'Watch again'),
+                    ('either', 'Either'),
+                  ])
+                    ChoiceChip(
+                      label: Text(option.$2),
+                      selected: watchStatus == option.$1,
+                      onSelected: (_) =>
+                          setState(() => watchStatus = option.$1),
+                    ),
+                ],
+              ),
+            ],
             if (widget.services.isNotEmpty) ...[
               const SizedBox(height: 20),
-              const Text('Your streaming services'),
-              const Text('Only for this view. Your profile stays the same.'),
-              const SizedBox(height: 8),
-              StreamingServiceChips(
-                services: widget.services,
-                selected: providers,
-                onChanged: (next) => setState(() {
-                  providers = next;
-                  error = null;
-                }),
-              ),
+              if (widget.libraryMode)
+                SwitchListTile(
+                  contentPadding: EdgeInsets.zero,
+                  title: const Text('On my streaming services'),
+                  subtitle: const Text(
+                    'Only show saved titles included on the selected services.',
+                  ),
+                  value: restrictServices,
+                  onChanged: (value) => setState(() {
+                    restrictServices = value;
+                    error = null;
+                  }),
+                ),
+              if (!widget.libraryMode || restrictServices) ...[
+                const Text('Your streaming services'),
+                const Text('Only for this view. Your profile stays the same.'),
+                const SizedBox(height: 8),
+                StreamingServiceChips(
+                  services: widget.services,
+                  selected: providers,
+                  onChanged: (next) => setState(() {
+                    providers = next;
+                    error = null;
+                  }),
+                ),
+              ],
             ],
             if (error != null)
               Padding(
@@ -191,7 +232,9 @@ class _CatalogFilterSheetState extends State<CatalogFilterSheet> {
             const SizedBox(height: 24),
             FilledButton(
               onPressed: () {
-                if (widget.services.isNotEmpty && providers.isEmpty) {
+                if (widget.services.isNotEmpty &&
+                    providers.isEmpty &&
+                    (!widget.libraryMode || restrictServices)) {
                   setState(
                     () => error = 'Select at least one streaming service.',
                   );
@@ -220,7 +263,9 @@ class _CatalogFilterSheetState extends State<CatalogFilterSheet> {
                   min: min,
                   max: max,
                   watchStatus: watchStatus,
-                  providers: providers.length == widget.services.length
+                  providers: widget.libraryMode
+                      ? (restrictServices ? Set<int>.of(providers) : null)
+                      : providers.length == widget.services.length
                       ? null
                       : Set<int>.of(providers),
                 ));

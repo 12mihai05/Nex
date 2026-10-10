@@ -113,7 +113,11 @@ class _UpcomingMoviesState extends ConsumerState<UpcomingMovies>
                     ),
                     const SizedBox(height: 8),
                     Text(
-                      '${watchingCountries[country] ?? country} · Announced cinema dates, subject to change. Not streaming availability.',
+                      '${watchingCountries[country] ?? country} · Cinema dates listed by TMDB, subject to change. Not a complete cinema schedule or streaming availability.',
+                    ),
+                    const SizedBox(height: 8),
+                    const Text(
+                      'A film without a listed date for your country may be missing here. You can still find it in Search.',
                     ),
                   ],
                 ),
@@ -136,7 +140,7 @@ class _UpcomingMoviesState extends ConsumerState<UpcomingMovies>
                 itemBuilder: (_, i) => ContentCard(item: items[i]),
               ),
             ),
-            if (items.isEmpty && !loading && error == null)
+            if (items.isEmpty && !more && !loading && error == null)
               const SliverFillRemaining(
                 hasScrollBody: false,
                 child: Center(
@@ -145,6 +149,15 @@ class _UpcomingMoviesState extends ConsumerState<UpcomingMovies>
                     child: Text(
                       'No upcoming cinema dates listed for this country. You can still search for an unreleased title.',
                     ),
+                  ),
+                ),
+              ),
+            if (items.isEmpty && more && !loading && error == null)
+              const SliverToBoxAdapter(
+                child: Padding(
+                  padding: EdgeInsets.all(24),
+                  child: Text(
+                    'No future dates on this page. More results are available; continue below.',
                   ),
                 ),
               ),

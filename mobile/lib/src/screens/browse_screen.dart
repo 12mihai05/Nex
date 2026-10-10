@@ -235,6 +235,9 @@ class _BrowseScreenState extends ConsumerState<BrowseScreen> {
       useSafeArea: true,
       showDragHandle: true,
       builder: (_) => CatalogFilterSheet(
+        onUpcoming: () {
+          if (mounted) setState(() => upcoming = true);
+        },
         type: type,
         genre: genre,
         min: minimum,
@@ -387,11 +390,6 @@ class _BrowseScreenState extends ConsumerState<BrowseScreen> {
                         avatar: const Icon(Icons.tune, size: 18),
                         label: const Text('Filters'),
                         onPressed: editFilters,
-                      ),
-                      ActionChip(
-                        avatar: const Icon(Icons.event_outlined, size: 18),
-                        label: const Text('Upcoming'),
-                        onPressed: () => setState(() => upcoming = true),
                       ),
                       if (genre != null)
                         InputChip(
