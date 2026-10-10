@@ -145,4 +145,13 @@ describe("story concepts independent of genres",()=>{
     const topicCalls=spy.mock.calls.filter(([o])=>o.keywords?.length);
     expect(topicCalls.length).toBeGreaterThan(0);expect(topicCalls.every(([o])=>!o.genres?.length)).toBe(true);
   });
+  it('similar-title retrieval does not spend sources on unrelated saved interests',async()=>{
+    const related=vi.fn(async()=>[base]);
+    const catalog=Object.assign(new FixtureTmdbRepository(),{related});const discover=vi.spyOn(catalog,'discover');
+    vi.spyOn(catalog,'search').mockResolvedValue([base]);
+    const state:any={...context,country:'RO',favorites:[],saved:[],taste:[{dimension:'genre',key:'horror',score:1,confidence:1},{dimension:'keyword',key:'car race',score:1,confidence:1}]};
+    await generateCandidates(catalog,state,query({similarTo:base.title}));
+    expect(discover.mock.calls.every(([o])=>!o.keywords?.includes('car race')&&!o.genres?.includes('horror'))).toBe(true);
+    expect(related.mock.calls.length).toBeGreaterThan(0);
+  });
 });

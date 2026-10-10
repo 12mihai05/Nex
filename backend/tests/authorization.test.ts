@@ -57,7 +57,7 @@ describe("user ownership isolation", () => {
     const parse=vi.spyOn(ai,"parseIntent").mockResolvedValue({...previous,maxRuntimeMinutes:110});
     const compose=vi.spyOn(ai,"compose").mockResolvedValue({intro:"No supported match.",quickActions:[],selectedKeys:[]});
     await new ChatService(repository,catalog,ai).respond("alice","Other options, under 110 minutes instead.",session);
-    expect(parse).toHaveBeenCalledWith("Other options, under 110 minutes instead.",previous);
+    expect(parse).toHaveBeenCalledWith("Other options, under 110 minutes instead.",previous,expect.objectContaining({history:expect.any(Array)}));
     expect(compose.mock.calls[0]![3]).toEqual({...previous,maxRuntimeMinutes:110});
     parse.mockRestore();compose.mockRestore();
   });

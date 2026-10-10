@@ -18,7 +18,8 @@ it("sends resolved follow-up constraints to the stateless editor without adding 
   const payload=JSON.parse(messages.find(m=>m.role==="user")!.content);
   expect(payload.resolvedFilters).toEqual(filters);
   expect(payload.message).toBe("Other options, under 110 minutes instead.");
-  expect(Object.keys(payload).sort()).toEqual(["candidates","message","resolvedFilters","reviewConcepts"]);
+  expect(Object.keys(payload).sort()).toEqual(["candidates","context","message","resolvedFilters","reviewConcepts"]);
+  expect(payload.context).toBeNull();
 });
 
 it("passes the current replacement constraints, not a stale prior topic, and preserves honest abstention",async()=>{
@@ -29,4 +30,15 @@ it("passes the current replacement constraints, not a stale prior topic, and pre
   const messages=parse.mock.calls[0]![0]!.input as Array<{role:string;content:string}>;
   expect(JSON.parse(messages.find(m=>m.role==="user")!.content).resolvedFilters).toEqual(current);
   expect(result.selectedKeys).toEqual([]);
+});
+
+it('allows grounded contextual ordering only for similar-title requests',async()=>{
+  const ai=new AiService('test-key');const items=fixtureCatalog.slice(0,2);
+  const keys=items.map(i=>`${i.mediaType}:${i.id}`);
+  vi.spyOn((ai as unknown as {client:OpenAI}).client.responses,'parse').mockResolvedValue({output_parsed:{intro:'A supported connection.',quickActions:[],selections:[{key:keys[1],evidence:items[1]!.overview.slice(0,40)},{key:keys[0],evidence:items[0]!.overview.slice(0,40)}]}} as never);
+  const candidates=items.map(item=>({item,reason:'Catalog evidence'}));
+  const similar=await ai.compose('Like that film',candidates,true,filterQuerySchema.parse({intent:'DISCOVERY',similarTo:'A reference film'}));
+  expect(similar.selectedKeys).toEqual([keys[1],keys[0]]);
+  const normal=await ai.compose('A theme',candidates,true,filterQuerySchema.parse({intent:'DISCOVERY',keywords:['friendship']}));
+  expect(normal.selectedKeys).toEqual(keys);
 });

@@ -50,7 +50,7 @@ export interface TmdbRepository {
   discover(options: DiscoverOptions): Promise<ContentItem[]>;
   getTitle(mediaType: MediaType, id: number, region: string, ownedProviderIds?: number[]): Promise<ContentItem | null>;
   getProviders(region: string): Promise<Array<{ id: number; name: string; logoUrl: string | null }>>;
-  related?(mediaType: MediaType, id: number, region: string): Promise<ContentItem[]>;
+  related?(mediaType: MediaType, id: number, region: string,limit?:number): Promise<ContentItem[]>;
 }
 
 export class FixtureTmdbRepository implements TmdbRepository {
@@ -262,9 +262,12 @@ export class LiveTmdbRepository implements TmdbRepository {
     return providers;
   }
 
-  async related(mediaType: MediaType, id: number, region: string): Promise<ContentItem[]> {
+  async related(mediaType: MediaType, id: number, region: string,limit=6): Promise<ContentItem[]> {
     const payload = await this.request<{ results: Array<Record<string,unknown>> }>(`/${mediaType === "series" ? "tv" : "movie"}/${id}/recommendations`, { language: "en-US" });
-    return Promise.all(payload.results.slice(0,6).map((r)=>this.summaryToItem({ ...r, media_type: mediaType === "series" ? "tv" : "movie" },region)));
+    const rows=payload.results.slice(0,Math.min(20,Math.max(1,limit)));
+    await this.prefetchTitleCache(rows.map(r=>({mediaType,id:Number(r.id)})),region);
+    const found=await Promise.allSettled(rows.map((r)=>this.summaryToItem({ ...r, media_type: mediaType === "series" ? "tv" : "movie" },region)));
+    return found.flatMap(r=>r.status==='fulfilled'?[r.value]:[]);
   }
 
   private async summaryToItem(value: Record<string, unknown>, region: string, summaryOnly = false): Promise<ContentItem> {

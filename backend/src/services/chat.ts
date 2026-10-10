@@ -1,10 +1,11 @@
-import type { ChatBlock } from "../domain/types.js";
+import type { ChatBlock,ContentItem } from "../domain/types.js";
 import { FixtureTmdbRepository, type TmdbRepository } from "../repositories/tmdb-repository.js";
 import { UserRepository } from "../repositories/user-repository.js";
 import { rankCandidates } from "./recommendation.js";
 import {titleKey} from "./recommendation.js";
 import { isPersistentPreference, fallbackIntent } from "./intent.js";
-import { AiService } from "./ai.js";
+import { AiService,type ChatIntentContext } from "./ai.js";
+import {normalizeSearch} from './search-ranking.js';
 import { EpgService } from "./epg/service.js";
 import { generateCandidates } from "./candidates.js";
 import { tvWindow } from "./tv-window.js";
@@ -110,7 +111,14 @@ export class ChatService {
       return {sessionId,blocks};
     }
     const previous = savedContext.country && savedContext.country!==state.country ? undefined : savedContext.filter as import("../domain/types.js").FilterQuery | undefined;
-    const query = await this.ai.parseIntent(message,previous).catch(() => undefined);
+    const intentContext:ChatIntentContext={history:history??await this.users.recentConversationMessages(userId,sessionId),focus:savedContext.focus,displayed:await this.users.recentDisplayedItems(userId,sessionId)};
+    const query = await this.ai.parseIntent(message,previous,intentContext).catch(() => undefined);
+    if(query?.clarification||(!query&&this.ai.mode==='live')){
+      const content=query?.clarification||'I couldn’t interpret that request just now. Please try again.';
+      const blocks:ChatBlock[]=[{type:'text',content}];
+      await this.users.addConversationMessage(userId,sessionId,'assistant',content,blocks);
+      return {sessionId,blocks};
+    }
     const safeQuery = query ?? fallbackIntent(message,previous);
     // 'Tonight' alone is temporal context, not a request to switch from streaming to EPG.
     const broadcastMessage=message.replace(/\blive[- ]action\b/gi,"");
@@ -132,14 +140,24 @@ export class ChatService {
       await this.users.saveDisplayedReferences(userId, sessionId, assistantId, programs.map(p=>broadcastReference(p,state.country)));
       return { sessionId, blocks };
     }
+    let referenceTitle:ContentItem|undefined;
+    if(safeQuery.intent==='DISCOVERY'&&safeQuery.similarTo){
+      const matches=(await this.catalog.search({query:safeQuery.similarTo,region:state.country})).filter(i=>[i.title,i.originalTitle].some(t=>t&&normalizeSearch(t)===normalizeSearch(safeQuery.similarTo!)));
+      const focus=savedContext.focus as {tmdbId?:number;type?:string}|undefined;
+      referenceTitle=matches.length===1?matches[0]:matches.find(i=>i.id===focus?.tmdbId&&i.mediaType===focus?.type);
+      if(!referenceTitle){const content='Which movie or series do you mean? Please include its year so I can match the right one.';const blocks:ChatBlock[]=[{type:'text',content}];await this.users.addConversationMessage(userId,sessionId,'assistant',content,blocks);return {sessionId,blocks};}
+      intentContext.referenceTitle={title:referenceTitle.title,overview:referenceTitle.overview.slice(0,1000),keywords:referenceTitle.keywords.slice(0,40),genres:referenceTitle.genres};
+    }
     const candidates = safeQuery.intent === "TITLE_LOOKUP" || safeQuery.intent === "AVAILABILITY_LOOKUP"
       ? await this.catalog.search({ query: safeQuery.query, region: state.country })
-      : await generateCandidates(this.catalog,state,safeQuery);
-    const reviewConcepts=safeQuery.intent==="DISCOVERY"&&(safeQuery.keywords.length>0||safeQuery.moods.length>0||safeQuery.excludedMoods.length>0);
+      : await generateCandidates(this.catalog,state,safeQuery,referenceTitle);
+    const reviewConcepts=safeQuery.intent==="DISCOVERY"&&(!!safeQuery.similarTo||safeQuery.keywords.length>0||safeQuery.moods.length>0||safeQuery.excludedMoods.length>0);
     const personal=await personalizationFor(this.users,this.catalog).prepare(candidates,state,userId,safeQuery);
-    const ranked = rankCandidates(candidates, safeQuery, { ...state,...personal, viewerIds: [userId], temporaryMoods: safeQuery.moods }, reviewConcepts?12:8);
-    const composed = await this.ai.compose(message, ranked,reviewConcepts,safeQuery).catch(() => ({ intro: ranked.length ? "These are catalog-based candidates; I couldn't verify the more nuanced story fit just now." : "I couldn't find a strong match for that yet.", quickActions: ["Try something lighter", "Under 90 minutes"],selectedKeys:undefined }));
-    const delivered=(composed.selectedKeys?ranked.filter(r=>composed.selectedKeys!.includes(titleKey(r.item))):ranked).slice(0,8);
+    const ranked = rankCandidates(candidates, safeQuery, { ...state,...personal, viewerIds: [userId], temporaryMoods: safeQuery.moods }, safeQuery.similarTo?32:reviewConcepts?12:8);
+    const composed = await this.ai.compose(message, ranked,reviewConcepts,safeQuery,intentContext).catch(() => ({ intro: "I couldn’t verify a good match for that request just now. Please try again.", quickActions: [],selectedKeys:reviewConcepts?[] as string[]:undefined }));
+    const chosen=composed.selectedKeys?ranked.filter(r=>composed.selectedKeys!.includes(titleKey(r.item))):ranked;
+    if(safeQuery.similarTo&&composed.selectedKeys)chosen.sort((a,b)=>composed.selectedKeys!.indexOf(titleKey(a.item))-composed.selectedKeys!.indexOf(titleKey(b.item)));
+    const delivered=chosen.slice(0,8);
     await this.users.recordRecommendations(userId,delivered,sessionId);
     const selected = delivered.map((entry) => entry.item);
     composed.intro=addSuitabilityCaution(composed.intro,message,selected.length>0);
@@ -175,7 +193,8 @@ export class ChatService {
     }
     if(/\b(?:do not|don['’]t|never)\s+(?:(?:ever|automatically|permanently|also)\s+)?(?:save|change|update|remember|add|mark|rate)\b/i.test(message))return [{type:'text',content:'I haven’t changed your saved Taste.'}];
     if(/\b(this|that) (kind|type|sort)\b/i.test(message))return [{type:'text',content:'What part wasn’t for you: the story, tone, pacing, or something else? I won’t assume you dislike the whole genre.'}];
-    const result=await this.ai.extractTaste(description,[],userEvidence,true).catch(()=>({signals:[]}));
+    const result=await this.ai.extractTaste(description,[],userEvidence,true).catch(()=>null);
+    if(!result)return [{type:'text',content:'I couldn’t save that preference just now. Nothing changed. Please try your reply again.'}];
     if('clarification'in result&&result.clarification){
       context??=await this.users.getSessionContext(userId,sessionId);
       const question=`${result.clarification}\n\nNothing changed yet.`;
@@ -187,8 +206,15 @@ export class ChatService {
     if(examples.issues.length)return [{type:'text',content:`${examples.issues.join(' ')} Nothing changed yet. Please repeat the examples with those details.`}];
     const extracted={signals:result.signals.filter(s=>s.confidence>=.75 && (s.dimension!=='combination'||(s.conditions?.length??0)>=2))};
     extracted.signals.push(...examples.signals);
-    if(!extracted.signals.length)return [{type:"text",content:"I’m not sure what you’d like me to remember. Nothing changed. What should I look for, or avoid, in future recommendations?"}];
-    await this.users.upsertTaste(userId,extracted.signals.map(s=>({...s,source:"chat_explicit"})));
+    if(!extracted.signals.length)return [{type:"text",content:context?.tastePending?'I couldn’t safely apply that answer to your preference. Nothing changed. Please restate the preference with the exception you want to keep.':"I’m not sure what you’d like me to remember. Nothing changed. What should I look for, or avoid, in future recommendations?"}];
+    const existing=extracted.signals.some(s=>s.dimension==='combination'&&s.statement)?await this.users.getTaste(userId):[];
+    // Repeating the same sourced statement should update its scope, not create
+    // duplicates merely because the model reworded the human-readable label.
+    const evidenceKey=(s:string)=>s.trim().toLowerCase().replace(/\s+/g,' ');
+    await this.users.upsertTaste(userId,extracted.signals.map(s=>{
+      const prior=s.dimension==='combination'&&s.statement?existing.find(e=>e.dimension===s.dimension&&e.statement&&evidenceKey(e.statement)===evidenceKey(s.statement!)):undefined;
+      return {...s,key:prior?.key??s.key,source:"chat_explicit"};
+    }));
     if(context)await this.users.setSessionContext(userId,sessionId,{...context,tastePending:undefined});
     const label=(s:typeof extracted.signals[number])=>{
       if(s.dimension==='language'){try{return `${new Intl.DisplayNames(['en'],{type:'language'}).of(s.key)}-language titles`;}catch{return s.key;}}

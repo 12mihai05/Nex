@@ -16,6 +16,7 @@ import {localDayWindow} from '../src/services/tv-window.js';
 import {localClockTime} from '../src/services/tv-window.js';
 import {ChatService} from '../src/services/chat.js';
 import {ChatKnowledge} from '../src/services/chat-knowledge.js';
+import {filterQuerySchema} from '../src/domain/types.js';
 
 let client:ReturnType<typeof createClient>,db:ReturnType<typeof drizzle<typeof schema>>,users:UserRepository,session:string,actions:ChatActions,ai:AiService,catalog:FixtureTmdbRepository;
 const items=Array.from({length:50},(_,i)=>({...fixtureCatalog[0]!,id:1000+i,title:`Test Film ${i+1}`,year:2000+i%20,mediaType:'movie' as const}));
@@ -35,6 +36,45 @@ beforeEach(async()=>{
  actions=new ChatActions(users,catalog,ai,new EpgService(db));
 });
 afterEach(()=>{vi.restoreAllMocks();client.close();});
+
+it('passes the discussed film and feeling to retrieval and editorial review, not only the router',async()=>{
+ vi.spyOn(ai,'mode','get').mockReturnValue('live');
+ vi.spyOn(ai,'routeChat').mockResolvedValue({route:'discovery',reply:''});
+ await users.addConversationMessage('alice',session,'user','Describe The Perks of Being a Wallflower');
+ await users.addConversationMessage('alice',session,'assistant','An intimate, bittersweet story of belonging and friendship.');
+ const parse=vi.spyOn(ai,'parseIntent').mockResolvedValue(filterQuerySchema.parse({intent:'DISCOVERY',similarTo:'The Perks of Being a Wallflower',availabilityScope:'all_providers'}));
+ vi.spyOn(catalog,'search').mockResolvedValue([{...fixtureCatalog[0]!,title:'The Perks of Being a Wallflower'}]);
+ const compose=vi.spyOn(ai,'compose').mockResolvedValue({intro:'No verified match.',quickActions:[],selectedKeys:[]});
+ const result=await new ChatService(users,catalog,ai,new EpgService(db)).respond('alice','Give me recommendations with the same feeling',session);
+ expect(parse.mock.calls[0]![2]?.history.some(m=>m.content.includes('Wallflower'))).toBe(true);
+ expect(compose.mock.calls[0]![2]).toBe(true);
+ expect(compose.mock.calls[0]![4]?.history.some(m=>m.content.includes('bittersweet'))).toBe(true);
+ expect(result.blocks.some(b=>b.type==='movie_carousel')).toBe(false);
+ expect(await users.getTaste('alice')).toEqual([]);
+});
+
+it('does not show unrelated cards when intent is ambiguous or its live parser fails',async()=>{
+ vi.spyOn(ai,'mode','get').mockReturnValue('live');
+ vi.spyOn(ai,'routeChat').mockResolvedValue({route:'discovery',reply:''});
+ const parse=vi.spyOn(ai,'parseIntent').mockResolvedValue({...filterQuerySchema.parse({intent:'DISCOVERY'}),clarification:'Which of the two movies do you mean?'});
+ const compose=vi.spyOn(ai,'compose');
+ const chat=new ChatService(users,catalog,ai,new EpgService(db));
+ expect((await chat.respond('alice','More like that',session)).blocks.map(b=>b.type)).toEqual(['text']);
+ parse.mockRejectedValue(Error('Unavailable'));
+ expect((await chat.respond('alice','More like that',session)).blocks.map(b=>b.type)).toEqual(['text']);
+ expect(compose).not.toHaveBeenCalled();
+});
+
+it('does not turn confusion after a failed preference extraction into a write',async()=>{
+ vi.spyOn(ai,'mode','get').mockReturnValue('live');
+ const route=vi.spyOn(ai,'routeChat').mockResolvedValueOnce({route:'preference',reply:''}).mockResolvedValueOnce({route:'conversation',reply:'I meant whether international co-productions should stay available. Nothing changed.'});
+ const extract=vi.spyOn(ai,'extractTaste').mockResolvedValue({summary:'',signals:[],mode:'live'});
+ const chat=new ChatService(users,catalog,ai,new EpgService(db));
+ await chat.respond('alice','Yes coproductions remain eligible',session);
+ const answer=await chat.respond('alice','What',session);
+ expect(route).toHaveBeenCalledTimes(2);expect(extract).toHaveBeenCalledTimes(1);
+ expect(answer.blocks.map(b=>b.type)).toEqual(['text']);expect(await users.getTaste('alice')).toEqual([]);
+});
 
 it('AI routing understands a Taste clarification across turns and persists co-production scope, not a carousel',async()=>{
  vi.spyOn(ai,'mode','get').mockReturnValue('live');
@@ -68,6 +108,16 @@ it('casual conversation and off-topic requests cannot fall through into movies o
  route.mockRejectedValue(Error('Unavailable'));
  expect(JSON.stringify(await chat.respond('alice','Something',session))).toContain('Nothing changed');
  expect(parse).not.toHaveBeenCalled();
+});
+
+it('updates a repeated combination statement instead of duplicating its reworded label',async()=>{
+ vi.spyOn(ai,'mode','get').mockReturnValue('live');vi.spyOn(ai,'routeChat').mockResolvedValue({route:'preference',reply:''});
+ const statement='Exclude Japanese films, allow co-productions.';
+ const signal={dimension:'combination',key:'Japanese films',score:-1,confidence:1,evidenceCount:1,source:'chat_explicit',statement,exclude:true,conditions:[{dimension:'country' as const,values:['JP'],match:'only' as const},{dimension:'format' as const,values:['movie']}]};
+ await users.upsertTaste('alice',[signal]);
+ vi.spyOn(ai,'extractTaste').mockResolvedValue({summary:'',mode:'live',signals:[{...signal,key:'Japanese productions'}]});
+ await new ChatService(users,catalog,ai,new EpgService(db)).respond('alice',statement,session);
+ const taste=await users.getTaste('alice');expect(taste).toHaveLength(1);expect(taste[0]!.key).toBe('japanese films');
 });
 
 it('quota-exempt confirmation protocol never invokes the AI router',async()=>{
