@@ -37,6 +37,14 @@ Further exploratory runs exposed a legitimate empty shortlist and a too-strict t
 
 Automated checks cover session ownership, no repetition across three rows, new-session isolation, explicit repeat allowance, empty results, unchanged Taste, narrow-screen pill layout, correct payload/session, draft retention and duplicate-tap prevention. Dark/light rendered suggestions were inspected. Physical Samsung testing is left to the user, as requested.
 
-Production verification and final suite results are recorded after deployment below.
+## Production verification
+
+Application commit `501d9784aaa2804f45710bad0ac522b6535ff2ef` deployed successfully as `dpl_B8kowaor5jn9Hg5DMUfNrW88BBfB` (READY), including `https://nex-three-omega.vercel.app`.
+
+`verify-chat-continuations-deployment.ts` passed against that domain with a disposable account: reference discussion, same-feeling recommendations, Other recommendations, and Show all services. Returned 8 + 5 + 8 = 21 distinct titles without repeated cards; suggestion labels were valid and unique. Recommendation response times were 28677, 26544 and 24976 ms. This confirms functionality, not a statistically controlled end-to-end latency gain. Taste, history, ratings and watchlist remained empty, and account deletion succeeded. The real user's account was not used.
 
 Pre-deployment checks: backend typecheck/lint and 250 tests passed; Flutter analyzer and 86 tests passed (17 opt-in tests skipped by the ordinary suite), plus two explicitly enabled dark/light visual tests; Android debug APK built successfully. Secrets scan found no configured credential values in scanned project artifacts. No physical-device run was performed.
+
+## Phone check
+
+Fully stop and rerun Flutter with the existing production API URL. Start a fresh chat, discuss a film's feeling, ask for recommendations, then ask for other options twice. Check that the reference remains relevant and cards do not repeat. Try the last suggestion and a runtime suggestion. Typing a draft before tapping a suggestion should preserve that draft. No environment changes or account reset are needed.
