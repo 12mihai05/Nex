@@ -43,6 +43,12 @@ class NexTopBar extends StatelessWidget implements PreferredSizeWidget {
       ...extraActions,
       if (showSearch)
         IconButton(
+          tooltip: 'Notifications',
+          onPressed: () => context.push('/notifications'),
+          icon: const Icon(Icons.notifications_outlined),
+        ),
+      if (showSearch)
+        IconButton(
           tooltip: 'Search',
           onPressed: () => context.push('/search'),
           icon: const Icon(Icons.search_rounded),

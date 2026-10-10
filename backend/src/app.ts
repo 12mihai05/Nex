@@ -121,13 +121,14 @@ app.post('/api/me/release-subscriptions',async c=>{
   await releases.follow(userId,body.mediaType,body.tmdbId,body.kind,profile.country,body.enabled);
   return c.json({data:{enabled:body.enabled}});
 });
-app.post('/api/me/push-device',async c=>{
-  const body=z.object({token:z.string().min(20).max(4096)}).strict().parse(await c.req.json());
-  const auth=c.get('authSession');await releases.register(auth.user.id,auth.session.id,body.token);return c.json({data:{registered:true}});
+app.get('/api/me/notifications',async c=>{
+  const input=z.object({offset:z.coerce.number().int().min(0).max(100000).default(0),pending:z.enum(['true','false']).default('false')}).parse(c.req.query());
+  const userId=c.get('authSession').user.id;const {profile}=await users.getSettings(userId);
+  return c.json({data:await releases.inbox(userId,profile.country,input.offset,input.pending==='true')});
 });
-app.delete('/api/me/push-device',async c=>{
-  const body=z.object({token:z.string().min(20).max(4096)}).strict().parse(await c.req.json());
-  await releases.unregister(c.get('authSession').user.id,body.token);return c.body(null,204);
+app.post('/api/me/notifications/ack',async c=>{
+  const input=z.object({ids:z.array(z.string().uuid()).min(1).max(30),kind:z.enum(['read','popup'])}).strict().parse(await c.req.json());
+  await releases.acknowledge(c.get('authSession').user.id,input.ids,input.kind);return c.body(null,204);
 });
 app.get('/api/tv/programmes/:id',async c=>{
   const id=z.string().min(1).max(200).parse(c.req.param('id'));

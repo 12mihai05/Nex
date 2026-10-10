@@ -10,6 +10,11 @@ import 'package:nex/src/core/theme.dart';
 import 'package:nex/src/state/app_controller.dart';
 import 'package:nex/src/screens/upcoming_movies.dart';
 import 'package:nex/src/widgets/programme_sheet.dart';
+import 'package:nex/src/screens/notifications_screen.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+
+import 'release_inbox_test.dart' show InboxApi;
+
 import 'package:nex/src/models/tv_program.dart';
 
 import 'release_features_test.dart' show ReleaseApi;
@@ -117,6 +122,25 @@ void main() {
       );
       await tester.pumpAndSettle();
       await capture('programme');
+      SharedPreferences.setMockInitialValues({});
+      final inboxContainer = ProviderContainer(
+        overrides: [nexApiClientProvider.overrideWithValue(InboxApi())],
+      );
+      addTearDown(inboxContainer.dispose);
+      await inboxContainer
+          .read(appControllerProvider.notifier)
+          .restoreSession();
+      await tester.pumpWidget(
+        UncontrolledProviderScope(
+          container: inboxContainer,
+          child: MaterialApp(
+            theme: dark ? NexTheme.dark : NexTheme.light,
+            home: RepaintBoundary(key: key, child: const NotificationsScreen()),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      await capture('notifications');
       expect(tester.takeException(), isNull);
     }, skip: Platform.environment['NEX_VISUAL_QA'] != '1');
   }

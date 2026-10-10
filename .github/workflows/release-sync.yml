@@ -20,10 +20,9 @@ jobs:
           node-version: '22'
           cache: npm
       - run: npm ci
-      - name: Check releases and deliver opted-in alerts
+      - name: Check releases and save opted-in inbox updates
         env:
           TURSO_DATABASE_URL: ${{ secrets.TURSO_DATABASE_URL }}
           TURSO_AUTH_TOKEN: ${{ secrets.TURSO_AUTH_TOKEN }}
           TMDB_READ_ACCESS_TOKEN: ${{ secrets.TMDB_READ_ACCESS_TOKEN }}
-          FIREBASE_SERVICE_ACCOUNT_JSON: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_JSON }}
         run: npx tsx backend/scripts/sync-releases.ts

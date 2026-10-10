@@ -51,6 +51,12 @@ class ProfileScreen extends ConsumerWidget {
           ),
           const SizedBox(height: 22),
           _ProfileTile(
+            icon: Icons.notifications_outlined,
+            title: 'Notifications',
+            subtitle: 'Movie releases and new seasons',
+            onTap: () => context.push('/notifications'),
+          ),
+          _ProfileTile(
             icon: Icons.bookmark_outline,
             title: 'Want to see',
             subtitle: '${state.watchlist.length} saved',

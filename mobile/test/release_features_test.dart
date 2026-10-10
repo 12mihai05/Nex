@@ -16,6 +16,12 @@ import 'package:nex/src/models/tv_program.dart';
 import 'stable_discovery_test.dart' show MutableApi;
 
 class ReleaseApi extends MutableApi {
+  bool followed = false;
+  @override
+  Future<void> setReleaseFollow(item, String kind, bool enabled) async {
+    followed = enabled;
+  }
+
   final pending = Completer<Map<String, dynamic>>();
   final pages = <int>[];
   @override
@@ -146,7 +152,7 @@ void main() {
     },
   );
   testWidgets(
-    'release details show date and cannot pretend unconfigured push is enabled',
+    'release follow saves inbox subscription even without local popup support',
     (tester) async {
       final api = ReleaseApi();
       final c = await viewer(api);
@@ -167,7 +173,8 @@ void main() {
       expect(find.textContaining('Dec 18, 2026'), findsOneWidget);
       await tester.tap(find.text('Notify me · cinema release'));
       await tester.pump();
-      expect(find.textContaining('not configured yet'), findsOneWidget);
+      expect(api.followed, isTrue);
+      expect(find.textContaining('Phone popups are off'), findsOneWidget);
       await tester.pump(const Duration(seconds: 6));
     },
   );

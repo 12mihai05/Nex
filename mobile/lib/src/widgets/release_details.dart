@@ -4,7 +4,7 @@ import 'package:intl/intl.dart';
 
 import '../models/content.dart';
 import '../state/app_controller.dart';
-import '../services/release_push_service.dart';
+import '../services/release_notification_service.dart';
 import 'nex_notice.dart';
 import 'skeleton.dart';
 
@@ -43,27 +43,18 @@ class _ReleaseDetailsState extends ConsumerState<ReleaseDetails> {
     setState(() => saving = true);
     try {
       final api = ref.read(nexApiClientProvider);
+      await api.setReleaseFollow(widget.item, kind, enabled);
       if (enabled) {
-        if (!ReleasePushService.configured) {
-          if (mounted) {
-            showNexNotice(
-              context,
-              'Release alerts are not configured yet. Dates are still available here.',
-            );
-          }
-          return;
-        }
-        if (!await ReleasePushService.instance.enable(api)) {
-          if (mounted) {
-            showNexNotice(
-              context,
-              'Allow notifications in your phone settings to receive release alerts.',
-            );
-          }
-          return;
+        final allowed = await ReleaseNotificationService.instance.enable();
+        if (mounted) {
+          showNexNotice(
+            context,
+            allowed
+                ? 'Alert saved. New updates appear when Nex syncs.'
+                : 'Alert saved in Notifications. Phone popups are off.',
+          );
         }
       }
-      await api.setReleaseFollow(widget.item, kind, enabled);
       if (mounted) setState(load);
     } catch (_) {
       if (mounted) {
@@ -271,10 +262,8 @@ class _SeriesAlertSettingState extends ConsumerState<SeriesAlertSetting> {
     }
     return SwitchListTile(
       title: const Text('New seasons'),
-      subtitle: Text(
-        ReleasePushService.configured
-            ? 'Notify me about new seasons of series in Seen.'
-            : 'Firebase setup needed for phone alerts.',
+      subtitle: const Text(
+        'Save new seasons of Seen series to Notifications. Popups appear when Nex syncs.',
       ),
       value: enabled ?? false,
       onChanged: enabled == null || saving
@@ -283,25 +272,12 @@ class _SeriesAlertSettingState extends ConsumerState<SeriesAlertSetting> {
               setState(() => saving = true);
               try {
                 final api = ref.read(nexApiClientProvider);
-                if (value && !await ReleasePushService.instance.enable(api)) {
-                  if (context.mounted) {
-                    showNexNotice(
-                      context,
-                      'Notification permission is needed.',
-                    );
-                  }
-                  return;
-                }
                 await api.setSeriesAlerts(value);
+                if (value) await ReleaseNotificationService.instance.enable();
                 if (mounted) setState(() => enabled = value);
               } catch (_) {
                 if (context.mounted) {
-                  showNexNotice(
-                    context,
-                    ReleasePushService.configured
-                        ? 'Could not save. Please try again.'
-                        : 'Release alerts need Firebase configuration first.',
-                  );
+                  showNexNotice(context, 'Could not save. Please try again.');
                 }
               } finally {
                 if (mounted) setState(() => saving = false);

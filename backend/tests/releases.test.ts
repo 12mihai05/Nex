@@ -47,49 +47,66 @@ it('regional upcoming is paginated and never filtered by rating/provider',async(
     expect(result.hasMore).toBe(true);expect(result.items).toHaveLength(1);expect(result.items[0]).toMatchObject({metadataOnly:true,releaseCountry:'RO',rating:null});
   }finally{vi.unstubAllGlobals();client.close();}
 });
-it('auto tracking baselines history, deduplicates, respects logout and cascades delete',async()=>{
-  const {client,db}=await database();
-  const catalog=new FixtureTmdbRepository();
+it('inbox baselines Seen series, deduplicates and isolates users, read state and countries',async()=>{
+  const {client,db}=await database();const catalog=new FixtureTmdbRepository();
   let info:ReleaseInfo={title:'A series',releases:[{key:'season:1',kind:'season',date:'2020-01-01',season:1,country:null}]};
-  const tracked=new ReleaseTracking({...catalog,mode:'fixture',search:catalog.search.bind(catalog),discover:catalog.discover.bind(catalog),getTitle:catalog.getTitle.bind(catalog),getProviders:catalog.getProviders.bind(catalog),releases:async()=>info},db);
+  const tracked=new ReleaseTracking(Object.assign(catalog,{releases:async()=>info}),db);
   try{
     await db.insert(schema.user).values([{id:'a',name:'A',email:'a@example.test'},{id:'b',name:'B',email:'b@example.test'}]);
     await db.insert(schema.profiles).values({userId:'a',country:'RO'});
-    await db.insert(schema.session).values({id:'s',token:'synthetic',userId:'a',expiresAt:new Date('2099-01-01')});
     await db.insert(schema.watchHistory).values({id:'h',userId:'a',mediaType:'series',tmdbId:12,watchedAt:new Date(),titleSnapshot:'A series'});
     await tracked.setAuto('a',true);
-    await expect(tracked.register('b','s','device')).rejects.toThrow('UNAUTHORIZED');
-    await tracked.register('a','s','device');
-    const send=vi.fn(async()=> 'sent' as const);
-    await tracked.sync({send},new Date('2026-10-10T12:00:00Z'));expect(send).not.toHaveBeenCalled();
-    info={...info,releases:[...info.releases,{key:'season:2',kind:'season',date:'2026-10-11',season:2,country:null}]};
-    await tracked.sync({send},new Date('2026-10-11T12:00:00Z'));expect(send).toHaveBeenCalledTimes(1);
-    await tracked.sync({send},new Date('2026-10-12T12:00:00Z'));expect(send).toHaveBeenCalledTimes(1);
-    await tracked.unregister('b','device');expect(await db.select().from(schema.pushDevices)).toHaveLength(1);
-    await db.delete(schema.session).where(eq(schema.session.id,'s'));expect(await db.select().from(schema.pushDevices)).toHaveLength(0);
+    expect((await tracked.sync(new Date('2030-01-01T12:00:00Z'))).created).toBe(0);
+    info={...info,releases:[...info.releases,{key:'season:2',kind:'season',date:'2030-01-02',season:2,country:null}]};
+    expect((await tracked.sync(new Date('2030-01-02T12:00:00Z'))).created).toBe(1);
+    expect((await tracked.sync(new Date('2030-01-03T12:00:00Z'))).created).toBe(0);
+    const inbox=await tracked.inbox('a','RO');expect(inbox.items).toHaveLength(1);
+    const id=inbox.items[0]!.id;
+    expect((await tracked.inbox('b','RO')).items).toHaveLength(0);
+    expect((await tracked.inbox('a','GB')).items).toHaveLength(0);
+    await tracked.acknowledge('b',[id],'read');
+    expect((await tracked.inbox('a','RO',0,true)).items).toHaveLength(1);
+    await tracked.acknowledge('a',[id],'popup');
+    expect((await tracked.inbox('a','RO',0,true)).items).toHaveLength(0);
+    expect((await tracked.inbox('a','RO')).items[0]!.readAt).toBeNull();
+    await tracked.acknowledge('a',[id],'read');
+    expect((await tracked.inbox('a','RO')).items[0]!.readAt).not.toBeNull();
+    await tracked.setAuto('a',false);
+    info={...info,releases:[...info.releases,{key:'season:3',kind:'season',date:'2030-01-03',season:3,country:null}]};
+    expect((await tracked.sync(new Date('2030-01-03T12:00:00Z'))).created).toBe(0);
     await db.delete(schema.user).where(eq(schema.user.id,'a'));
-    expect(await db.select().from(schema.releaseSubscriptions)).toHaveLength(0);expect(await db.select().from(schema.releaseDeliveries)).toHaveLength(0);
+    expect(await db.select().from(schema.releaseNotifications)).toHaveLength(0);
+    expect(await db.select().from(schema.releaseSubscriptions)).toHaveLength(0);
   }finally{client.close();}
 });
-it('transient delivery failure retries, movie opt-out and country changes prevent delivery',async()=>{
-  const {client,db}=await database();
-  const catalog=new FixtureTmdbRepository();
+it('provider failure retries without losing alerts; opt-out and country changes suppress new entries',async()=>{
+  const {client,db}=await database();const catalog=new FixtureTmdbRepository();
   const info:ReleaseInfo={title:'Future film',releases:[{key:'cinema:RO',kind:'cinema',date:'2030-01-02',season:null,country:'RO'}]};
-  const tracked=new ReleaseTracking(Object.assign(catalog,{releases:async()=>info}),db);
+  let fail=false;
+  const tracked=new ReleaseTracking(Object.assign(catalog,{releases:async()=>{if(fail)throw Error('PROVIDER');return info;}}),db);
   try{
     await db.insert(schema.user).values({id:'a',name:'A',email:'a@example.test'});await db.insert(schema.profiles).values({userId:'a'});
-    await db.insert(schema.session).values({id:'s',userId:'a',token:'synthetic',expiresAt:new Date('2099-01-01')});await tracked.register('a','s','device');
     await tracked.follow('a','movie',42,'cinema','RO',true);
-    const send=vi.fn<()=>Promise<'sent'>>().mockRejectedValueOnce(new Error('TRANSIENT')).mockResolvedValue('sent');
-    expect((await tracked.sync({send},new Date('2030-01-02T12:00:00Z'))).failed).toBe(1);
-    expect((await tracked.sync({send},new Date('2030-01-03T12:00:00Z'))).sent).toBe(1);
-    await tracked.sync({send},new Date('2030-01-04T12:00:00Z'));expect(send).toHaveBeenCalledTimes(2);
+    fail=true;expect((await tracked.sync(new Date('2030-01-02T12:00:00Z'))).failed).toBe(1);
+    fail=false;expect((await tracked.sync(new Date('2030-01-03T12:00:00Z'))).created).toBe(1);
     await tracked.follow('a','movie',43,'cinema','RO',true);
     await db.update(schema.profiles).set({country:'GB'}).where(eq(schema.profiles.userId,'a'));
-    await tracked.sync({send},new Date('2030-01-04T12:00:00Z'));expect(send).toHaveBeenCalledTimes(2);
+    expect((await tracked.sync(new Date('2030-01-04T12:00:00Z'))).created).toBe(0);
     await tracked.follow('a','movie',43,'cinema','RO',false);
     await db.update(schema.profiles).set({country:'RO'}).where(eq(schema.profiles.userId,'a'));
-    await tracked.sync({send},new Date('2030-01-04T12:00:00Z'));expect(send).toHaveBeenCalledTimes(2);
+    expect((await tracked.sync(new Date('2030-01-04T12:00:00Z'))).created).toBe(0);
+  }finally{client.close();}
+});
+it('inbox pagination has stable non-overlapping batches and read does not reorder them',async()=>{
+  const {client,db}=await database();const tracked=new ReleaseTracking(new FixtureTmdbRepository(),db);
+  try{
+    await db.insert(schema.user).values({id:'a',name:'A',email:'a@example.test'});
+    await db.insert(schema.releaseSubscriptions).values({id:'s',userId:'a',mediaType:'series',tmdbId:1,kind:'season',country:'RO'});
+    await db.insert(schema.releaseNotifications).values(Array.from({length:35},(_,i)=>({id:String(i).padStart(3,'0'),userId:'a',subscriptionId:'s',eventKey:String(i),country:'RO',mediaType:'series' as const,tmdbId:1,title:'Series',body:'New season',releaseDate:'2030-01-01',createdAt:new Date('2030-01-01')})));
+    const page1=await tracked.inbox('a','RO');expect(page1.items).toHaveLength(30);expect(page1.hasMore).toBe(true);
+    await tracked.acknowledge('a',[page1.items[0]!.id],'read');
+    const page2=await tracked.inbox('a','RO',30);expect(page2.items).toHaveLength(5);expect(page2.hasMore).toBe(false);
+    expect(new Set([...page1.items,...page2.items].map(i=>i.id)).size).toBe(35);
   }finally{client.close();}
 });
 it('search repairs a narrow typo without filtering unreleased/unavailable titles',async()=>{

@@ -7,7 +7,7 @@ import 'tv_screen.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../state/app_controller.dart';
-import '../services/release_push_service.dart';
+import '../services/release_notification_service.dart';
 
 import 'package:go_router/go_router.dart';
 
@@ -24,13 +24,19 @@ class _HomeShellState extends ConsumerState<HomeShell> {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted && !ref.read(appControllerProvider).demoMode) {
-        ReleasePushService.instance.start(ref.read(nexApiClientProvider), (
+        ReleaseNotificationService.instance.start(ref.read(nexApiClientProvider), (
           path,
         ) {
           if (mounted) context.push(path);
         });
       }
     });
+  }
+
+  @override
+  void dispose() {
+    ReleaseNotificationService.instance.stop();
+    super.dispose();
   }
 
   @override

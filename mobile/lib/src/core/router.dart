@@ -10,6 +10,7 @@ import '../screens/home_shell.dart';
 import '../screens/library_screen.dart';
 import '../screens/onboarding_screen.dart';
 import '../screens/profile_screen.dart';
+import '../screens/notifications_screen.dart';
 import '../screens/search_screen.dart';
 import '../screens/settings_screen.dart';
 import '../screens/taste_screen.dart';
@@ -28,6 +29,7 @@ final router = GoRouter(
       builder: (_, _) => const TvScreen(initialGuide: true),
     ),
     GoRoute(path: '/profile', builder: (_, _) => const ProfileScreen()),
+    GoRoute(path: '/notifications', builder: (_, _) => const NotificationsScreen()),
     GoRoute(path: '/settings', builder: (_, _) => const SettingsScreen()),
     GoRoute(path: '/taste', builder: (_, _) => const TasteScreen()),
     GoRoute(

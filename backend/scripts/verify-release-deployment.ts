@@ -8,12 +8,29 @@ try{
   assert.equal((await request('/api/upcoming')).status,401);
   assert.equal((await request('/api/me/release-settings')).status,401);
   stage='signup';const signup=await request('/api/auth/sign-up/email','POST',{name:'Release QA',email:`nex-release-${randomUUID()}@example.test`,password});assert.equal(signup.status,200);token=signup.headers.get('set-auth-token');assert.ok(token);
-  for(const country of ['RO','GB']){
+  for(const country of ['RO','GB','BG','ES','FR','CH','IT','DE','MD']){
     stage=`upcoming ${country}`;assert.equal((await request('/api/me/settings','PUT',{country})).status,200);
     const start=Date.now();const r=await request('/api/upcoming');assert.equal(r.status,200);const body=await r.json() as {data:Array<{releaseDate:string;releaseCountry:string}>;meta:{country:string;day:string;hasMore:boolean}};
     assert.equal(body.meta.country,country);assert.ok(body.data.every(i=>i.releaseCountry===country&&i.releaseDate>body.meta.day));
     console.log(JSON.stringify({stage,count:body.data.length,hasMore:body.meta.hasMore,ms:Date.now()-start}));
+    if(body.meta.hasMore){
+      stage=`upcoming pagination ${country}`;
+      const next=await request('/api/upcoming?page=2');assert.equal(next.status,200);
+      const page=await next.json() as typeof body & {meta:{page:number}};
+      assert.equal(page.meta.page,2);assert.equal(page.meta.country,country);
+      assert.ok(page.data.every(i=>i.releaseCountry===country&&i.releaseDate>page.meta.day));
+    }
   }
+  stage='invalid pagination';for(const page of ['0','501','bad'])assert.equal((await request(`/api/upcoming?page=${page}`)).status,400);
+  assert.equal((await request('/api/me/settings','PUT',{country:'RO'})).status,200);
+  stage='invalid notification inputs';
+  assert.equal((await request('/api/me/release-settings','POST',{followSeenSeries:'true'})).status,400);
+  stage='notification inbox';
+  const inbox=await request('/api/me/notifications');assert.equal(inbox.status,200);
+  assert.deepEqual((await inbox.json() as {data:{items:unknown[];hasMore:boolean}}).data,{items:[],hasMore:false});
+  assert.equal((await request('/api/me/notifications/ack','POST',{ids:['invalid'],kind:'popup'})).status,400);
+  assert.equal((await request('/api/me/notifications/ack','POST',{ids:[randomUUID()],kind:'read'})).status,204);
+  assert.equal((await request('/api/me/push-device','POST',{token:'no-remote-push-service'})).status,404);
   stage='upcoming search';const search=await request('/api/search?mode=title&q=Avangers%20Doomsday');assert.equal(search.status,200);const results=await search.json() as {data:Array<{id:number;title:string}>};assert.ok(results.data.some(i=>i.id===1003596));
   stage='release detail';assert.equal((await request('/api/title/movie/1003596/releases')).status,200);
   stage='movie subscription';assert.equal((await request('/api/me/release-subscriptions','POST',{mediaType:'movie',tmdbId:1003596,kind:'cinema',enabled:true})).status,200);

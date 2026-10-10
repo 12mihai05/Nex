@@ -9,6 +9,7 @@ class NotificationService {
   static final instance = NotificationService();
   final _plugin = FlutterLocalNotificationsPlugin();
   var _ready = false;
+  var _launchHandled = false;
   void Function(String)? onReleaseTap;
 
   Future<bool> initialize() async {
@@ -37,7 +38,9 @@ class NotificationService {
           onDidReceiveNotificationResponse: (response) {
             final path = response.payload;
             if (path != null &&
-                RegExp(r'^/title/(movie|series)/[1-9][0-9]*$').hasMatch(path)) {
+                (path == '/notifications' ||
+                    RegExp(r'^/title/(movie|series)/[1-9][0-9]*$')
+                        .hasMatch(path))) {
               onReleaseTap?.call(path);
             }
           },
@@ -46,7 +49,7 @@ class NotificationService {
     return _ready;
   }
 
-  Future<bool> requestPermission() async {
+  Future<bool> requestPermission({bool exactAlarm = true}) async {
     if (!await initialize()) {
       throw StateError('Notification initialization failed.');
     }
@@ -55,14 +58,16 @@ class NotificationService {
           AndroidFlutterLocalNotificationsPlugin
         >();
     final android = await androidPlugin?.requestNotificationsPermission();
-    final exactAlarm = await androidPlugin?.requestExactAlarmsPermission();
+    final exactAllowed = exactAlarm
+        ? await androidPlugin?.requestExactAlarmsPermission()
+        : true;
     final ios = await _plugin
         .resolvePlatformSpecificImplementation<
           IOSFlutterLocalNotificationsPlugin
         >()
         ?.requestPermissions(alert: true, badge: true, sound: true);
     return (android == null || android) &&
-        (exactAlarm == null || exactAlarm) &&
+        (exactAllowed == null || exactAllowed) &&
         (ios ?? true);
   }
 
@@ -101,6 +106,51 @@ class NotificationService {
       androidScheduleMode: AndroidScheduleMode.exactAllowWhileIdle,
     );
   }
+
+  static const releaseNotificationId = 12010001;
+  Future<String?> initialReleasePath() async {
+    if (_launchHandled || !_supported) return null;
+    await initialize();
+    final launch = await _plugin.getNotificationAppLaunchDetails();
+    _launchHandled = true;
+    return launch?.didNotificationLaunchApp == true &&
+            launch?.notificationResponse?.payload == '/notifications'
+        ? '/notifications'
+        : null;
+  }
+
+  Future<void> showReleaseUpdate({
+    required String title,
+    required String body,
+  }) async {
+    if (!await initialize()) {
+      throw StateError('Notification initialization failed.');
+    }
+    final android = _plugin
+        .resolvePlatformSpecificImplementation<
+          AndroidFlutterLocalNotificationsPlugin
+        >();
+    if (await android?.areNotificationsEnabled() == false) {
+      throw StateError('Notifications disabled.');
+    }
+    await _plugin.show(
+      id: releaseNotificationId,
+      title: title,
+      body: body,
+      payload: '/notifications',
+      notificationDetails: const NotificationDetails(
+        android: AndroidNotificationDetails(
+          'nex_release_inbox',
+          'Release updates',
+          importance: Importance.high,
+          priority: Priority.high,
+        ),
+        iOS: DarwinNotificationDetails(),
+      ),
+    );
+  }
+
+  Future<void> cancelReleaseUpdate() => cancel(releaseNotificationId);
 
   bool get _supported =>
       !kIsWeb &&

@@ -17,6 +17,7 @@ export const releaseSubscriptions = sqliteTable('release_subscriptions', {
   initialized:integer('initialized',{mode:'boolean'}).notNull().default(false),
   createdAt:createdAt(),checkedAt:integer('checked_at',{mode:'timestamp_ms'}).notNull().default(sql`0`),
 },t=>[uniqueIndex('release_subscription_identity').on(t.userId,t.mediaType,t.tmdbId,t.kind,t.country),index('release_subscription_due').on(t.enabled,t.checkedAt)]);
+// Legacy unused tables: retained to avoid destructive migration. No active push routes.
 export const pushDevices = sqliteTable('push_devices', {
   token:text('token').primaryKey(), userId:text('user_id').notNull().references(()=>user.id,{onDelete:'cascade'}),
   sessionId:text('session_id').notNull().references(()=>session.id,{onDelete:'cascade'}),
@@ -27,6 +28,15 @@ export const releaseDeliveries = sqliteTable('release_deliveries', {
   eventKey:text('event_key').notNull(),tokenHash:text('token_hash').notNull(),
   sent:integer('sent',{mode:'boolean'}).notNull().default(false),attemptAt:integer('attempt_at',{mode:'timestamp_ms'}).notNull(),
 },t=>[uniqueIndex('release_delivery_once').on(t.subscriptionId,t.eventKey,t.tokenHash)]);
+
+export const releaseNotifications = sqliteTable('release_notifications', {
+  id:text('id').primaryKey(),userId:text('user_id').notNull().references(()=>user.id,{onDelete:'cascade'}),
+  subscriptionId:text('subscription_id').notNull().references(()=>releaseSubscriptions.id,{onDelete:'cascade'}),
+  eventKey:text('event_key').notNull(),country:text('country').notNull(),
+  mediaType:text('media_type',{enum:['movie','series']}).notNull(),tmdbId:integer('tmdb_id').notNull(),
+  title:text('title').notNull(),body:text('body').notNull(),releaseDate:text('release_date').notNull(),
+  readAt:integer('read_at',{mode:'timestamp_ms'}),popupAt:integer('popup_at',{mode:'timestamp_ms'}),createdAt:createdAt(),
+},t=>[uniqueIndex('release_notification_once').on(t.subscriptionId,t.eventKey),index('release_notification_inbox').on(t.userId,t.country,t.createdAt,t.id)]);
 
 export const user = sqliteTable("user", {
   id: text("id").primaryKey(),
