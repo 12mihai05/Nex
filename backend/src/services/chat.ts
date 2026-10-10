@@ -175,7 +175,7 @@ export class ChatService {
     }
     if(/\b(?:do not|don['’]t|never)\s+(?:(?:ever|automatically|permanently|also)\s+)?(?:save|change|update|remember|add|mark|rate)\b/i.test(message))return [{type:'text',content:'I haven’t changed your saved Taste.'}];
     if(/\b(this|that) (kind|type|sort)\b/i.test(message))return [{type:'text',content:'What part wasn’t for you: the story, tone, pacing, or something else? I won’t assume you dislike the whole genre.'}];
-    const result=await this.ai.extractTaste(description,[],userEvidence).catch(()=>({signals:[]}));
+    const result=await this.ai.extractTaste(description,[],userEvidence,true).catch(()=>({signals:[]}));
     if('clarification'in result&&result.clarification){
       context??=await this.users.getSessionContext(userId,sessionId);
       const question=`${result.clarification}\n\nNothing changed yet.`;
