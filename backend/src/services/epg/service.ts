@@ -9,6 +9,7 @@ import { createEpgProvider, type EpgProvider } from "./provider.js";
 import { bestEpgMatch, type MatchResult } from "./matcher.js";
 import { normalizeEpgTitle, type NormalizedProgram } from "./xmltv.js";
 import {localDayWindow} from '../tv-window.js';
+import { EpgSyncError, syncErrorCode } from './sync-error.js';
 
 export class EpgService {
   constructor(private readonly db: NexDatabase = getDatabase(), private readonly provider: EpgProvider = createEpgProvider(), private readonly catalog: TmdbRepository = createTmdbRepository()) {}
@@ -86,6 +87,7 @@ export class EpgService {
     await this.db.update(epgSyncRuns).set({ status:"failed",errorCode:"SYNC_LEASE_EXPIRED",finishedAt:now }).where(and(eq(epgSyncRuns.sourceId,this.provider.sourceId),eq(epgSyncRuns.status,"running"),lt(epgSyncRuns.startedAt,new Date(now.getTime()-15*60_000))));
     try { await this.db.insert(epgSyncRuns).values({ id: runId, sourceId: this.provider.sourceId, status: "running", startedAt: now }); }
     catch { throw new Error("EPG_SYNC_BUSY_OR_UNAVAILABLE"); }
+    let stage = 'load';
     try {
       const favorites=await this.db.selectDistinct({externalId:channels.externalId}).from(channelFavorites).innerJoin(channels,eq(channels.id,channelFavorites.channelId)).where(eq(channels.sourceId,this.provider.sourceId));
       const parsed = await this.provider.load({preferredExternalIds:new Set(favorites.map(f=>f.externalId))});
@@ -96,6 +98,7 @@ export class EpgService {
         channelIds.set(channel.externalId, id);
         return { id, sourceId: this.provider.sourceId, country: this.provider.country ?? "RO", ...channel };
       });
+      stage = 'match';
       let importedRows = 0;
       let matchesAttempted = 0;
       const rows: Array<typeof epgPrograms.$inferInsert> = [];
@@ -114,6 +117,7 @@ export class EpgService {
         importedRows += 1;
       }
       if (!rows.length) throw new Error("EPG_NO_CURRENT_PROGRAMS");
+      stage = 'snapshot';
       // Small batches respect SQLite variable limits and keep remote round trips bounded.
       await this.db.transaction(async (tx) => {
         await tx.update(channels).set({active:false}).where(eq(channels.sourceId,this.provider.sourceId));
@@ -132,8 +136,9 @@ export class EpgService {
       await this.db.delete(epgSyncRuns).where(lt(epgSyncRuns.startedAt,new Date(now.getTime()-30*86_400_000)));
       return { sourceId: this.provider.sourceId, importedRows, deletedRows: removed.length+expired.length };
     } catch (error) {
-      await this.db.update(epgSyncRuns).set({ status: "failed", finishedAt: new Date(), errorCode: error instanceof Error ? error.name : "UnknownError" }).where(eq(epgSyncRuns.id, runId));
-      throw error;
+      const code = syncErrorCode(error);
+      await this.db.update(epgSyncRuns).set({ status: "failed", finishedAt: new Date(), errorCode: `${stage}:${code}` }).where(eq(epgSyncRuns.id, runId));
+      throw new EpgSyncError(code, stage);
     }
   }
 

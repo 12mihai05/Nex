@@ -4,6 +4,11 @@ on:
   schedule:
     - cron: "23 3 * * *"
   workflow_dispatch:
+    inputs:
+      countries:
+        description: 'Optional country codes for a targeted retry (for example CH)'
+        required: false
+        type: string
 
 jobs:
   sync:
@@ -25,7 +30,7 @@ jobs:
           TURSO_AUTH_TOKEN: ${{ secrets.TURSO_AUTH_TOKEN }}
           TMDB_READ_ACCESS_TOKEN: ${{ secrets.TMDB_READ_ACCESS_TOKEN }}
           EPG_SOURCE_TYPE: iptv-org
-          EPG_COUNTRIES: ${{ vars.EPG_COUNTRIES || 'RO,BG,GB,ES,FR,CH,IT,DE,MD' }}
+          EPG_COUNTRIES: ${{ inputs.countries || vars.EPG_COUNTRIES || 'RO,BG,GB,ES,FR,CH,IT,DE,MD' }}
           EPG_COUNTRY_SOURCES_JSON: ${{ vars.EPG_COUNTRY_SOURCES_JSON || '{"RO":["https://epgshare01.online/epgshare01/epg_ripper_RO1.xml.gz"],"BG":["https://epgshare01.online/epgshare01/epg_ripper_BG1.xml.gz"]}' }}
           EPG_MAX_CHANNELS_PER_COUNTRY: '60'
           EPG_MAX_DOWNLOAD_BYTES: '75000000'
