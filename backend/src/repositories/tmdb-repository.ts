@@ -1,5 +1,5 @@
 import { and, eq, gt, like, desc, inArray, sql } from "drizzle-orm";
-import {rankSearch,titleRelevance} from '../services/search-ranking.js';
+import {normalizeSearch,rankSearch,titleRelevance} from '../services/search-ranking.js';
 import { getConfig } from "../config.js";
 import { contentItemSchema, type ContentItem, type MediaType } from "../domain/types.js";
 import { fixtureCatalog, fixtureProviders } from "../fixtures/catalog.js";
@@ -10,6 +10,7 @@ import {matchesGenre} from '../services/content-traits.js';
 import {createHash} from "node:crypto";
 import {lt} from "drizzle-orm";
 import { normalizeVideos, seasonSummarySchema, episodeSchema, type TitleExtras, type SeasonExtras } from "../domain/title-extras.js";
+import { releaseDate, movieReleases, seriesReleases, type ReleaseInfo } from '../domain/releases.js';
 
 export interface CatalogSearchOptions {
   query: string;
@@ -39,6 +40,8 @@ export interface DiscoverOptions {
 }
 
 export interface TmdbRepository {
+  releases?(mediaType:MediaType,id:number,country:string):Promise<ReleaseInfo>;
+  upcoming?(country:string,day:string,page:number):Promise<{items:ContentItem[];hasMore:boolean}>;
   knowledge?(type:'movie'|'series'|'person',id:number):Promise<Record<string,unknown>>;
   episodeKnowledge?(seriesId:number,season:number,episode:number):Promise<Record<string,unknown>>;
   people?(query:string):Promise<Array<{id:number;name:string}>>;
@@ -96,6 +99,22 @@ export class FixtureTmdbRepository implements TmdbRepository {
 const tmdbResultSchema = contentItemSchema.partial().passthrough();
 
 export class LiveTmdbRepository implements TmdbRepository {
+  async releases(mediaType:MediaType,id:number,country:string):Promise<ReleaseInfo> {
+    // Fresh bounded lookup for scheduled checks, independent of the week-long metadata cache.
+    const data=await this.fetchRequest<Record<string,unknown>>(`/${mediaType==='series'?'tv':'movie'}/${id}`,mediaType==='movie'?{append_to_response:'release_dates',language:'en-US'}:{language:'en-US'});
+    return {title:String(data.title??data.name??'Untitled'),releases:mediaType==='movie'?movieReleases(data.release_dates,country):seriesReleases(data)};
+  }
+  async upcoming(country:string,day:string,page:number) {
+    const payload=await this.request<{results:Record<string,unknown>[];total_pages:number}>('/discover/movie',{
+      region:country,with_release_type:'3|2','release_date.gte':day,sort_by:'primary_release_date.asc',
+      include_adult:'false',language:'en-US',page:String(page),
+    });
+    const items=await Promise.all(payload.results.map(async raw=>{
+      const item=await this.summaryToItem({...raw,media_type:'movie'},country,true);
+      return {...item,releaseDate:releaseDate(raw.release_date),releaseCountry:country,metadataOnly:true};
+    }));
+    return {items:items.filter(i=>i.releaseDate&&i.releaseDate>day).sort((a,b)=>a.releaseDate!.localeCompare(b.releaseDate!)||a.id-b.id),hasMore:page<Math.min(payload.total_pages,500)};
+  }
   async episodeKnowledge(seriesId:number,season:number,episode:number):Promise<Record<string,unknown>> {
     const data=await this.request<Record<string,unknown>>(`/tv/${seriesId}/season/${season}/episode/${episode}`,{language:'en-US',append_to_response:'credits'});
     const credits=data.credits as {cast?:Array<Record<string,unknown>>;crew?:Array<Record<string,unknown>>}|undefined;
@@ -122,7 +141,7 @@ export class LiveTmdbRepository implements TmdbRepository {
   async extras(mediaType:MediaType,id:number):Promise<TitleExtras> {
     const root=`/${mediaType==="series"?"tv":"movie"}/${id}`;
     const data=await this.request<Record<string,unknown>>(root,{append_to_response:"videos",language:"en-US",include_video_language:"en,null"});
-    const seasons=Array.isArray(data.seasons)?data.seasons.flatMap(s=>{const parsed=seasonSummarySchema.safeParse(s);return parsed.success?[{number:parsed.data.season_number,name:parsed.data.name,episodeCount:parsed.data.episode_count}]:[];}):[];
+    const seasons=Array.isArray(data.seasons)?data.seasons.flatMap(s=>{const parsed=seasonSummarySchema.safeParse(s);return parsed.success?[{number:parsed.data.season_number,name:parsed.data.name,episodeCount:parsed.data.episode_count,airDate:releaseDate(parsed.data.air_date)}]:[];}):[];
     let videos=normalizeVideos(data.videos);
     if(!videos.length)videos=normalizeVideos(await this.request(`${root}/videos`,{language:""}));
     return {videos,seasons};
@@ -162,6 +181,19 @@ export class LiveTmdbRepository implements TmdbRepository {
     });
     const candidates = (payload.results ?? []).filter((result) => result.media_type === "movie" || result.media_type === "tv").slice(0, 20);
     const found=await Promise.all(candidates.map((result) => this.summaryToItem(result, options.region, options.summaryOnly)));
+    if((options.page??1)===1&&!found.some(i=>Math.max(titleRelevance(options.query,i.title),titleRelevance(options.query,i.originalTitle??''))>=.68)){
+      // TMDB can miss a multiword title after one typo. Retrieve by a remaining
+      // distinctive word, then require a strong full-title match locally.
+      const words=[...new Set(normalizeSearch(options.query).split(' ').filter(w=>w.length>=5))].sort((a,b)=>b.length-a.length).slice(0,2);
+      if(normalizeSearch(options.query).split(' ').length>1){
+        const fallbacks=await Promise.all(words.map(query=>this.request<{results?:Record<string,unknown>[]}>('/search/multi',{query,include_adult:'false',language:'en-US',page:'1',region:options.region}).catch(()=>({results:[]}))));
+        for(const raw of fallbacks.flatMap(p=>p.results??[])){
+          if(!['movie','tv'].includes(String(raw.media_type))||Math.max(titleRelevance(options.query,String(raw.title??raw.name??'')),titleRelevance(options.query,String(raw.original_title??raw.original_name??'')))<.68)continue;
+          const mediaType=raw.media_type==='tv'?'series':'movie';
+          if(!found.some(i=>i.id===Number(raw.id)&&i.mediaType===mediaType))found.push(await this.summaryToItem(raw,options.region,options.summaryOnly));
+        }
+      }
+    }
     if((options.page??1)===1&&found.length<3&&options.query.trim().length>=5){
       // A small encountered-title cache helps typos without mirroring TMDB or
       // inventing corrected titles. Never use cached availability as a fresh claim.
@@ -235,7 +267,7 @@ export class LiveTmdbRepository implements TmdbRepository {
     if (cached) {
       const item = contentItemSchema.parse(cached);
       const availability = await this.readCache(`availability:${mediaType}:${id}:${region}`);
-      if (availability) return this.markOwned({ ...item, availability: contentItemSchema.shape.availability.parse(availability) },ownedProviderIds);
+      if (availability && (item.releaseDate!==undefined || (item.year??9999)<new Date().getUTCFullYear())) return this.markOwned({ ...item, availability: contentItemSchema.shape.availability.parse(availability) },ownedProviderIds);
     }
     try {
       const path = `/${mediaType === "series" ? "tv" : "movie"}/${id}`;
@@ -278,7 +310,8 @@ export class LiveTmdbRepository implements TmdbRepository {
     const title = String(value.title ?? value.name ?? "Untitled");
     return tmdbResultSchema.pipe(contentItemSchema).parse({
       id, mediaType, title, originalTitle: String(value.original_title ?? value.original_name ?? title), overview: String(value.overview ?? ""),
-      year: this.year(value.release_date ?? value.first_air_date), runtimeMinutes: null, rating: typeof value.vote_average === "number" ? value.vote_average : null,
+      releaseDate:releaseDate(value.release_date ?? value.first_air_date),
+      year: this.year(value.release_date ?? value.first_air_date), runtimeMinutes: null, rating: Number(value.vote_count)>0&&typeof value.vote_average === "number" ? value.vote_average : null,
       popularity: Number(value.popularity ?? 0), posterUrl: this.image(value.poster_path, "w500"), backdropUrl: this.image(value.backdrop_path, "w1280"),
       genres: [], genreIds: Array.isArray(value.genre_ids) ? value.genre_ids.map(Number) : [], moods: [], keywords: [], cast: [], director: null,
       originalLanguage: typeof value.original_language === "string" ? value.original_language : null, availability: [],
@@ -308,6 +341,7 @@ export class LiveTmdbRepository implements TmdbRepository {
     return contentItemSchema.parse({
       id: Number(value.id), mediaType, title: String(value.title ?? value.name), originalTitle: String(value.original_title ?? value.original_name ?? value.title ?? value.name),
       overview: String(value.overview ?? ""), year: this.year(value.release_date ?? value.first_air_date),
+      releaseDate:releaseDate(value.release_date ?? value.first_air_date),
       runtimeMinutes: Number(value.runtime ?? value.episode_run_time?.[0]) || null, rating: Number(value.vote_average) || null, popularity: Number(value.popularity ?? 0),
       voteCount: Number(value.vote_count ?? 0), countries: (value.production_countries ?? []).map((c: any)=>String(c.iso_3166_1)), collection: value.belongs_to_collection?.name ?? null,
       posterUrl: this.image(value.poster_path, "w500"), backdropUrl: this.image(value.backdrop_path, "w1280"),

@@ -117,6 +117,9 @@ unlinked_spec.ds
 
 # Coverage
 coverage/
+**/google-services.json
+**/GoogleService-Info.plist
+firebase-client.local.json
 
 # Symbols
 app.*.symbols

@@ -32,6 +32,7 @@ export function scoreCandidate(item: ContentItem, query: FilterQuery, context: R
 }
 function scoreUncached(item: ContentItem, query: FilterQuery, context: RecommendationContext): RankedContent | null {
   const key = titleKey(item); const exact = query.intent === "TITLE_LOOKUP" || query.intent === "AVAILABILITY_LOOKUP";
+  if (!exact && item.releaseDate && item.releaseDate > new Date().toISOString().slice(0,10)) return null;
   const watched = context.watchedKeys ? context.watchedKeys.has(key) : context.watchedIds.has(item.id);
   // Rated means familiar, not necessarily seen. Never manufacture history.
   if (!exact && ((query.excludeWatched && (watched || context.ratedKeys?.has(key))) || context.rejectedKeys?.has(key))) return null;

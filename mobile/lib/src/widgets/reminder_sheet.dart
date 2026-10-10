@@ -5,7 +5,13 @@ import 'package:intl/intl.dart';
 import '../models/tv_program.dart';
 
 class ReminderSheet extends StatefulWidget {
-  const ReminderSheet({super.key, required this.program, this.saved = false});
+  const ReminderSheet({
+    super.key,
+    required this.program,
+    this.saved = false,
+    this.onBack,
+  });
+  final VoidCallback? onBack;
   final TvProgram program;
   final bool saved;
   @override
@@ -49,6 +55,15 @@ class _ReminderSheetState extends State<ReminderSheet> {
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
+          if (widget.onBack != null)
+            Align(
+              alignment: Alignment.centerLeft,
+              child: TextButton.icon(
+                onPressed: widget.onBack,
+                icon: const Icon(Icons.arrow_back),
+                label: const Text('Programme details'),
+              ),
+            ),
           Text('Remind me', style: Theme.of(context).textTheme.headlineSmall),
           const SizedBox(height: 8),
           Text(

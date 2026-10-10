@@ -202,7 +202,7 @@ class _TitleExtrasState extends ConsumerState<TitleExtras> {
                     (s) => DropdownMenuItem<int>(
                       value: s['number'] as int,
                       child: Text(
-                        '${s['name']} · ${s['episodeCount']} episodes',
+                        '${s['name']} · ${s['episodeCount']} episodes${s['airDate'] == null ? '' : ' · ${s['airDate']}'}',
                         overflow: TextOverflow.ellipsis,
                       ),
                     ),

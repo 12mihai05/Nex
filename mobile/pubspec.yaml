@@ -44,6 +44,8 @@ dependencies:
   intl: ^0.20.3
   shared_preferences: ^2.5.5
   url_launcher: ^6.3.2
+  firebase_core: ^4.15.0
+  firebase_messaging: ^16.7.0
 
 dev_dependencies:
   integration_test:

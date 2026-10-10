@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import '../widgets/release_details.dart';
+
 import '../widgets/nex_dialog.dart';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -89,6 +91,7 @@ class DetailScreen extends ConsumerWidget {
                   TitleFeedback(item: item),
                   const SizedBox(height: 24),
                   TitleExtras(item: item),
+                  ReleaseDetails(item: item),
                   const SizedBox(height: 28),
                   Text(
                     'The premise',

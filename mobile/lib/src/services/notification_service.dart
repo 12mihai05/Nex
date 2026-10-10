@@ -9,6 +9,7 @@ class NotificationService {
   static final instance = NotificationService();
   final _plugin = FlutterLocalNotificationsPlugin();
   var _ready = false;
+  void Function(String)? onReleaseTap;
 
   Future<bool> initialize() async {
     if (_ready) return true;
@@ -30,7 +31,18 @@ class NotificationService {
         requestSoundPermission: false,
       ),
     );
-    _ready = await _plugin.initialize(settings: settings) ?? false;
+    _ready =
+        await _plugin.initialize(
+          settings: settings,
+          onDidReceiveNotificationResponse: (response) {
+            final path = response.payload;
+            if (path != null &&
+                RegExp(r'^/title/(movie|series)/[1-9][0-9]*$').hasMatch(path)) {
+              onReleaseTap?.call(path);
+            }
+          },
+        ) ??
+        false;
     return _ready;
   }
 

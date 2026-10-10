@@ -5,6 +5,7 @@ import 'dart:convert';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 
 import '../models/content.dart';
+import '../services/release_push_service.dart';
 
 class NexApiClient {
   NexApiClient({FlutterSecureStorage? storage})
@@ -84,6 +85,7 @@ class NexApiClient {
   }
 
   Future<void> signOut() async {
+    await ReleasePushService.instance.stop(this);
     try {
       await _dio.post<void>('/api/auth/sign-out', data: <String, dynamic>{});
     } finally {
@@ -99,6 +101,7 @@ class NexApiClient {
     );
     _resetHomePlans();
     await _storage.delete(key: _tokenKey);
+    await ReleasePushService.instance.stop(this);
   }
 
   Future<List<ContentItem>> search(String query) =>
@@ -138,6 +141,29 @@ class NexApiClient {
   )).data!;
 
   Future<void> clearChat() => _dio.delete<void>('/api/chat');
+  Future<Map<String, dynamic>> upcoming(int page) async =>
+      (await _dio.get<Map<String, dynamic>>(
+        '/api/upcoming',
+        queryParameters: {'page': page},
+      )).data!;
+  Future<void> setReleaseFollow(ContentItem item, String kind, bool enabled) =>
+      _dio.post<void>(
+        '/api/me/release-subscriptions',
+        data: {
+          'mediaType': item.mediaType.name,
+          'tmdbId': item.id,
+          'kind': kind,
+          'enabled': enabled,
+        },
+      );
+  Future<void> setSeriesAlerts(bool enabled) => _dio.post<void>(
+    '/api/me/release-settings',
+    data: {'followSeenSeries': enabled},
+  );
+  Future<void> registerPush(String token) =>
+      _dio.post<void>('/api/me/push-device', data: {'token': token});
+  Future<void> unregisterPush(String token) =>
+      _dio.delete<void>('/api/me/push-device', data: {'token': token});
 
   Future<Map<String, dynamic>> chat(String message, {String? sessionId}) async {
     final data = <String, dynamic>{'message': message};

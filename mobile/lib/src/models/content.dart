@@ -41,6 +41,8 @@ class ContentItem {
     this.director,
     this.cast = const [],
     this.metadataOnly = false,
+    this.releaseDate,
+    this.releaseCountry,
   });
   final int id;
   final MediaType mediaType;
@@ -58,6 +60,7 @@ class ContentItem {
   final String? director;
   final List<String> cast;
   final bool metadataOnly;
+  final String? releaseDate, releaseCountry;
 
   String get key => '${mediaType.name}:$id';
   String get metadata => [
@@ -74,6 +77,8 @@ class ContentItem {
   factory ContentItem.fromJson(Map<String, dynamic> json) => ContentItem(
     id: json['id'] as int,
     metadataOnly: json['metadataOnly'] as bool? ?? false,
+    releaseDate: json['releaseDate'] as String?,
+    releaseCountry: json['releaseCountry'] as String?,
     mediaType: json['mediaType'] == 'series'
         ? MediaType.series
         : MediaType.movie,

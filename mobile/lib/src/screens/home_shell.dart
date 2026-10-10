@@ -7,6 +7,9 @@ import 'tv_screen.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../state/app_controller.dart';
+import '../services/release_push_service.dart';
+
+import 'package:go_router/go_router.dart';
 
 class HomeShell extends ConsumerStatefulWidget {
   const HomeShell({super.key});
@@ -16,6 +19,20 @@ class HomeShell extends ConsumerStatefulWidget {
 
 class _HomeShellState extends ConsumerState<HomeShell> {
   var index = 0;
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted && !ref.read(appControllerProvider).demoMode) {
+        ReleasePushService.instance.start(ref.read(nexApiClientProvider), (
+          path,
+        ) {
+          if (mounted) context.push(path);
+        });
+      }
+    });
+  }
+
   @override
   Widget build(BuildContext context) => PopScope<Object?>(
     canPop: index == 0,

@@ -12,6 +12,18 @@ import {localDayWindow} from '../tv-window.js';
 import { EpgSyncError, syncErrorCode, retrySnapshot } from './sync-error.js';
 
 export class EpgService {
+  async programmeDetails(id:string,country:string) {
+    const row=(await this.db.select({program:epgPrograms,channel:channels}).from(epgPrograms)
+      .innerJoin(channels,eq(channels.id,epgPrograms.channelId)).where(and(eq(epgPrograms.id,id),eq(channels.country,country))).limit(1))[0];
+    if(!row)throw new Error('PROGRAM_NOT_FOUND');
+    const p=row.program;
+    let title:ContentItem|null=null;
+    if(p.matchedTmdbId&&p.matchedMediaType&&(p.matchConfidence??0)>=.85){
+      try{title=await this.catalog.getTitle(p.matchedMediaType as 'movie'|'series',p.matchedTmdbId,country);}catch{/* EPG details and reminders remain available. */}
+    }
+    return {description:p.description||title?.overview||null,subtitle:p.subtitle,category:p.category,
+      cast:title?.cast??[],castScope:title?.mediaType??null,year:title?.year??p.year,genres:title?.genres??[]};
+  }
   constructor(private readonly db: NexDatabase = getDatabase(), private readonly provider: EpgProvider = createEpgProvider(), private readonly catalog: TmdbRepository = createTmdbRepository()) {}
 
   async guide(userId:string,country:string,start:Date,end:Date,search='',offset=0,favoritesOnly=false,orderOverrides:Record<string,boolean>={}){

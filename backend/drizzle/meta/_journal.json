@@ -57,6 +57,13 @@
       "when": 1791547200000,
       "tag": "0007_recommendation_experiment",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "6",
+      "when": 1791638103086,
+      "tag": "0008_chunky_the_fury",
+      "breakpoints": true
     }
   ]
 }

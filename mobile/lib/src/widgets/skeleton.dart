@@ -79,15 +79,21 @@ class SkeletonBlock extends StatelessWidget {
 }
 
 class PosterSkeletons extends StatelessWidget {
-  const PosterSkeletons({super.key, this.onboarding = false});
+  const PosterSkeletons({
+    super.key,
+    this.onboarding = false,
+    this.maxCardWidth = 180,
+    this.aspectRatio = .49,
+  });
   final bool onboarding;
+  final double maxCardWidth, aspectRatio;
   @override
   Widget build(BuildContext context) => LayoutBuilder(
     builder: (context, constraints) {
       final padding = onboarding ? 0.0 : 16.0;
       final gap = onboarding ? 10.0 : 14.0;
-      final maxWidth = onboarding ? 145.0 : 180.0;
-      final ratio = onboarding ? .53 : .49;
+      final maxWidth = onboarding ? 145.0 : maxCardWidth;
+      final ratio = onboarding ? .53 : aspectRatio;
       final columns = ((constraints.maxWidth - 2 * padding) / (maxWidth + gap))
           .ceil()
           .clamp(1, 12);

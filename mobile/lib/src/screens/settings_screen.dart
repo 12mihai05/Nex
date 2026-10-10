@@ -8,6 +8,7 @@ import 'package:go_router/go_router.dart';
 import '../state/app_controller.dart';
 import '../data/countries.dart';
 import '../widgets/delete_account_sheet.dart';
+import '../widgets/release_details.dart';
 
 class SettingsScreen extends ConsumerWidget {
   const SettingsScreen({super.key});
@@ -83,6 +84,7 @@ class SettingsScreen extends ConsumerWidget {
             ),
           ),
           const _Header('Notifications'),
+          const SeriesAlertSetting(),
           SwitchListTile(
             value: state.remindersEnabled,
             onChanged: controller.setRemindersEnabled,

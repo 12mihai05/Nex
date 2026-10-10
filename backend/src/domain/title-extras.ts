@@ -12,7 +12,7 @@ export function normalizeVideos(value: unknown) {
     return [{id:v.key,name:v.name,type:v.type,official:v.official??false,language:v.iso_639_1??null,url:`https://www.youtube.com/watch?v=${v.key}`}];
   }).sort((a,b)=>Number(b.official)-Number(a.official)||Number(b.type==="Trailer")-Number(a.type==="Trailer"));
 }
-export const seasonSummarySchema=z.object({season_number:z.number().int().nonnegative(),name:z.string(),episode_count:z.number().int().nonnegative().default(0)});
+export const seasonSummarySchema=z.object({season_number:z.number().int().nonnegative(),name:z.string(),episode_count:z.number().int().nonnegative().default(0),air_date:z.string().nullable().optional()});
 export const episodeSchema=z.object({episode_number:z.number().int().positive(),name:z.string(),runtime:z.number().nonnegative().nullable().optional(),vote_average:z.number().min(0).max(10).optional(),vote_count:z.number().nonnegative().optional(),air_date:z.string().nullable().optional()});
-export type TitleExtras={videos:ReturnType<typeof normalizeVideos>;seasons:Array<{number:number;name:string;episodeCount:number}>};
+export type TitleExtras={videos:ReturnType<typeof normalizeVideos>;seasons:Array<{number:number;name:string;episodeCount:number;airDate?:string|null}>};
 export type SeasonExtras={videos:ReturnType<typeof normalizeVideos>;episodes:Array<{number:number;name:string;runtimeMinutes:number|null;rating:number|null;airDate:string|null}>};

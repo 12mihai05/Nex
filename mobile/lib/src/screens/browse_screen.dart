@@ -15,6 +15,7 @@ import '../widgets/catalog_filter_sheet.dart';
 import '../widgets/streaming_service_chips.dart';
 import '../widgets/title_extras.dart';
 import '../data/api_client.dart';
+import 'upcoming_movies.dart';
 
 class BrowseScreen extends ConsumerStatefulWidget {
   const BrowseScreen({super.key});
@@ -23,6 +24,7 @@ class BrowseScreen extends ConsumerStatefulWidget {
 }
 
 class _BrowseScreenState extends ConsumerState<BrowseScreen> {
+  bool upcoming = false;
   String type = 'any';
   String watchStatus = 'new';
   Set<int>? providers;
@@ -312,6 +314,31 @@ class _BrowseScreenState extends ConsumerState<BrowseScreen> {
     final hero = hasFilters
         ? rows.firstOrNull?.items.firstOrNull
         : controller.browseHero;
+    if (upcoming) {
+      return Scaffold(
+        appBar: const NexTopBar(),
+        body: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16),
+              child: Wrap(
+                spacing: 8,
+                children: [
+                  ActionChip(
+                    label: const Text('Back to streaming'),
+                    avatar: const Icon(Icons.arrow_back, size: 18),
+                    onPressed: () => setState(() => upcoming = false),
+                  ),
+                  const Chip(label: Text('Upcoming in cinemas')),
+                ],
+              ),
+            ),
+            Expanded(child: UpcomingMovies(key: ValueKey(state.country))),
+          ],
+        ),
+      );
+    }
     return Scaffold(
       appBar: const NexTopBar(),
       body: RefreshIndicator(
@@ -360,6 +387,11 @@ class _BrowseScreenState extends ConsumerState<BrowseScreen> {
                         avatar: const Icon(Icons.tune, size: 18),
                         label: const Text('Filters'),
                         onPressed: editFilters,
+                      ),
+                      ActionChip(
+                        avatar: const Icon(Icons.event_outlined, size: 18),
+                        label: const Text('Upcoming'),
+                        onPressed: () => setState(() => upcoming = true),
                       ),
                       if (genre != null)
                         InputChip(

@@ -19,6 +19,8 @@ export const contentItemSchema = z.object({
   title: z.string(),
   originalTitle: z.string().nullable(),
   overview: z.string(),
+  releaseDate: z.string().nullable().optional(),
+  releaseCountry: z.string().optional(),
   year: z.number().int().nullable(),
   runtimeMinutes: z.number().int().positive().nullable(),
   rating: z.number().min(0).max(10).nullable(),

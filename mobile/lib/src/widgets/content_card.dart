@@ -8,6 +8,8 @@ import '../models/content.dart';
 import '../core/theme.dart';
 import 'artwork.dart';
 
+import 'package:intl/intl.dart';
+
 class ContentCard extends ConsumerWidget {
   const ContentCard({
     super.key,
@@ -116,6 +118,19 @@ class ContentCard extends ConsumerWidget {
                   style: Theme.of(context).textTheme.bodySmall,
                 ),
               ],
+              if (DateTime.tryParse(item.releaseDate ?? '')
+                  case final DateTime date when item.releaseCountry != null)
+                Padding(
+                  padding: const EdgeInsets.only(top: 4),
+                  child: Text(
+                    'Cinema · ${DateFormat.yMMMd().format(date)}',
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                      color: Theme.of(context).colorScheme.primary,
+                    ),
+                  ),
+                ),
             ],
           ),
         ),

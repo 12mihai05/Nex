@@ -4,6 +4,12 @@ plugins {
     id("dev.flutter.flutter-gradle-plugin")
 }
 
+// Optional until Firebase is configured. Native resources are required for
+// receiving FCM notifications when the Flutter process is not running.
+if (file("google-services.json").exists()) {
+    apply(plugin = "com.google.gms.google-services")
+}
+
 android {
     namespace = "app.nex.nex"
     compileSdk = flutter.compileSdkVersion

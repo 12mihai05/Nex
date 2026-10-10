@@ -21,6 +21,8 @@ import { personalizationFor } from './services/personalization.js';
 import { catalogFilterSchema, filteredCatalog } from "./services/filtered-catalog.js";
 import { createEpgProvider } from "./services/epg/provider.js";
 import { getDatabase } from "./db/client.js";
+import {calendarDay} from './domain/releases.js';
+import {ReleaseTracking} from './services/release-tracking.js';
 import {
   chatBodySchema, feedbackBodySchema, onboardingBodySchema, recommendBodySchema, reminderBodySchema, searchQuerySchema,
   settingsBodySchema, surpriseBodySchema, tasteBodySchema, titleActionSchema, titleParamsSchema,
@@ -33,6 +35,7 @@ const users = new UserRepository();
 const catalog = createTmdbRepository();
 const ai = new AiService();
 const epg = new EpgService();
+const releases = new ReleaseTracking(catalog);
 // Same-model combined planning passed the live comparison and continuation QA.
 // The separate path remains available to the comparison harness.
 const chat = new ChatService(users, catalog, ai, epg, {combinedPlanner:true});
@@ -80,6 +83,7 @@ app.use("/api/tv/*", requireAuth);
 app.use("/api/recommend", requireAuth);
 app.use("/api/discovery", requireAuth);
 app.use("/api/catalog", requireAuth);
+app.use('/api/upcoming',requireAuth);
 app.use("/api/surprise", requireAuth);
 app.use("/api/onboarding/*", requireAuth);
 app.use("/api/chat", requireAuth);
@@ -89,6 +93,46 @@ app.get("/api/providers", async (c) => {
   const {profile} = await users.getSettings(c.get("authSession").user.id);
   const region=z.enum(["RO","BG","GB","ES","FR","CH","IT","DE","MD"]).optional().parse(c.req.query("country"));
   return c.json({ data: await catalog.getProviders(region??profile.country), source: catalog.mode });
+});
+
+app.get('/api/upcoming',async c=>{
+  const page=z.coerce.number().int().min(1).max(500).default(1).parse(c.req.query('page'));
+  const {profile}=await users.getSettings(c.get('authSession').user.id);
+  const day=calendarDay(new Date(),profile.timezone);
+  const result=await catalog.upcoming?.(profile.country,day,page)??{items:[],hasMore:false};
+  return c.json({data:result.items,meta:{page,hasMore:result.hasMore,country:profile.country,day}});
+});
+app.get('/api/title/:mediaType/:tmdbId/releases',async c=>{
+  const p=titleParamsSchema.parse(c.req.param());const userId=c.get('authSession').user.id;
+  const {profile}=await users.getSettings(userId);
+  const [info,subscriptions]=await Promise.all([catalog.releases?.(p.mediaType,p.tmdbId,profile.country),releases.list(userId)]);
+  return c.json({data:{...info,country:profile.country,day:calendarDay(new Date(),profile.timezone),subscriptions:subscriptions.filter(s=>s.mediaType===p.mediaType&&s.tmdbId===p.tmdbId&&s.country===profile.country).map(s=>({kind:s.kind,enabled:s.enabled}))}});
+});
+app.get('/api/me/release-settings',async c=>c.json({data:await releases.settings(c.get('authSession').user.id)}));
+app.post('/api/me/release-settings',async c=>{
+  const body=z.object({followSeenSeries:z.boolean()}).strict().parse(await c.req.json());
+  await releases.setAuto(c.get('authSession').user.id,body.followSeenSeries);return c.json({data:body});
+});
+app.post('/api/me/release-subscriptions',async c=>{
+  const body=z.object({mediaType:z.enum(['movie','series']),tmdbId:z.number().int().positive(),kind:z.enum(['cinema','digital','season']),enabled:z.boolean()}).strict().refine(b=>(b.mediaType==='series')===(b.kind==='season')).parse(await c.req.json());
+  const userId=c.get('authSession').user.id;const {profile}=await users.getSettings(userId);
+  const existing=await releases.list(userId);
+  if(body.enabled&&existing.length>=200&&!existing.some(s=>s.mediaType===body.mediaType&&s.tmdbId===body.tmdbId&&s.kind===body.kind&&s.country===profile.country))throw new HTTPException(409,{message:'Release tracking is full. Turn off an existing alert first.'});
+  await releases.follow(userId,body.mediaType,body.tmdbId,body.kind,profile.country,body.enabled);
+  return c.json({data:{enabled:body.enabled}});
+});
+app.post('/api/me/push-device',async c=>{
+  const body=z.object({token:z.string().min(20).max(4096)}).strict().parse(await c.req.json());
+  const auth=c.get('authSession');await releases.register(auth.user.id,auth.session.id,body.token);return c.json({data:{registered:true}});
+});
+app.delete('/api/me/push-device',async c=>{
+  const body=z.object({token:z.string().min(20).max(4096)}).strict().parse(await c.req.json());
+  await releases.unregister(c.get('authSession').user.id,body.token);return c.body(null,204);
+});
+app.get('/api/tv/programmes/:id',async c=>{
+  const id=z.string().min(1).max(200).parse(c.req.param('id'));
+  const {profile}=await users.getSettings(c.get('authSession').user.id);
+  return c.json({data:await epg.programmeDetails(id,profile.country)});
 });
 
 app.get("/api/search", async (c) => {

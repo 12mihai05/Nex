@@ -4,6 +4,30 @@ import { index, integer, primaryKey, real, sqliteTable, text, uniqueIndex } from
 const createdAt = () => integer("created_at", { mode: "timestamp_ms" }).notNull().default(sql`(unixepoch() * 1000)`);
 const updatedAt = () => integer("updated_at", { mode: "timestamp_ms" }).notNull().default(sql`(unixepoch() * 1000)`);
 
+export const releaseSettings = sqliteTable('release_settings', {
+  userId:text('user_id').primaryKey().references(()=>user.id,{onDelete:'cascade'}),
+  followSeenSeries:integer('follow_seen_series',{mode:'boolean'}).notNull().default(false),
+});
+export const releaseSubscriptions = sqliteTable('release_subscriptions', {
+  id:text('id').primaryKey(),userId:text('user_id').notNull().references(()=>user.id,{onDelete:'cascade'}),
+  mediaType:text('media_type',{enum:['movie','series']}).notNull(),tmdbId:integer('tmdb_id').notNull(),
+  kind:text('kind',{enum:['cinema','digital','season']}).notNull(),country:text('country').notNull(),
+  enabled:integer('enabled',{mode:'boolean'}).notNull().default(true),
+  baselineJson:text('baseline_json').notNull().default('[]'),
+  initialized:integer('initialized',{mode:'boolean'}).notNull().default(false),
+  createdAt:createdAt(),checkedAt:integer('checked_at',{mode:'timestamp_ms'}).notNull().default(sql`0`),
+},t=>[uniqueIndex('release_subscription_identity').on(t.userId,t.mediaType,t.tmdbId,t.kind,t.country),index('release_subscription_due').on(t.enabled,t.checkedAt)]);
+export const pushDevices = sqliteTable('push_devices', {
+  token:text('token').primaryKey(), userId:text('user_id').notNull().references(()=>user.id,{onDelete:'cascade'}),
+  sessionId:text('session_id').notNull().references(()=>session.id,{onDelete:'cascade'}),
+  updatedAt:updatedAt(),
+},t=>[index('push_device_user').on(t.userId)]);
+export const releaseDeliveries = sqliteTable('release_deliveries', {
+  id:text('id').primaryKey(),subscriptionId:text('subscription_id').notNull().references(()=>releaseSubscriptions.id,{onDelete:'cascade'}),
+  eventKey:text('event_key').notNull(),tokenHash:text('token_hash').notNull(),
+  sent:integer('sent',{mode:'boolean'}).notNull().default(false),attemptAt:integer('attempt_at',{mode:'timestamp_ms'}).notNull(),
+},t=>[uniqueIndex('release_delivery_once').on(t.subscriptionId,t.eventKey,t.tokenHash)]);
+
 export const user = sqliteTable("user", {
   id: text("id").primaryKey(),
   name: text("name").notNull(),

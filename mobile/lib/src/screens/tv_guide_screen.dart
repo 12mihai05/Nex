@@ -11,7 +11,7 @@ import '../data/demo_data.dart';
 import '../models/tv_program.dart';
 import '../state/app_controller.dart';
 import '../state/channel_favorites.dart';
-import '../widgets/reminder_sheet.dart';
+import '../widgets/programme_sheet.dart';
 import '../widgets/nex_notice.dart';
 import '../widgets/skeleton.dart';
 
@@ -228,7 +228,7 @@ class _TvGuideScreenState extends ConsumerState<TvGuideScreen> {
       context: context,
       showDragHandle: true,
       isScrollControlled: true,
-      builder: (_) => ReminderSheet(program: p, saved: saved),
+      builder: (_) => ProgrammeSheet(program: p, saved: saved),
     );
     if (minutes == null || !mounted) return;
     try {
