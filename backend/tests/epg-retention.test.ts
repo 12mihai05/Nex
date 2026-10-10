@@ -22,6 +22,17 @@ describe("EPG sync retention and matching", () => {
 
   afterEach(() => client.close());
 
+  it('rolls back the whole country snapshot if any program write fails',async()=>{
+    const db=drizzle(client,{schema});
+    await db.insert(schema.channels).values({id:'test:old',sourceId:'test',externalId:'old',displayName:'Old',country:'RO'});
+    await db.insert(schema.epgPrograms).values({id:'old',sourceId:'test',sourceProgramId:'old',channelId:'test:old',title:'Previous schedule',startAt:now,endAt:new Date(+now+3600000),updatedAt:new Date(+now-1000)});
+    await client.execute("CREATE TRIGGER reject_program BEFORE INSERT ON epg_programs WHEN NEW.title='Reject me' BEGIN SELECT RAISE(ABORT,'synthetic failure'); END");
+    const provider:EpgProvider={sourceId:'test',async load(){return {channels:[{externalId:'new',displayName:'New',logoUrl:null,language:null}],programs:[{sourceProgramId:'new',channelExternalId:'new',title:'Reject me',subtitle:null,description:null,startAt:now,endAt:new Date(+now+3600000),category:null,language:null,year:null}],sourceTimestamp:null};}};
+    await expect(new EpgService(db,provider,new FixtureTmdbRepository()).sync(now)).rejects.toThrow();
+    expect((await db.select().from(schema.channels)).map(c=>[c.id,c.active])).toEqual([['test:old',true]]);
+    expect((await db.select().from(schema.epgPrograms)).map(p=>p.title)).toEqual(['Previous schedule']);
+    expect((await db.select().from(schema.epgSyncRuns))[0]?.status).toBe('failed');
+  });
   it("removes out-of-window rows and stores a confident TMDB association", async () => {
     const db = drizzle(client, { schema });
     const program = (id: string, startAt: Date, title: string) => ({ sourceProgramId: id, channelExternalId: "c1", title, subtitle: null, description: "A linguist communicates with mysterious visitors.", startAt, endAt: new Date(startAt.getTime() + 7_200_000), category: "Movie", language: "en", year: title === "Arrival" ? 2016 : null });

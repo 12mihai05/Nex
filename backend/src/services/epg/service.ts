@@ -118,19 +118,22 @@ export class EpgService {
       }
       if (!rows.length) throw new Error("EPG_NO_CURRENT_PROGRAMS");
       stage = 'snapshot';
-      // Small batches respect SQLite variable limits and keep remote round trips bounded.
-      await this.db.transaction(async (tx) => {
-        await tx.update(channels).set({active:false}).where(eq(channels.sourceId,this.provider.sourceId));
-        for(let i=0;i<channelRows.length;i+=50)await tx.insert(channels).values(channelRows.slice(i,i+50)).onConflictDoUpdate({target:[channels.sourceId,channels.externalId],set:{active:true,displayName:sql`excluded.display_name`,logoUrl:sql`excluded.logo_url`,language:sql`excluded.language`,canonicalId:sql`excluded.canonical_id`,updatedAt:now}});
+      // One non-interactive atomic batch, not hundreds of HTTP round trips while
+      // holding SQLite's writer lock. Small statements still respect bind limits.
+      const deactivate = this.db.update(channels).set({active:false}).where(eq(channels.sourceId,this.provider.sourceId));
+      const channelWrites = [];
+      const programWrites = [];
+        for(let i=0;i<channelRows.length;i+=50)channelWrites.push(this.db.insert(channels).values(channelRows.slice(i,i+50)).onConflictDoUpdate({target:[channels.sourceId,channels.externalId],set:{active:true,displayName:sql`excluded.display_name`,logoUrl:sql`excluded.logo_url`,language:sql`excluded.language`,canonicalId:sql`excluded.canonical_id`,updatedAt:now}}));
         for (let i = 0; i < rows.length; i += 40) {
-          await tx.insert(epgPrograms).values(rows.slice(i, i + 40)).onConflictDoUpdate({ target: [epgPrograms.sourceId, epgPrograms.sourceProgramId], set: {
+          programWrites.push(this.db.insert(epgPrograms).values(rows.slice(i, i + 40)).onConflictDoUpdate({ target: [epgPrograms.sourceId, epgPrograms.sourceProgramId], set: {
             title: sql`excluded.title`, description: sql`excluded.description`, endAt: sql`excluded.end_at`, updatedAt: now,
             matchedTmdbId: sql`coalesce(excluded.matched_tmdb_id, epg_programs.matched_tmdb_id)`, matchedMediaType: sql`coalesce(excluded.matched_media_type, epg_programs.matched_media_type)`, matchConfidence: sql`coalesce(excluded.match_confidence, epg_programs.match_confidence)`,
-          } });
+          } }));
         }
         // Remove replaced schedules only after the complete new snapshot has been imported.
-        await tx.delete(epgPrograms).where(and(eq(epgPrograms.sourceId, this.provider.sourceId), gt(epgPrograms.endAt, now), lt(epgPrograms.updatedAt, now)));
-      });
+      const removeReplaced = this.db.delete(epgPrograms).where(and(eq(epgPrograms.sourceId, this.provider.sourceId), gt(epgPrograms.endAt, now), lt(epgPrograms.updatedAt, now)));
+      await this.db.batch([deactivate, ...channelWrites, ...programWrites, removeReplaced]);
+      stage = 'finalize';
       const removed = await this.db.delete(epgPrograms).where(and(eq(epgPrograms.sourceId, this.provider.sourceId), or(lt(epgPrograms.endAt, minDate), gt(epgPrograms.startAt, maxDate)))).returning({ id: epgPrograms.id });
       await this.db.update(epgSyncRuns).set({ status: "success", finishedAt: new Date(), sourceTimestamp: parsed.sourceTimestamp, importedRows, deletedRows: removed.length+expired.length }).where(eq(epgSyncRuns.id, runId));
       await this.db.delete(epgSyncRuns).where(lt(epgSyncRuns.startedAt,new Date(now.getTime()-30*86_400_000)));
