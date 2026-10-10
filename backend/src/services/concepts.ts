@@ -5,7 +5,9 @@ import type {ContentItem} from "../domain/types.js";
 const groups:Record<string,string[]>={
   anime:['anime','animes'],
   'k-pop':['k-pop','kpop','k pop'],
-  'car race':['car race','car racing','street race','auto racing','street racing','formula one','formula 1','nascar','racing driver','race car driver'],
+  'car race':['car race','car racing','auto racing'],
+  'street race':['street race','street racing'],
+  'formula one':['formula one','formula 1'],
   underdog:["underdog","underdogs","against all odds","unlikely champion","unlikely hero"],
   redemption:["redemption","second chance","second chances","atonement"],
   revenge:["revenge","vengeance","retribution"],
@@ -56,7 +58,10 @@ export function canonicalConcept(value:string):string {
   const n=normalize(value);
   return aliases.get(n)??n;
 }
-export function conceptTerms(value:string):string[]{const key=canonicalConcept(value);return [...new Set([key,...(groups[key]??[])])];}
+// Subtypes expand a broad retrieval/matching concept in one direction. They are
+// not aliases: disliking Formula One must not become a dislike of all car races.
+const narrowerTerms:Record<string,string[]>={'car race':['street race','street racing','formula one','formula 1','nascar','racing driver','race car driver']};
+export function conceptTerms(value:string):string[]{const key=canonicalConcept(value);return [...new Set([key,...(groups[key]??[]),...(narrowerTerms[key]??[])])];}
 // Context for short legacy tags, not additional preferences or inferred facts.
 // Qualified user-authored meanings take precedence over these dictionary senses.
 export function conceptMeaning(value:string):string {

@@ -1,8 +1,11 @@
 import {it,expect} from 'vitest';
-import {conceptEvidence,conceptTerms} from '../src/services/concepts.js';
+import {canonicalConcept,conceptEvidence,conceptTerms} from '../src/services/concepts.js';
 import {fixtureCatalog} from '../src/fixtures/catalog.js';
 it('finds verified car-racing synonyms without including every sport or vehicle story',()=>{
   expect(conceptTerms('car racing')).toContain('street race');
+  expect(canonicalConcept('street racing')).not.toBe(canonicalConcept('car racing'));
+  expect(canonicalConcept('formula 1')).not.toBe(canonicalConcept('car racing'));
+  expect(conceptEvidence({...fixtureCatalog[0]!,keywords:['nascar'],overview:''},'formula one')).toBeNull();
   for(const keyword of ['street race','formula one','auto racing'])
     expect(conceptEvidence({...fixtureCatalog[0]!,keywords:[keyword],overview:''},'car race')).toBe('tag');
   for(const keyword of ['motorcycle racing','horse racing','sport','car chase'])
