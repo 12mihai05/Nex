@@ -37,4 +37,10 @@ The verification pass found Germany's Upcoming discovery can return older cinema
 
 Before replacing Firebase: 262 backend tests (including the now-removed push sender), 89 regular Flutter tests, Android build and a real Flutter-to-production API lifecycle passed. Firebase was never configured or used. Its workflow only passed a safety-gate skip, not delivery.
 
-Current replacement checks and production scheduler results are recorded at completion below. Physical-device popup display is not claimed without a connected phone.
+Replacement verification completed on 2026-10-10:
+
+- 260 backend tests, typecheck, lint and build passed; 93 regular Flutter tests and analysis passed. Android debug APK builds without Firebase packages. Two opt-in visual checks passed; inbox reviewed in both themes.
+- The real Flutter API client passed signup/login, search, subscriptions/settings, inbox access, live programme details and custom 17-minute reminder save/cancel against production. Its test account was deleted. Native secure storage and OS notification display were not part of that desktop-hosted test.
+- Populated inbox production verification used two disposable accounts and clearly synthetic records. Owner isolation, separate read/popup acknowledgement, country filtering and cascading account cleanup passed. Both accounts were deleted; zero synthetic inbox rows remained.
+- Additive migration applied, backend deployed READY, daily scheduler enabled. [Manual scheduler run 38060288867](https://github.com/12mihai05/Nex/actions/runs/38060288867) completed SUCCESS including the actual sync step, using only existing Turso and TMDB secrets. A future timed trigger has not yet been observed for this replacement.
+- No existing user account or Taste was rewritten. Physical Samsung popup display, OS permission behavior and cold-start tap navigation still require a device check. No Firebase delivery is applicable or attempted.
