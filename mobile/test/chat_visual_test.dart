@@ -13,6 +13,22 @@ import 'package:nex/src/state/app_controller.dart';
 
 import 'chat_actions_test.dart' show ChatActionsApi, TasteChatApi;
 
+class NaturalChatApi extends ChatActionsApi {
+  @override
+  Future<Map<String, dynamic>> chat(
+    String message, {
+    String? sessionId,
+  }) async => {
+    'sessionId': 'natural-visual',
+    'blocks': [
+      {
+        'type': 'text',
+        'content': 'A quiet scene gives you room to notice what someone isn’t saying. A glance or a pause can change how you read the whole conversation.\n\nIs it that space to interpret things that you enjoy?',
+      },
+    ],
+  };
+}
+
 void main() {
   LiveTestWidgetsFlutterBinding();
   for (final dark in [true, false]) {
@@ -79,6 +95,30 @@ void main() {
       await capture('clear');
       await tester.tap(find.text('Keep chat'));
       await tester.pumpAndSettle();
+      final naturalContainer = ProviderContainer(
+        overrides: [nexApiClientProvider.overrideWithValue(NaturalChatApi())],
+      );
+      addTearDown(naturalContainer.dispose);
+      await naturalContainer
+          .read(appControllerProvider.notifier)
+          .restoreSession();
+      await naturalContainer
+          .read(appControllerProvider.notifier)
+          .sendChat('Sometimes a quiet scene says more than a long speech.');
+      await tester.pumpWidget(
+        RepaintBoundary(
+          key: key,
+          child: UncontrolledProviderScope(
+            container: naturalContainer,
+            child: MaterialApp(
+              theme: dark ? NexTheme.dark : NexTheme.light,
+              home: const ChatScreen(),
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      await capture('natural');
       final tasteContainer = ProviderContainer(
         overrides: [nexApiClientProvider.overrideWithValue(TasteChatApi())],
       );

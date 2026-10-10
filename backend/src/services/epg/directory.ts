@@ -31,6 +31,11 @@ export function epgShareCountryFiles(indexHtml: string, country: string): string
   return [...new Set(names.map((m)=>`https://epgshare01.online/epgshare01/${m[1]}`))];
 }
 
+// Empty/stale directory entries must not consume the schedule import budget.
+export function scheduledChannelIds(programs: Iterable<ParsedXmlTv['programs'][number]>, now=Date.now(), futureDays=14) {
+  return new Set([...programs].filter(p=>+p.endAt>now&&+p.startAt<=now+futureDays*86_400_000).map(p=>p.channelExternalId));
+}
+
 export class IptvOrgProvider implements EpgProvider {
   readonly sourceId: string;
   constructor(readonly country: string) { this.sourceId = `iptv-org:${country}`; }
@@ -85,7 +90,8 @@ export class IptvOrgProvider implements EpgProvider {
     if (!programs.size) throw new Error("EPG_EMPTY_FEED");
     const core:Record<string,RegExp>={RO:/^(PRO TV|Antena 1|TVR [123]|Digi 24|Digi Sport [1-4])$/i,GB:/^(BBC (ONE|TWO|1|2)|ITV1?|Channel [45]|Sky News)/i,ES:/^(La [12]|Antena 3|Telecinco|Cuatro|La ?Sexta)/i,FR:/^(TF1|France [2-5]|M6|ARTE|Canal\+)/i,CH:/^(SRF|RTS|RSI|3\+|4\+)/i,IT:/^(Rai [123]|Canale 5|Italia 1|Rete 4|La7)/i,DE:/^(Das Erste|ZDF|RTL|SAT\.?1|ProSieben|VOX|ARTE)/i,MD:/^(Moldova|TVR Moldova|Jurnal|PRO TV Chisinau|TV8)/i};
     const priority=(name:string)=>core[this.country]?.test(name)?2:0;
-    const selected = [...channels.values()].sort((a,b) => priority(b.displayName)-priority(a.displayName) || Number(Boolean(b.canonicalId)) - Number(Boolean(a.canonicalId)) || a.displayName.localeCompare(b.displayName)).slice(0, getConfig().EPG_MAX_CHANNELS_PER_COUNTRY);
+    const scheduled=scheduledChannelIds(programs.values(),Date.now(),getConfig().EPG_RETENTION_FUTURE_DAYS);
+    const selected = [...channels.values()].filter(c=>scheduled.has(c.externalId)).sort((a,b) => priority(b.displayName)-priority(a.displayName) || Number(Boolean(b.canonicalId)) - Number(Boolean(a.canonicalId)) || a.displayName.localeCompare(b.displayName)).slice(0, getConfig().EPG_MAX_CHANNELS_PER_COUNTRY);
     const selectedIds = new Set(selected.map((c) => c.externalId));
     const preferred=[...(options?.preferredExternalIds??[])];
     if(preferred.length>120)throw new Error("EPG_FAVORITE_CAPACITY");

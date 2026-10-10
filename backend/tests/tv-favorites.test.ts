@@ -26,7 +26,11 @@ beforeEach(async()=>{
   epg=new EpgService(db,{sourceId:"fixture",load:async()=>({channels:[],programs:[],sourceTimestamp:null})},new FixtureTmdbRepository());
 });
 afterEach(()=>client.close());
+async function fillGuide(){
+ await drizzle(client,{schema}).insert(schema.epgPrograms).values(Array.from({length:19},(_,i)=>({id:`guide${i}`,sourceId:'fixture',sourceProgramId:`guide${i}`,channelId:`c${i+3}`,title:'Programme',startAt:now,endAt:new Date(+now+3600000)})));
+}
 it('favorite changes do not skip channels across a frozen guide order; fresh visits reorder',async()=>{
+ await fillGuide();
  const end=new Date(+now+6*3600000);
  await epg.setChannelFavorite('alice','RO','c9',true);
  const first=await epg.guide('alice','RO',now,end);
@@ -42,6 +46,7 @@ it('favorite changes do not skip channels across a frozen guide order; fresh vis
  expect((await epg.guide('alice','RO',now,end,'',0,true)).channels).toEqual([]);
 });
 it('guide batches align programmes to one window, put favourites first and isolate countries/users',async()=>{
+ await fillGuide();
  await epg.setChannelFavorite('alice','RO','c0',true);
  const first=await epg.guide('alice','RO',now,new Date(+now+6*3600000));
  expect(first.channels).toHaveLength(20);expect(first.hasMore).toBe(true);
@@ -56,6 +61,15 @@ it('guide batches align programmes to one window, put favourites first and isola
  await epg.setChannelFavorite('alice','RO','c20',true);
  const favorites=await epg.guide('alice','RO',now,new Date(+now+6*3600000),'',0,true);
  expect(favorites.channels.map(c=>c.id)).toContain('c20');
+});
+it('hides channels with no programmes in the requested window, including empty favorites, without deleting favorites',async()=>{
+ await epg.setChannelFavorite('alice','RO','c20',true);
+ const guide=await epg.guide('alice','RO',now,new Date(+now+6*3600000));
+ expect(guide.channels.map(c=>c.id).sort()).toEqual(['c0','c1','c2']);
+ expect(guide.channels.every(c=>c.programs.length>0)).toBe(true);
+ expect(guide.hasMore).toBe(false);
+ expect((await epg.listChannels('alice','RO','',0,true)).map(c=>c.id)).toEqual(['c20']);
+ expect((await epg.guide('alice','RO',new Date(+now+86400000),new Date(+now+90000000))).channels).toEqual([]);
 });
 it("title broadcasts include non-favorites, translated titles and live shows, but not remakes, expired or foreign entries",async()=>{
   const db=drizzle(client,{schema});

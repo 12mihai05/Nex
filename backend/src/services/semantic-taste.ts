@@ -1,8 +1,7 @@
 import { createHash } from 'node:crypto';
 import type { ContentItem, TasteSignal } from '../domain/types.js';
-import { canonicalTrait,canonicalDimensionTrait } from './content-traits.js';
-import { conceptEvidence, conceptMeaning } from './concepts.js';
-import { titleDimensions } from './taste.js';
+import {tasteConditionsApply} from './taste-conditions.js';
+import { conceptMeaning } from './concepts.js';
 
 export const directTaste = (s: TasteSignal) => ['explicit_edit','chat_explicit','onboarding_explicit','onboarding_text'].includes(s.source);
 export const semanticHash = (value: unknown) => createHash('sha256').update(JSON.stringify(value,(_key,v:unknown)=>v instanceof Set?[...v].sort():v instanceof Map?[...v].sort():v)).digest('hex');
@@ -22,8 +21,7 @@ export function semanticTitleText(item: ContentItem) {
   return [`Premise: ${item.overview.slice(0,1600)}`, `Topics: ${item.keywords.slice(0,30).join(', ')}`, `Genres: ${item.genres.join(', ')}`, `Supported tone: ${item.moods.join(', ')}`].join('\n').slice(0,2400);
 }
 export function conditionApplies(item: ContentItem, signal: TasteSignal) {
-  const dimensions=new Set(titleDimensions(item).map(d=>`${d.dimension}:${canonicalTrait(d.key)}`));
-  return !signal.conditions?.length || signal.conditions.every(c=>c.values.some(v=>dimensions.has(`${c.dimension}:${canonicalDimensionTrait(c.dimension,v)}`)||(c.dimension==='keyword'&&Boolean(conceptEvidence(item,v)))));
+  return tasteConditionsApply(item,signal);
 }
 export function semanticSignals(taste: TasteSignal[]) {
   // Explicit open-ended preferences only. Do not turn inferred actor/country traits into stories.

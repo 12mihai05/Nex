@@ -10,6 +10,13 @@ import { filterQuerySchema } from "../src/domain/types.js";
 const state = () => ({country:"RO",timezone:"Europe/Bucharest",ownedProviderIds:[8],taste:[],watchedIds:new Set<number>(),watchlistIds:new Set<number>(),watchedKeys:new Set<string>(),watchlistKeys:new Set<string>(),ratedKeys:new Set<string>(),rejectedKeys:new Set<string>(),recentlyShown:new Map<string,number>(),wantHints:[],seenHints:[],behaviorPersonalization:true,favorites:[],saved:[]});
 const items = Array.from({length:180},(_,id)=>({...fixtureCatalog[0]!,id:id+1,title:`Title ${id}`,mediaType:id%5===0?"series" as const:"movie" as const,genres:[["Drama"],["Comedy"],["Thriller"],["Animation"]][id%4]!,keywords:id%3===0?["underdog"]:[],moods:[],rating:8,voteCount:500,runtimeMinutes:id%2===0?85:125,year:id%3===0?1990:2026,availability:[{providerId:8,providerName:"Netflix",logoUrl:null,access:"included" as const,owned:true}]}));
 describe("personalized discovery shelves",()=>{
+  it('shares early refill rounds across sparse shelves instead of starving later ones',async()=>{
+    const catalog=new FixtureTmdbRepository(),calls:string[]=[];
+    catalog.discover=async q=>{calls.push(`${q.genres?.[0]}:${q.mediaType}:${q.page??1}`);return [{...items[1]!,id:calls.length,mediaType:q.mediaType==='series'?'series':'movie',genres:q.genres??['Drama']}];};
+    await discoverHome(catalog,state(),'u',{},0,['genre:Drama','genre:Comedy','genre:Thriller','genre:Animation']);
+    expect(calls.slice(4,8).map(s=>s.split(':')[0])).toEqual(['Drama','Comedy','Thriller','Animation']);
+    expect(calls.length).toBeLessThanOrEqual(28);
+  });
   it('does not create case-variant duplicate genre rows',()=>{
     const s={...state(),taste:[{dimension:'genre' as const,key:'crime',score:1,confidence:1,evidenceCount:1,source:'chat_explicit'}]};
     const ids=discoveryShelves(s).filter(row=>row.id.toLowerCase()==='genre:crime');

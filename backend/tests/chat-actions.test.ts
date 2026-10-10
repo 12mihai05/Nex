@@ -36,6 +36,40 @@ beforeEach(async()=>{
 });
 afterEach(()=>{vi.restoreAllMocks();client.close();});
 
+it('AI routing understands a Taste clarification across turns and persists co-production scope, not a carousel',async()=>{
+ vi.spyOn(ai,'mode','get').mockReturnValue('live');
+ const route=vi.spyOn(ai,'routeChat').mockResolvedValue({route:'preference',reply:''});
+ const question='Should I also exclude co-productions with countries outside that group?';
+ const request='exclude form my feed asian mvoies like japanese korean chinese but not russian';
+ const extract=vi.spyOn(ai,'extractTaste').mockResolvedValueOnce({summary:'',signals:[],mode:'live',clarification:question}).mockResolvedValueOnce({summary:'',mode:'live',signals:[{dimension:'combination',key:'Asian productions except Russia',score:-1,confidence:1,evidenceCount:1,source:'onboarding_text',exclude:true,statement:request,conditions:[{dimension:'country',values:['JP','KR','CN'],match:'only'},{dimension:'format',values:['movie','series']}]}]});
+ const parse=vi.spyOn(ai,'parseIntent');
+ const chat=new ChatService(users,catalog,ai,new EpgService(db));
+ expect((await chat.respond('alice',request,session)).blocks.map(b=>b.type)).toEqual(['text']);
+ expect(await users.getTaste('alice')).toHaveLength(0);
+ const answer=await chat.respond('alice','no',session);
+ expect(answer.blocks.map(b=>b.type)).toEqual(['confirmation']);expect(parse).not.toHaveBeenCalled();
+ expect(extract.mock.calls[1]![0]).toContain('User answer: no');
+ expect(route.mock.calls[1]![1].some(m=>m.content.includes(question))).toBe(true);
+ const taste=await users.getTaste('alice');expect(taste[0]).toMatchObject({exclude:true,conditions:[{dimension:'country',match:'only'},{}]});
+ expect(await users.getTaste('bob')).toEqual([]);
+ await expect(users.recentConversationMessages('bob',session)).rejects.toThrow('CONVERSATION_NOT_FOUND');
+});
+
+it('casual conversation and off-topic requests cannot fall through into movies or profile writes',async()=>{
+ vi.spyOn(ai,'mode','get').mockReturnValue('live');
+ const route=vi.spyOn(ai,'routeChat');
+ const extract=vi.spyOn(ai,'extractTaste'),parse=vi.spyOn(ai,'parseIntent'),mutate=vi.spyOn(users,'upsertTaste');
+ const chat=new ChatService(users,catalog,ai,new EpgService(db));
+ for(const kind of ['conversation','out_of_scope'] as const){
+   route.mockResolvedValue({route:kind,reply:'A natural response, without movie cards.'});
+   expect((await chat.respond('alice','A user message',session)).blocks.map(b=>b.type)).toEqual(['text']);
+ }
+ expect(extract).not.toHaveBeenCalled();expect(parse).not.toHaveBeenCalled();expect(mutate).not.toHaveBeenCalled();
+ route.mockRejectedValue(Error('Unavailable'));
+ expect(JSON.stringify(await chat.respond('alice','Something',session))).toContain('Nothing changed');
+ expect(parse).not.toHaveBeenCalled();
+});
+
 it('keeps ordinal card references distinct from the focused person',async()=>{
  const id=await users.addConversationMessage('alice',session,'assistant','Cards');
  await users.saveDisplayedItems('alice',session,id,items.slice(0,2));

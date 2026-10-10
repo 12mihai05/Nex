@@ -246,15 +246,17 @@ class _Message extends StatelessWidget {
                     decoration: BoxDecoration(
                       color: message.fromUser
                           ? Theme.of(context).colorScheme.primary
-                          : Theme.of(context).cardTheme.color,
+                          : Colors.transparent,
                       borderRadius: BorderRadius.circular(19),
                     ),
                     child: SelectableText(
                       block.text,
                       style: TextStyle(
+                        fontSize: 16,
+                        height: 1.5,
                         color: message.fromUser
                             ? Theme.of(context).colorScheme.onPrimary
-                            : null,
+                            : Theme.of(context).colorScheme.onSurface,
                       ),
                     ),
                   ),
@@ -265,11 +267,23 @@ class _Message extends StatelessWidget {
                       borderRadius: BorderRadius.circular(18),
                     ),
                     child: Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
                       mainAxisSize: MainAxisSize.min,
                       children: [
                         const Icon(Icons.check_circle_outline),
                         const SizedBox(width: 9),
-                        Flexible(child: SelectableText(block.text)),
+                        Flexible(
+                          child: SelectableText(
+                            block.text,
+                            style: TextStyle(
+                              fontSize: 16,
+                              height: 1.5,
+                              color: Theme.of(context)
+                                  .colorScheme
+                                  .onPrimaryContainer,
+                            ),
+                          ),
+                        ),
                       ],
                     ),
                   ),

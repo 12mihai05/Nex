@@ -1,6 +1,14 @@
 import type {TasteSignal} from '../domain/types.js';
 import {conceptTerms} from './concepts.js';
 
+export function isExplicitExclusion(signal:TasteSignal):boolean {
+  if(signal.exclude===false)return false;
+  if(signal.exclude!==true)return isExplicitKeywordExclusion(signal);
+  if(signal.dimension==='story')return false; // No reliable exact semantic block.
+  return signal.score<0&&['chat_explicit','explicit_edit','onboarding_text','onboarding_explicit'].includes(signal.source)&&
+    Boolean(signal.statement&&/\b(exclude|avoid|block|never recommend|stop recommending|don['’]?t recommend|do not recommend)\b/i.test(signal.statement));
+}
+
 // Only an explicit command, not the magnitude of a dislike, is an exclusion.
 // Retain the existing editable Taste record rather than a parallel blocklist.
 export function isExplicitKeywordExclusion(signal:TasteSignal):boolean {

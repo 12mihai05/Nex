@@ -25,7 +25,7 @@ const envSchema = z.object({
   EPG_COUNTRIES: z.string().default("RO,BG,GB,ES,FR,CH,IT,DE,MD"),
   EPG_COUNTRY_SOURCES_JSON: z.string().default('{}'),
   EPG_MAX_FEEDS_PER_COUNTRY: z.coerce.number().int().min(1).max(20).default(3),
-  EPG_MAX_CHANNELS_PER_COUNTRY: z.coerce.number().int().min(1).max(1000).default(60),
+  EPG_MAX_CHANNELS_PER_COUNTRY: z.coerce.number().int().min(1).max(1000).default(120),
   EPG_MAX_DOWNLOAD_BYTES: z.coerce.number().int().positive().max(100_000_000).default(75_000_000),
   EPG_MAX_MATCHES_PER_SYNC: z.coerce.number().int().min(0).max(50).default(5),
   EPG_XMLTV_URL: optionalUrl,

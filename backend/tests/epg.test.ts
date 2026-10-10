@@ -2,8 +2,16 @@ import { describe, expect, it } from "vitest";
 import { fixtureCatalog } from "../src/fixtures/catalog.js";
 import { bestEpgMatch, scoreEpgCandidate } from "../src/services/epg/matcher.js";
 import { normalizeEpgTitle, parseXmlTv, parseXmlTvTimestamp } from "../src/services/epg/xmltv.js";
+import {scheduledChannelIds} from '../src/services/epg/directory.js';
 
 describe("XMLTV normalization and matching", () => {
+  it('only spends import slots on channels with schedules inside retention',()=>{
+    const xml='<tv><channel id="c"><display-name>Channel</display-name></channel><programme start="20300101120000 +0000" stop="20300101130000 +0000" channel="c"><title>Programme</title></programme></tv>';
+    const p=parseXmlTv(xml).programs[0]!;
+    expect([...scheduledChannelIds([p],Date.parse('2030-01-01T12:30:00Z'))]).toEqual(['c']);
+    expect(scheduledChannelIds([p],Date.parse('2030-01-02T00:00:00Z')).size).toBe(0);
+    expect(scheduledChannelIds([p],Date.parse('2029-01-01T00:00:00Z')).size).toBe(0);
+  });
   it("converts XMLTV offsets to UTC", () => {
     expect(parseXmlTvTimestamp("20260926200000 +0300").toISOString()).toBe("2026-09-26T17:00:00.000Z");
   });

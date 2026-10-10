@@ -11,8 +11,8 @@ const text=(content:string):ChatBlock[]=>[{type:'text',content}];
 
 export class ChatKnowledge {
  constructor(private users:UserRepository,private catalog:TmdbRepository,private ai:AiService,private epg:EpgService){}
- async handle(userId:string,sessionId:string,message:string):Promise<ChatBlock[]|null>{
-  if(!isKnowledgeQuestion(message))return null;
+ async handle(userId:string,sessionId:string,message:string,requested=false):Promise<ChatBlock[]|null>{
+  if(!requested&&!isKnowledgeQuestion(message))return null;
   const context=await this.users.getSessionContext(userId,sessionId);
   const displayed=(await this.users.recentDisplayedItems(userId,sessionId)).map(displayedEntity).filter((e):e is Entity=>e!==null);
   const focus=entitySchema.safeParse(context.focus);

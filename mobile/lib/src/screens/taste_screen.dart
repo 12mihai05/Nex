@@ -353,7 +353,7 @@ class _TasteScreenState extends ConsumerState<TasteScreen> {
                             ? 'You told Nex'
                             : (e['confidence'] as num) < .35
                             ? 'Still learning'
-                            : 'From your ratings'}",
+                            : 'From your ratings'}${e['exclude'] == true && score < 0 ? '\nExcluded from recommendations' : ''}${(e['conditions'] as List? ?? []).any((c) => c['dimension'] == 'country' && c['match'] == 'only') ? '\nCo-productions with other countries stay eligible' : ''}",
                       ),
                       trailing: pending.contains(key)
                           ? const SizedBox(

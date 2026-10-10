@@ -39,8 +39,12 @@ export function detectSearchIntent(input: string): FilterQuery {
 
 export function isPersistentPreference(input: string): boolean {
   const declaration=/\b(i (?:generally |usually |really |absolutely )?(?:liked?|loved?|hated?|disliked?|enjoyed?|prefer|(?:don['’]?t|do not|didn['’]?t|did not) (?:really |particularly |usually |generally )?(?:like|enjoy)|am not into)|i['’]m not into)\b/i.test(input);
-  const correction=/\b(?:exclude|avoid|remove|add|remember|update|change|save)\b/i.test(input)&&/\bmy (?:taste|preferences?|profile)\b/i.test(input);
-  return (declaration||correction) && !/\b(tonight|right now|today|this time|just kidding|joking|sarcasm|maybe|not sure)\b/i.test(input) && !/\b(if i|would i|could i|what if|suppose|pretend)\b/i.test(input);
+  const natural=/\bi (?:can['’]?t stand|cannot stand|am not a fan of)|\bi['’]m (?:not a fan of|into)|\b(?:isn['’]?t|aren['’]?t|is not|are not) (?:really )?for me\b/i.test(input);
+  const correction=/\b(?:exclude|avoid|remove|add|remember|update|change|save|stop|keep)\b/i.test(input)&&/\b(?:my |the |your )?(?:taste|preferences?|profile|feed)\b/i.test(input);
+  const recurring=/\b(?:stop (?:recommending|suggesting|showing)|never (?:recommend|suggest|show)|don['’]?t (?:recommend|suggest|show)\b[^.!?]*\b(?:anymore|again|ever))\b/i.test(input);
+  // A capability question is not an instruction to change the profile.
+  const capability=/\b(?:can|could|will) you (?:change|update|save|learn|remember) (?:my )?(?:taste|preferences?|profile)\s*[?.!]*$/i.test(input.trim());
+  return (declaration||natural||correction||recurring) && !capability && !/\b(tonight|right now|today|this time|just kidding|joking|sarcasm|maybe|not sure)\b/i.test(input) && !/\b(if i|would i|could i|what if|suppose|pretend)\b/i.test(input);
 }
 
 export function fallbackIntent(message:string,previous?:Partial<FilterQuery>):FilterQuery {

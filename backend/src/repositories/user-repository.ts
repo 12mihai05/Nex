@@ -13,6 +13,7 @@ import { calculateReminderTime } from "../services/reminder.js";
 import { aggregateEvidence, evidenceWeight, signalStrength, titleDimensions, type TasteEvidence } from "../services/taste.js";
 import type { RankedContent } from "../domain/types.js";
 import { RecommendationStore } from './recommendation-store.js';
+import {cleanChatBlocks,cleanChatCopy} from '../domain/chat-copy.js';
 
 export interface SettingsInput {
   country?: string | undefined;
@@ -88,7 +89,7 @@ export class UserRepository {
       const conditions=signal.conditions??(existing?JSON.parse(existing.evidenceJson) as TasteEvidence[]:[]).filter(e=>e.conditions?.length).at(-1)?.conditions;
       const meaning=signal.meaning??(signal.source==='explicit_edit'?priorMeaning:undefined);
       const example=signal.example??(signal.source==='explicit_edit'?priorExample:undefined);
-      entries.push({ id, source: signal.source, score: signal.score, weight: evidenceWeight(signal.source)*signal.confidence, explicit: !["watchlist","search","detail_open"].includes(signal.source), at: new Date().toISOString(),...(conditions?.length?{conditions}:{}),...(signal.statement?{statement:signal.statement}:{}),...(meaning?{meaning}:{}),...(example?{example}:{}) });
+      entries.push({ id, source: signal.source, score: signal.score, weight: evidenceWeight(signal.source)*signal.confidence, explicit: !["watchlist","search","detail_open"].includes(signal.source), at: new Date().toISOString(),...(typeof signal.exclude==='boolean'?{exclude:signal.exclude}:{}),...(conditions?.length?{conditions}:{}),...(signal.statement?{statement:signal.statement}:{}),...(meaning?{meaning}:{}),...(example?{example}:{}) });
       entries = entries.slice(-64);
       const merged = aggregateEvidence(signal.dimension,key,entries);
       const values = { dimension: signal.dimension, key, score: merged.score, confidence: merged.confidence, evidenceCount: merged.evidenceCount, source: merged.source, explicit: merged.explicit ?? false, evidenceJson: JSON.stringify(entries), lastEvidenceAt: new Date(), updatedAt: new Date() };
@@ -346,9 +347,18 @@ export class UserRepository {
   async addConversationMessage(userId: string, sessionId: string, role: "user" | "assistant", content: string, blocks?: unknown): Promise<string> {
     if (!await this.assertConversation(userId, sessionId)) throw new Error("CONVERSATION_NOT_FOUND");
     const id = randomUUID();
-    await this.db.insert(conversationMessages).values({ id, sessionId, role, content, blocksJson: blocks ? JSON.stringify(blocks) : null });
+    const savedBlocks=role==='assistant'&&Array.isArray(blocks)?cleanChatBlocks(blocks as ChatBlock[]):blocks;
+    await this.db.insert(conversationMessages).values({ id, sessionId, role, content:role==='assistant'?cleanChatCopy(content):content, blocksJson: savedBlocks ? JSON.stringify(savedBlocks) : null });
     await this.db.update(conversationSessions).set({ updatedAt: new Date() }).where(and(eq(conversationSessions.id, sessionId), eq(conversationSessions.userId, userId)));
     return id;
+  }
+
+  async recentConversationMessages(userId:string,sessionId:string) {
+    if(!await this.assertConversation(userId,sessionId))throw new Error('CONVERSATION_NOT_FOUND');
+    const rows=await this.db.select({role:conversationMessages.role,content:conversationMessages.content})
+      .from(conversationMessages).where(eq(conversationMessages.sessionId,sessionId))
+      .orderBy(desc(conversationMessages.createdAt),sql`conversation_messages.rowid desc`).limit(8);
+    return rows.reverse().map(r=>({...r,content:r.content.slice(0,2000)}));
   }
 
   async saveDisplayedItems(userId: string, sessionId: string, messageId: string, items: ContentItem[]): Promise<void> {

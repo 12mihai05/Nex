@@ -2,7 +2,8 @@ import type { ContentItem, FilterQuery, RankedContent, RecommendationEvidence, T
 import { aggregateEvidence, evidenceWeight, titleDimensions } from "./taste.js";
 import { canonicalTrait, canonicalDimensionTrait, contentTraits, matchesGenre } from "./content-traits.js";
 import {canonicalConcept,conceptEvidence} from "./concepts.js";
-import {isExplicitKeywordExclusion} from './preference-exclusions.js';
+import {isExplicitExclusion} from './preference-exclusions.js';
+import {tasteConditionsApply} from './taste-conditions.js';
 export { signalStrength } from "./taste.js";
 
 export interface RecommendationContext {
@@ -35,9 +36,10 @@ function scoreUncached(item: ContentItem, query: FilterQuery, context: Recommend
   // Rated means familiar, not necessarily seen. Never manufacture history.
   if (!exact && ((query.excludeWatched && (watched || context.ratedKeys?.has(key))) || context.rejectedKeys?.has(key))) return null;
   if (!exact && query.mediaType !== "any" && item.mediaType !== query.mediaType) return null;
-  if(!exact&&context.taste.some(s=>isExplicitKeywordExclusion(s)&&
-    item.keywords.some(k=>canonicalConcept(k)===canonicalConcept(s.key))&&
-    (!s.conditions?.length||s.conditions.every(c=>c.values.some(value=>titleDimensions(item).some(d=>d.dimension===c.dimension&&canonicalTrait(d.key)===canonicalTrait(value)))))))return null;
+  if(!exact&&context.taste.some(s=>isExplicitExclusion(s)&&tasteConditionsApply(item,s)&&
+    (['keyword','theme'].includes(s.dimension)?item.keywords.some(k=>canonicalConcept(k)===canonicalConcept(s.key)):
+      s.dimension==='combination'?(s.conditions?.length??0)>=2:
+      titleDimensions(item).some(d=>d.dimension===s.dimension&&canonicalDimensionTrait(d.dimension,d.key)===canonicalDimensionTrait(s.dimension,s.key)))))return null;
   if(!exact&&query.originalLanguages.length&&!query.originalLanguages.includes(item.originalLanguage??""))return null;
   if(!exact&&query.excludedKeywords.some(k=>conceptEvidence(item,k)))return null;
   if(!exact&&query.keywordMatch==="all"&&query.keywords.length&&!query.keywords.every(k=>conceptEvidence(item,k)))return null;
@@ -55,7 +57,7 @@ function scoreUncached(item: ContentItem, query: FilterQuery, context: Recommend
   for(const trait of keys) dimensions.add(`mood:${trait}`);
   const applicable = context.taste.filter((s) => {
     if(s.dimension==='story')return false;
-    const scoped=!s.conditions?.length||s.conditions.every(c=>c.values.some(value=>dimensions.has(`${c.dimension}:${canonicalDimensionTrait(c.dimension,value)}`)||(c.dimension==='keyword'&&conceptEvidence(item,value))));
+    const scoped=tasteConditionsApply(item,s,dimensions);
     // Conditions qualify a trait; only a combination is defined entirely by them.
     const trait=s.dimension==='combination'?(s.conditions?.length??0)>=2:
       dimensions.has(`${s.dimension}:${canonicalDimensionTrait(s.dimension,s.key)}`)||(["keyword","theme"].includes(s.dimension)&&conceptEvidence(item,s.key));

@@ -244,15 +244,27 @@ export async function discoverHome(catalog: TmdbRepository, state: State, userId
   const cursors=new Map<string,number>(),exhausted=new Set<string>();
   for(const q of constrained){const {page=1,...rest}=q;cursors.set(JSON.stringify(rest),Math.max(page,cursors.get(JSON.stringify(rest))??0));}
   let remaining=24;
+  const refillAttempts=new Map<string,number>();
+  const shelfAttempts=new Map<string,number>();
   // Include initial retrieval in the budget. Slow first sources must not start
   // another 25 seconds of optional filling before any useful Home can appear.
   while(remaining>0&&Date.now()-retrievalStarted<12_000){
     const sparse=new Set(currentDefinitions.filter(s=>(rows.find(r=>r.id===s.id)?.items.length??0)<HOME_ROW_TARGET).map(s=>s.id));
-    const needed=[...new Map(sources.filter(({s})=>sparse.has(s.id)).map(({q})=>{const rest=withoutPage(q);return [JSON.stringify(rest),rest] as const;})).entries()]
-      .filter(([key])=>!exhausted.has(key)&&(cursors.get(key)??0)<6).slice(0,Math.min(3,remaining));
+    const options=sources.filter(({s})=>sparse.has(s.id)).map(({s,q})=>({s,q:withoutPage(q),key:JSON.stringify(withoutPage(q))}))
+      .filter(({key})=>!exhausted.has(key)&&(cursors.get(key)??0)<6)
+      // Fair rounds: an early sparse shelf must not spend the entire latency
+      // budget paging its own movie/series sources before later rows get a turn.
+      .sort((a,b)=>(shelfAttempts.get(a.s.id)??0)-(shelfAttempts.get(b.s.id)??0)||(refillAttempts.get(a.key)??0)-(refillAttempts.get(b.key)??0));
+    const needed:Array<[string,DiscoverOptions]>=[],selectedShelves=new Set<string>();
+    for(const {s,q,key} of options){
+      if(selectedShelves.has(s.id)||needed.some(([k])=>k===key))continue;
+      selectedShelves.add(s.id);needed.push([key,q]);
+      if(needed.length>=Math.min(3,remaining))break;
+    }
+    for(const id of selectedShelves)shelfAttempts.set(id,(shelfAttempts.get(id)??0)+1);
     if(!needed.length)break;
     remaining-=needed.length;
-    const extra=await Promise.allSettled(needed.map(([key,q])=>{const page=(cursors.get(key)??0)+1;cursors.set(key,page);return catalog.discover({...q,page});}));
+    const extra=await Promise.allSettled(needed.map(([key,q])=>{refillAttempts.set(key,(refillAttempts.get(key)??0)+1);const page=(cursors.get(key)??0)+1;cursors.set(key,page);return catalog.discover({...q,page});}));
     extra.forEach((r,index)=>{const key=needed[index]![0];if(r.status==='rejected'){exhausted.add(key);return;}
       const previous=sourceSeen.get(key)??new Set<string>(),fresh=r.value.filter(i=>!previous.has(titleKey(i)));
       r.value.forEach(i=>previous.add(titleKey(i)));sourceSeen.set(key,previous);

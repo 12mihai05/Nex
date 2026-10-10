@@ -16,13 +16,13 @@ export function changeDescription(c:TitleChange){return [c.watchlist==='add'?'ad
 export class ChatActions {
   constructor(private users:UserRepository,private catalog:TmdbRepository,private ai:AiService,private epg:EpgService){}
 
-  async handle(userId:string,sessionId:string,message:string):Promise<ChatBlock[]|null>{
+  async handle(userId:string,sessionId:string,message:string,requested=false):Promise<ChatBlock[]|null>{
     const confirmation=message.match(/^(confirm|cancel) changes(?: ([a-f0-9-]{36}))?$/i);
     if(confirmation){
       try{return await this.users.commitChatPlan(userId,sessionId,confirmation[2],confirmation[1]!.toLowerCase()==='cancel');}
       catch{return text('I couldn’t confirm that this request completed. The proposal may have expired, the TV listing changed, or the connection failed. Check your library or reminders before sending a new request. Retrying the same confirmation will not duplicate the batch.');}
     }
-    if(!looksLikeAction(message))return null;
+    if(!requested&&!looksLikeAction(message))return null;
     const context=await this.users.getSessionContext(userId,sessionId);
     // Never leave an old action armed after a new action request.
     if(context.chatPlan){delete context.chatPlan;await this.users.setSessionContext(userId,sessionId,context);}

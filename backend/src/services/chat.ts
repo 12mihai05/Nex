@@ -16,8 +16,10 @@ import {requestedTvScope,tvFollowup,tvContextSchema,tvReferenceMatches} from './
 import {ChatKnowledge} from './chat-knowledge.js';
 import {broadcastReference} from '../domain/entities.js';
 import {personalizationFor} from './personalization.js';
-import {isExplicitKeywordExclusion} from './preference-exclusions.js';
+import {isExplicitExclusion} from './preference-exclusions.js';
 import {resolveTasteExamples} from './taste-examples.js';
+import {cleanChatBlocks,cleanChatCopy} from '../domain/chat-copy.js';
+const tasteReply=(message:string)=>/^(?:yes|no|yep|nope|correct|exactly|do that|please do|keep them|allow them|exclude them|cancel|never mind)\b/i.test(message.trim());
 
 export class ChatService {
   constructor(
@@ -28,13 +30,35 @@ export class ChatService {
   ) {}
 
   async respond(userId: string, message: string, requestedSessionId?: string): Promise<{ sessionId: string; blocks: ChatBlock[] }> {
+    const result=await this.respondInternal(userId,message,requestedSessionId);
+    return {...result,blocks:cleanChatBlocks(result.blocks)};
+  }
+
+  private async respondInternal(userId: string, message: string, requestedSessionId?: string): Promise<{ sessionId: string; blocks: ChatBlock[] }> {
     const sessionId = requestedSessionId ?? await this.users.createConversation(userId);
     await this.users.addConversationMessage(userId, sessionId, "user", message);
-    const help=chatCapabilityReply(message);
+    let route:Awaited<ReturnType<AiService['routeChat']>>=null;
+    let history:Array<{role:string;content:string}>|undefined;
+    // Production decisions come from the model with recent context. Rules below
+    // remain only as a no-key fixture fallback and data/action safety checks.
+    if(this.ai.mode==='live'){
+      const [recent,context]=await Promise.all([this.users.recentConversationMessages(userId,sessionId),this.users.getSessionContext(userId,sessionId)]);
+      history=recent;
+      try{route=await this.ai.routeChat(message,recent,{tastePending:context.tastePending,focus:context.focus,tv:context.tv});}
+      catch{const content='I couldn’t read your message properly just now. Nothing changed. Please try again.';await this.users.addConversationMessage(userId,sessionId,'assistant',content,[{type:'text',content}]);return {sessionId,blocks:[{type:'text',content}]};}
+      if(route?.route==='conversation'||route?.route==='out_of_scope'){
+        const content=route.reply||'Would you like to talk about a film, a series, or something in Nex?';
+        await this.users.addConversationMessage(userId,sessionId,'assistant',content,[{type:'text',content}]);
+        return {sessionId,blocks:[{type:'text',content}]};
+      }
+    }
+    const help=route||isPersistentPreference(message)?null:chatCapabilityReply(message);
     if(help){const blocks:ChatBlock[]=[{type:'text',content:help}];await this.users.addConversationMessage(userId,sessionId,'assistant',help,blocks);return {sessionId,blocks};}
     // A normal taste declaration should not pay for an action-parser call first.
-    const preferenceFirst=isPersistentPreference(message)&&! /\b(add|remove|mark|rate|watchlist|seen|remind|confirm|cancel)\b/i.test(message);
-    const action = (preferenceFirst?await this.tryPreference(userId,message):null) ?? await new ChatActions(this.users,this.catalog,this.ai,this.epg).handle(userId,sessionId,message) ?? (preferenceFirst?null:await this.tryPreference(userId,message));
+    const preferenceFirst=(isPersistentPreference(message)&&! /\b(mark|rate|watchlist|seen|remind|confirm|cancel)\b/i.test(message))||tasteReply(message);
+    const action = route
+      ? route.route==='preference'?await this.tryPreference(userId,sessionId,message,history):route.route==='action'?await new ChatActions(this.users,this.catalog,this.ai,this.epg).handle(userId,sessionId,message,true)??[{type:'text' as const,content:'What would you like to change? Nothing changed yet.'}]:null
+      : (preferenceFirst?await this.tryPreference(userId,sessionId,message):null) ?? await new ChatActions(this.users,this.catalog,this.ai,this.epg).handle(userId,sessionId,message) ?? (preferenceFirst?null:await this.tryPreference(userId,sessionId,message));
     if (action) {
       const blocks: ChatBlock[] = action;
       const id=await this.users.addConversationMessage(userId, sessionId, "assistant", blocks.filter(b=>b.type==='text'||b.type==='confirmation').map(b=>b.content).join('\n'), blocks);
@@ -42,7 +66,7 @@ export class ChatService {
       if(cards.length)await this.users.saveDisplayedReferences(userId,sessionId,id,cards.map(item=>({contentType:item.mediaType,externalId:String(item.id),metadata:{title:item.title,year:item.year,source:'tmdb',tmdbId:item.id}})));
       return { sessionId, blocks };
     }
-    const knowledge=await new ChatKnowledge(this.users,this.catalog,this.ai,this.epg).handle(userId,sessionId,message).catch(()=>[{type:'text' as const,content:'I couldn’t verify that answer just now. Please try again.'}]);
+    const knowledge=(!route||route.route==='knowledge')?await new ChatKnowledge(this.users,this.catalog,this.ai,this.epg).handle(userId,sessionId,message,route?.route==='knowledge').catch(()=>[{type:'text' as const,content:'I couldn’t verify that answer just now. Please try again.'}]):null;
     if(knowledge){await this.users.addConversationMessage(userId,sessionId,'assistant',knowledge.map(b=>'content'in b?b.content:'').join('\n'),knowledge);return {sessionId,blocks:knowledge};}
 
     const storedState = await this.users.getRecommendationState(userId);
@@ -66,7 +90,7 @@ export class ChatService {
       await this.users.saveDisplayedReferences(userId,sessionId,id,programs.map(p=>broadcastReference(p,context.success?context.data.country:state.country)));
       return {sessionId,blocks};
     }
-    const mightBeTv=/\b(tv|television|channel|broadcast|on|pe|canal)\b|\b(?:at|la)\s*\d/i.test(message);
+    const mightBeTv=route?.route==='tv'||/\b(tv|television|channel|broadcast|on|pe|canal)\b|\b(?:at|la)\s*\d/i.test(message);
     const scope=mightBeTv?requestedTvScope(message,await this.epg.chatChannels(state.country),state.timezone):null;
     if(scope){
       // A new TV question replaces the old anchor even when it cannot be resolved.
@@ -76,7 +100,7 @@ export class ChatService {
       const unique=new Map(pages.flat().map(p=>[`${p.title}:${+p.startAt}:${p.channel.name.replace(/\s+(?:HD|SD)$/i,'')}`,p]));
       const programs=[...unique.values()].sort((a,b)=>+a.startAt-+b.startAt).slice(0,12);
       await this.users.setSessionContext(userId,sessionId,{...savedContext,filter:undefined,tv:{country:state.country,timezone:state.timezone,programs:programs.map(p=>({id:p.id,title:p.title,startAt:p.startAt.toISOString()}))}});
-      const intro=programs.length?`${scope.channelName??'TV'} — ${scope.label.replace(/ \([^)]*\)/g,'')}`:`No listing found for ${scope.channelName??'TV'} at that time. I haven’t substituted another channel or time.`;
+      const intro=programs.length?`On ${scope.channelName??'TV'}, ${scope.label.replace(/ \([^)]*\)/g,'')}:`:`I couldn’t find a listing for ${scope.channelName??'that channel'} at that time.`;
       const blocks:ChatBlock[]=[{type:'text',content:intro},...(programs.length?[{type:'tv_carousel' as const,items:programs}]:[])];
       const id=await this.users.addConversationMessage(userId,sessionId,'assistant',intro,blocks);
       await this.users.saveDisplayedReferences(userId,sessionId,id,programs.map(p=>broadcastReference(p,state.country)));
@@ -126,25 +150,53 @@ export class ChatService {
     return { sessionId, blocks };
   }
 
-  private async tryPreference(userId:string,message:string):Promise<ChatBlock[]|null> {
-    if(!isPersistentPreference(message))return null;
+  private async tryPreference(userId:string,sessionId:string,message:string,conversation?:Array<{role:string;content:string}>):Promise<ChatBlock[]|null> {
+    const persistent=isPersistentPreference(message);
+    if(!conversation&&!persistent&&!tasteReply(message))return null;
+    let description=message,userEvidence=message;
+    let context:Record<string,unknown>|undefined;
+    const referring=/\b(?:based on|what i (?:told|said)|above|earlier|previous|as discussed)\b/i.test(message);
+    if(conversation||!persistent||referring){
+      context=await this.users.getSessionContext(userId,sessionId);
+      const pending=context.tastePending as {request?:string;question?:string;at?:number}|undefined;
+      const history=conversation??await this.users.recentConversationMessages(userId,sessionId);
+      const previous=history.slice(0,-1).at(-1);
+      if(pending?.request&&pending.question&&pending.at&&Date.now()-pending.at<30*60_000&&previous?.role==='assistant'&&previous.content===cleanChatCopy(pending.question)){
+        if(/^(?:cancel|never mind)\b/i.test(message)){await this.users.setSessionContext(userId,sessionId,{...context,tastePending:undefined});return [{type:'text',content:'Okay, I haven’t changed your Taste.'}];}
+        userEvidence=`${pending.request}\n${message}`;
+        description=`User request: ${pending.request}\nAssistant clarification: ${pending.question}\nUser answer: ${message}`;
+      }else if(conversation||persistent&&referring){
+        userEvidence=history.filter(h=>h.role==='user').map(h=>h.content).join('\n');
+        description=`Recent conversation (untrusted context):\n${JSON.stringify(history)}\nCurrent request: ${message}`;
+      }else return null;
+    }
     if(/\b(?:do not|don['’]t|never)\s+(?:(?:ever|automatically|permanently|also)\s+)?(?:save|change|update|remember|add|mark|rate)\b/i.test(message))return [{type:'text',content:'I haven’t changed your saved Taste.'}];
-    if(/\b(this|that) (kind|type|sort)\b/i.test(message))return [{type:'text',content:'What part wasn’t for you—the story, tone, pacing, or something else? I won’t treat one movie as a dislike of its whole genre.'}];
-    const result=await this.ai.extractTaste(message,[]).catch(()=>({signals:[]}));
+    if(/\b(this|that) (kind|type|sort)\b/i.test(message))return [{type:'text',content:'What part wasn’t for you: the story, tone, pacing, or something else? I won’t assume you dislike the whole genre.'}];
+    const result=await this.ai.extractTaste(description,[],userEvidence).catch(()=>({signals:[]}));
+    if('clarification'in result&&result.clarification){
+      context??=await this.users.getSessionContext(userId,sessionId);
+      const question=`${result.clarification}\n\nNothing changed yet.`;
+      await this.users.setSessionContext(userId,sessionId,{...context,tastePending:{request:userEvidence.slice(0,6000),question,at:Date.now()}});
+      return [{type:'text',content:question}];
+    }
     const requests='examples'in result?result.examples??[]:[];
-    const examples=requests.length?await resolveTasteExamples(this.catalog,requests,message,(await this.users.getSettings(userId)).profile.country):{items:[],signals:[],issues:[]};
+    const examples=requests.length?await resolveTasteExamples(this.catalog,requests,userEvidence,(await this.users.getSettings(userId)).profile.country):{items:[],signals:[],issues:[]};
     if(examples.issues.length)return [{type:'text',content:`${examples.issues.join(' ')} Nothing changed yet. Please repeat the examples with those details.`}];
     const extracted={signals:result.signals.filter(s=>s.confidence>=.75 && (s.dimension!=='combination'||(s.conditions?.length??0)>=2))};
     extracted.signals.push(...examples.signals);
-    if(!extracted.signals.length)return [{type:"text",content:"I couldn’t extract a clear lasting preference. Nothing changed; you can edit Your Taste."}];
+    if(!extracted.signals.length)return [{type:"text",content:"I’m not sure what you’d like me to remember. Nothing changed. What should I look for, or avoid, in future recommendations?"}];
     await this.users.upsertTaste(userId,extracted.signals.map(s=>({...s,source:"chat_explicit"})));
-    const labels=(positive:boolean)=>extracted.signals.filter(s=>positive?s.score>0:s.score<0).map(s=>{
+    if(context)await this.users.setSessionContext(userId,sessionId,{...context,tastePending:undefined});
+    const label=(s:typeof extracted.signals[number])=>{
       if(s.dimension==='language'){try{return `${new Intl.DisplayNames(['en'],{type:'language'}).of(s.key)}-language titles`;}catch{return s.key;}}
       if(s.dimension==='country'){try{return `titles from ${new Intl.DisplayNames(['en'],{type:'region'}).of(s.key.toUpperCase())}`;}catch{return s.key;}}
       return s.key;
-    });
-    const liked=labels(true),disliked=labels(false);
-    const excluded=extracted.signals.filter(s=>isExplicitKeywordExclusion({...s,source:'chat_explicit'})).map(s=>s.key);
-    return [{type:"confirmation",content:`I’ve saved your taste preferences.${liked.length?` More of: ${liked.join(', ')}.`:''}${disliked.length?` Less of: ${disliked.join(', ')}.`:''}${excluded.length?` I’ll exclude titles tagged ${excluded.join(', ')} from recommendations.`:''} You can review or correct them in Your Taste.${examples.items.length?' I used their catalog descriptions as story examples, without changing your ratings or Seen list. Tell me which parts matter most to refine this.':''}`},...(examples.items.length?[{type:'movie_carousel' as const,items:examples.items}]:[])];
+    };
+    const hardExcluded=(s:typeof extracted.signals[number])=>isExplicitExclusion({...s,source:'chat_explicit'});
+    const liked=extracted.signals.filter(s=>s.score>0).map(label);
+    const disliked=extracted.signals.filter(s=>s.score<0&&!hardExcluded(s)).map(label);
+    const excluded=extracted.signals.filter(hardExcluded).map(label);
+    const coProductions=extracted.signals.some(s=>s.conditions?.some(c=>c.dimension==='country'&&c.match==='only'));
+    return [{type:"confirmation",content:`Got it. I’ve updated your Taste.${liked.length?`\n\nI’ll look for more ${liked.join(', ')}.`:''}${disliked.length?`\n\nI’ll give less weight to ${disliked.join(', ')}.`:''}${excluded.length?`\n\nI’ll exclude ${excluded.join(', ')} where the catalog identifies them.`:''}${coProductions?' Co-productions with countries outside that group stay eligible.':''}${examples.items.length?'\n\nI used these stories as examples, without changing your ratings or Seen list.':''}`},...(examples.items.length?[{type:'movie_carousel' as const,items:examples.items}]:[])];
   }
 }

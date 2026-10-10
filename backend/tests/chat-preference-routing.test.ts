@@ -11,6 +11,9 @@ const declarations=[
  'I dont really like animes like cartoons or or animations yes but no animes',
  'I told you that to exclude animes from my taste but to not exclude also animations or cartoons',
  "I don't particularly enjoy anime", 'Please exclude anime from my preferences',
+ 'Could you update my taste to exclude anime but not cartoons?',
+ 'Exclude form my feed asian mvoies or series but not Russian ones',
+ 'I am not a fan of anime',
 ];
 it('routes ordinary dislike wording and explicit Taste corrections to persistence, never recommendation cards',async()=>{
  for(const message of declarations){
@@ -22,6 +25,11 @@ it('routes ordinary dislike wording and explicit Taste corrections to persistenc
   expect(users.upsertTaste).toHaveBeenCalledWith('u',[expect.objectContaining({key:'anime',score:-.9,source:'chat_explicit'})]);
   expect(response.blocks.map(b=>b.type)).toEqual(['confirmation']);
  }
+});
+it('keeps assistant punctuation clean without shifting citation offsets or modifying catalog titles',async()=>{
+ const {cleanChatBlocks}=await import('../src/domain/chat-copy.js');
+ const block={type:'knowledge' as const,content:'A—B [1]',citations:[{title:'source',url:'https://example.com',start:4,end:7}]};
+ expect(cleanChatBlocks([block])[0]).toEqual({...block,content:'A, B [1]',citations:[{...block.citations[0]!,start:5,end:8}]});
 });
 it('does not silently turn an extraction failure into discovery or a saved claim',async()=>{
  const users={createConversation:async()=>'s',addConversationMessage:async()=>'m',upsertTaste:vi.fn()};

@@ -61,7 +61,7 @@ export const filterQuerySchema = z.object({
 });
 export type FilterQuery = z.infer<typeof filterQuerySchema>;
 
-export const tasteConditionSchema=z.object({dimension:z.enum(['genre','keyword','mood','language','country','format','actor','director','decade']),values:z.array(z.string().min(1).max(80)).min(1).max(20)});
+export const tasteConditionSchema=z.object({dimension:z.enum(['genre','keyword','mood','language','country','format','actor','director','decade']),values:z.array(z.string().min(1).max(80)).min(1).max(60),match:z.enum(['any','only']).nullable().optional()});
 export const tasteSignalSchema = z.object({
   dimension: z.string(),
   key: z.string(),
@@ -70,6 +70,7 @@ export const tasteSignalSchema = z.object({
   evidenceCount: z.number().int().positive(),
   source: z.string(),
   explicit: z.boolean().optional(),
+  exclude: z.boolean().optional(),
   lastEvidenceAt: z.string().optional(),
   updatedAt: z.string().optional(),
   sources: z.array(z.string()).optional(),

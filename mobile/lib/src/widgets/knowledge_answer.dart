@@ -63,10 +63,19 @@ class KnowledgeAnswer extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: Theme.of(context).cardTheme.color,
+        color: Colors.transparent,
         borderRadius: BorderRadius.circular(19),
       ),
-      child: SelectionArea(child: Text.rich(TextSpan(children: spans))),
+      child: SelectionArea(
+        child: Text.rich(
+          TextSpan(children: spans),
+          style: TextStyle(
+            fontSize: 16,
+            height: 1.5,
+            color: Theme.of(context).colorScheme.onSurface,
+          ),
+        ),
+      ),
     );
   }
 }
