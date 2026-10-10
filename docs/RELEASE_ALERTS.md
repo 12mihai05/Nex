@@ -38,4 +38,12 @@ Movie checks continue when a local date is missing and can discover it later. Da
 - Tap a TV programme: details first, then Remind me, back to details, enter custom minutes, save/update/cancel. Existing local reminders must still work.
 - After Firebase setup, test permission denial, foreground/background/closed-app notification and tap-to-details, movie postponement, daily-job rerun, series opt-out, logout and account deletion using disposable test accounts.
 
+## Verification completed (2026-10-10)
+
+- Backend: 259 tests passed; typecheck, lint and build passed.
+- Flutter: 89 tests passed, 19 opt-in tests skipped in the normal suite; the two new visual checks were run separately and passed. Analysis and Android debug build passed. The final skeleton sizing adjustment also passed targeted widget tests and visual review.
+- Live TMDB checks verified exact and misspelled Doomsday searches, Romanian/British upcoming pages and unknown season dates. TMDB had no Romanian release date for Doomsday at verification time; its general date is not presented as a confirmed Romanian cinema date.
+- The additive Turso migration was applied and the backend deployment reached READY. Production checks verified unauthenticated rejection, RO/GB upcoming results, typo search, subscription creation/validation/disable and settings updates. The disposable account retained an empty Taste/library and was deleted successfully. No existing user account was changed.
+- Physical-device interactions, Firebase delivery (foreground/background/closed app), APNs and actual scheduled push execution remain unverified. Firebase credentials/native configuration are absent; the GitHub job is intentionally gated off until configured. Automated worker tests cover baselines, retries, opt-outs, country boundaries, session/device ownership and duplicate suppression, but do not prove delivery to a phone.
+
 Sources: [TMDB discover](https://developer.themoviedb.org/reference/discover-movie), [release types](https://developer.themoviedb.org/reference/movie-release-dates), [FCM Flutter setup](https://firebase.google.com/docs/cloud-messaging/flutter/get-started).
