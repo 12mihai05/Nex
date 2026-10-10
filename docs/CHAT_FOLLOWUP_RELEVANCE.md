@@ -33,4 +33,16 @@ Official OpenAI conversation-state guidance informed the context handoff: https:
 
 No finite test covers every possible message. Model routing remains probabilistic. Similarity depends on available catalog metadata and regional services. Live similarity requests observed take roughly 24–29 seconds end to end (final local-backend run 23.790 seconds); relevance is improved, but this is not an instant-response claim. Removing a saved preference still belongs in Your Taste; Chat should not promise an unsupported undo action. This is a backend-only change; no Flutter code or device installation changes are required.
 
-Deployment and final live-verification results will be recorded below after completion.
+## Production verification
+
+Application commit `0dd5c63` deployed successfully in Vercel deployment `dpl_2ZoUBcBAWeWNxsxd7tTVkSYNn5g5`, including the phone's `https://nex-three-omega.vercel.app` alias.
+
+The production smoke test passed with a disposable account:
+
+- 126 Romanian guide channels, all with listings in the requested window.
+- Exact screenshot exclusion request followed by `Yes coproductions remain eligible` returned a saved confirmation and persisted the scoped exception. The reply took 22.729 seconds in this run.
+- Casual discussion and an unrelated coding request returned text without movie carousels.
+- A new Wallflower discussion followed by the same-feeling request returned The Fallout, Young Hearts, The Hate U Give, Inside Out and Beautiful Boy, in that order. No racing franchise, nature documentary or concert film. Recommendation latency was 25.496 seconds.
+- No unintended library/history/rating changes. The temporary account was deleted successfully.
+
+No Flutter changes were required, so mobile builds and physical-device checks were not repeated for this backend-only patch. The user's existing profile was not rewritten.
