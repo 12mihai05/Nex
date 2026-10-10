@@ -37,11 +37,14 @@ export class ChatService {
   private async respondInternal(userId: string, message: string, requestedSessionId?: string): Promise<{ sessionId: string; blocks: ChatBlock[] }> {
     const sessionId = requestedSessionId ?? await this.users.createConversation(userId);
     await this.users.addConversationMessage(userId, sessionId, "user", message);
-    let route:Awaited<ReturnType<AiService['routeChat']>>=null;
+    // These are application-generated confirmation commands, not natural-
+    // language intent. They are quota-exempt and must never trigger an LLM call.
+    const protocolCommand=/^(confirm|cancel) changes(?: [a-f0-9-]{36})?$/i.test(message);
+    let route:Awaited<ReturnType<AiService['routeChat']>>=protocolCommand?{route:'action',reply:''}:null;
     let history:Array<{role:string;content:string}>|undefined;
     // Production decisions come from the model with recent context. Rules below
     // remain only as a no-key fixture fallback and data/action safety checks.
-    if(this.ai.mode==='live'){
+    if(this.ai.mode==='live'&&!protocolCommand){
       const [recent,context]=await Promise.all([this.users.recentConversationMessages(userId,sessionId),this.users.getSessionContext(userId,sessionId)]);
       history=recent;
       try{route=await this.ai.routeChat(message,recent,{tastePending:context.tastePending,focus:context.focus,tv:context.tv});}

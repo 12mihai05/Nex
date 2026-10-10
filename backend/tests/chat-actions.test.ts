@@ -70,6 +70,13 @@ it('casual conversation and off-topic requests cannot fall through into movies o
  expect(parse).not.toHaveBeenCalled();
 });
 
+it('quota-exempt confirmation protocol never invokes the AI router',async()=>{
+ vi.spyOn(ai,'mode','get').mockReturnValue('live');
+ const route=vi.spyOn(ai,'routeChat'),extract=vi.spyOn(ai,'extractTaste');
+ await new ChatService(users,catalog,ai,new EpgService(db)).respond('alice','Cancel changes',session);
+ expect(route).not.toHaveBeenCalled();expect(extract).not.toHaveBeenCalled();
+});
+
 it('keeps ordinal card references distinct from the focused person',async()=>{
  const id=await users.addConversationMessage('alice',session,'assistant','Cards');
  await users.saveDisplayedItems('alice',session,id,items.slice(0,2));
