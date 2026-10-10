@@ -102,6 +102,23 @@ describe('semantic personalization and source-to-feed integration',()=>{
     const broken=await new PersonalizationService(users.recommendationStore(),catalog,async()=>true,model).prepare(titles,state,'alice',query);
     expect(broken.mode).toBe('baseline');expect(broken.personalAdjustments.size).toBe(0);
   });
+  it('keeps cached semantic matches when new candidates exceed quota, without paying or inventing evidence',async()=>{
+    await users.updateSettings('alice',{recommendationEngine:'semantic'});await users.upsertTaste('alice',[story]);
+    const state=await users.getRecommendationState('alice'),model=fake(),store=users.recommendationStore();
+    await new PersonalizationService(store,catalog,async()=>true,model).prepare(titles,state,'alice',query);
+    vi.mocked(model.embed).mockClear();
+    const reserve=vi.fn(async()=>false);
+    const extra={...titles[0]!,id:999,overview:'An entirely different and uncached premise.'};
+    const result=await new PersonalizationService(store,catalog,reserve,model).prepare([...titles,extra],state,'alice',query);
+    expect(result.mode).toBe('semantic');expect(result.reason).toBe('budget');expect(result.covered).toBe(30);
+    expect(result.personalAdjustments.get('movie:2')?.some(e=>e.weight>0)).toBe(true);
+    expect(result.personalAdjustments.has('movie:999')).toBe(false);
+    expect(reserve).toHaveBeenCalledTimes(1);expect(model.embed).not.toHaveBeenCalled();
+    // Changed meaning must never silently reuse the previous private profile.
+    const changed={...state,taste:[{...story,meaning:'Exploring strange alien worlds'}]};
+    const fallback=await new PersonalizationService(store,catalog,reserve,model).prepare(titles,changed,'alice',query);
+    expect(fallback.mode).toBe('baseline');expect(fallback.personalAdjustments.size).toBe(0);
+  });
   it('coalesces concurrent identical requests without leaking across users',async()=>{
     await users.updateSettings('alice',{recommendationEngine:'semantic'});await users.upsertTaste('alice',[story]);const state=await users.getRecommendationState('alice');
     const model=fake(),reserve=vi.fn(async()=>true),service=new PersonalizationService(users.recommendationStore(),catalog,reserve,model);

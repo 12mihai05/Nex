@@ -1,4 +1,4 @@
-import { and, eq, gt, like, desc, inArray } from "drizzle-orm";
+import { and, eq, gt, like, desc, inArray, sql } from "drizzle-orm";
 import {rankSearch,titleRelevance} from '../services/search-ranking.js';
 import { getConfig } from "../config.js";
 import { contentItemSchema, type ContentItem, type MediaType } from "../domain/types.js";
@@ -147,7 +147,8 @@ export class LiveTmdbRepository implements TmdbRepository {
   private readonly baseUrl = "https://api.themoviedb.org/3";
   private readonly imageBaseUrl = "https://image.tmdb.org/t/p";
   private readonly inFlight=new Map<string,Promise<unknown>>();
-  private readonly memoryCache=new Map<string,{value:unknown;expires:number}>();
+  private readonly memoryCache=new Map<string,{value:unknown;expires:number;bytes:number}>();
+  private memoryBytes=0;
   private lastPrune=0;
   private readonly titleInFlight=new Map<string,Promise<ContentItem|null>>();
   private activeRequests=0;
@@ -200,7 +201,7 @@ export class LiveTmdbRepository implements TmdbRepository {
       }
       if (options.keywords?.length) {
         const ids=await Promise.all(options.keywords.slice(0,2).map(async keyword=>{
-          const terms=conceptTerms(keyword).slice(0,3);
+          const terms=conceptTerms(keyword).slice(0,6);
           const matches=await Promise.all(terms.map(async term=>{
             const result=await this.request<{results:Array<{id:number;name:string}>}>("/search/keyword",{query:term,page:"1"});
             return result.results.filter(k=>terms.some(t=>k.name.toLowerCase()===t.toLowerCase())).map(k=>k.id);
@@ -240,9 +241,9 @@ export class LiveTmdbRepository implements TmdbRepository {
       const path = `/${mediaType === "series" ? "tv" : "movie"}/${id}`;
       const detail = await this.request<Record<string, unknown>>(path, { append_to_response: "credits,keywords,watch/providers", language: "en-US" });
       const item = this.detailToItem(detail, mediaType, region, ownedProviderIds);
-      await Promise.all([
-        this.writeCache(key, "metadata", item, getConfig().TMDB_METADATA_CACHE_TTL_SECONDS),
-        this.writeCache(`availability:${mediaType}:${id}:${region}`, "availability", item.availability, getConfig().TMDB_AVAILABILITY_CACHE_TTL_SECONDS),
+      await this.writeCaches([
+        {key, kind:"metadata", payload:item, ttlSeconds:getConfig().TMDB_METADATA_CACHE_TTL_SECONDS},
+        {key:`availability:${mediaType}:${id}:${region}`, kind:"availability", payload:item.availability, ttlSeconds:getConfig().TMDB_AVAILABILITY_CACHE_TTL_SECONDS},
       ]);
       return item;
     } catch (error) {
@@ -329,7 +330,9 @@ export class LiveTmdbRepository implements TmdbRepository {
   }
 
   private async request<T>(path: string, params: Record<string, string>): Promise<T> {
-    const cacheable=/^\/(genre\/|search\/|discover\/)|\/(recommendations|videos)$/.test(path)||Boolean(params.append_to_response);
+    // Detailed title metadata already has a normalized, country-keyed cache.
+    // Persisting the giant raw credits/providers response duplicates every write.
+    const cacheable=/^\/(genre\/|search\/|discover\/)|\/(recommendations|videos)$/.test(path)||Boolean(params.append_to_response && params.append_to_response!=='credits,keywords,watch/providers');
     const key=`request:${createHash("sha256").update(JSON.stringify([path,Object.entries(params).sort()])).digest("hex")}`;
     if(!cacheable)return this.fetchRequest<T>(path,params);
     const pending=this.inFlight.get(key);if(pending)return pending as Promise<T>;
@@ -371,25 +374,41 @@ export class LiveTmdbRepository implements TmdbRepository {
 
   private async readCache(key: string): Promise<unknown | null> {
     const memory=this.memoryCache.get(key);
-    if(memory&&memory.expires>Date.now())return memory.value;
-    this.memoryCache.delete(key);
+    if(memory&&memory.expires>Date.now()){
+      this.memoryCache.delete(key);this.memoryCache.set(key,memory);return memory.value;
+    }
+    this.forgetCache(key);
     const rows = await this.db.select().from(tmdbCache).where(and(eq(tmdbCache.cacheKey, key), gt(tmdbCache.expiresAt, new Date()))).limit(1).catch(()=>[]);
     if (!rows[0]) return null;
     try { const value=JSON.parse(rows[0].payloadJson);this.rememberCache(key,value,+rows[0].expiresAt);return value; } catch { return null; }
   }
 
   private rememberCache(key:string,value:unknown,expires:number){
-    if(this.memoryCache.size>=256)this.memoryCache.delete(this.memoryCache.keys().next().value!);
-    this.memoryCache.set(key,{value,expires:Math.min(expires,Date.now()+60000)});
+    this.forgetCache(key);
+    const bytes=Buffer.byteLength(JSON.stringify(value));
+    // Six shelves need more than 256 title/availability/request entries. Bound
+    // both count and bytes, with LRU reuse, rather than thrashing each batch.
+    if(bytes>8*1024*1024)return;
+    while(this.memoryCache.size>=1024 || this.memoryBytes+bytes>8*1024*1024)this.forgetCache(this.memoryCache.keys().next().value!);
+    this.memoryCache.set(key,{value,bytes,expires:Math.min(expires,Date.now()+60000)});
+    this.memoryBytes+=bytes;
+  }
+
+  private forgetCache(key:string){
+    this.memoryBytes-=this.memoryCache.get(key)?.bytes??0;this.memoryCache.delete(key);
   }
 
   private async writeCache(key: string, kind: string, payload: unknown, ttlSeconds: number): Promise<void> {
+    return this.writeCaches([{key,kind,payload,ttlSeconds}]);
+  }
+
+  private async writeCaches(entries:Array<{key:string;kind:string;payload:unknown;ttlSeconds:number}>):Promise<void>{
     const now = new Date();
-    this.rememberCache(key,payload,now.getTime()+ttlSeconds*1000);
+    for(const e of entries)this.rememberCache(e.key,e.payload,now.getTime()+e.ttlSeconds*1000);
     try {
     if(+now-this.lastPrune>3600000){this.lastPrune=+now;await this.db.delete(tmdbCache).where(lt(tmdbCache.expiresAt,now));}
-    await this.db.insert(tmdbCache).values({ cacheKey: key, kind, payloadJson: JSON.stringify(payload), expiresAt: new Date(now.getTime() + ttlSeconds * 1000), createdAt: now, updatedAt: now })
-      .onConflictDoUpdate({ target: tmdbCache.cacheKey, set: { payloadJson: JSON.stringify(payload), expiresAt: new Date(now.getTime() + ttlSeconds * 1000), updatedAt: now } });
+    await this.db.insert(tmdbCache).values(entries.map(e=>({cacheKey:e.key,kind:e.kind,payloadJson:JSON.stringify(e.payload),expiresAt:new Date(+now+e.ttlSeconds*1000),createdAt:now,updatedAt:now})))
+      .onConflictDoUpdate({ target: tmdbCache.cacheKey, set: { payloadJson: sql`excluded.payload_json`, expiresAt: sql`excluded.expires_at`, updatedAt: now } });
     } catch { /* Public metadata remains usable when cache persistence fails. */ }
   }
 }

@@ -67,7 +67,7 @@ function shelfSource(s:Shelf):Partial<DiscoverOptions>{
 export function discoveryShelves(state: State): Shelf[] {
   const liked = (dimension: string) => state.taste.filter(s => s.dimension === dimension && s.score > .3 && s.confidence >= .35)
     .sort((a,b) => b.score*b.confidence-a.score*a.confidence).map(s=>s.key);
-  const genres = [...new Set([...liked("genre"), "Drama", "Comedy", "Thriller", "Animation"])].slice(0,4);
+  const genres = [...new Map([...liked("genre"), "Drama", "Comedy", "Thriller", "Animation"].map(g=>[g.toLowerCase(),g])).values()].slice(0,4);
   const concepts = [...new Set([...liked("keyword"), ...liked("theme")])].slice(0,4);
   const shelves: Shelf[] = [
     { id:"for-you",title:"Your opening credits",subtitle:"Personal picks, ranked around your taste" },
@@ -80,7 +80,7 @@ export function discoveryShelves(state: State): Shelf[] {
     { id:"feel-good",title:"A lighter evening",subtitle:"A change of pace, still ranked for you",accepts:(i:ContentItem)=>[...contentTraits(i)].some(t=>["feel-good","cozy","funny"].includes(t)) },
     { id:"recent",title:"Recent stories",subtitle:"Released in the last three years",accepts:(i:ContentItem)=>(i.year??0)>=new Date().getUTCFullYear()-2 },
     { id:"classics",title:"Worth going back for",subtitle:"Pre-2000 films you haven’t marked seen",filter:{mediaType:"movie" as const},accepts:(i:ContentItem)=>(i.year??9999)<2000 },
-    ...["Science Fiction","Mystery","Adventure","Crime","Romance","Documentary","Fantasy","Action","History","Horror"].filter(key=>!genres.includes(key)).map(key=>({id:`genre:${key}`,title:key,subtitle:"Ranked for your taste and services",filter:{genres:[key]}})),
+    ...["Science Fiction","Mystery","Adventure","Crime","Romance","Documentary","Fantasy","Action","History","Horror"].filter(key=>!genres.some(g=>g.toLowerCase()===key.toLowerCase())).map(key=>({id:`genre:${key}`,title:key,subtitle:"Ranked for your taste and services",filter:{genres:[key]}})),
     ...["underdog","found family","revenge","survival"].filter(key=>!concepts.includes(key)).map(key=>({id:`concept:${key}`,title:({underdog:"Against the odds","found family":"Finding your people",revenge:"Settling the score",survival:"Survival stories"} as Record<string,string>)[key]!,subtitle:"Stories connected by more than genre",filter:{keywords:[key]},accepts:(i:ContentItem)=>Boolean(conceptEvidence(i,key))})),
     ...[...new Set([...liked("mood").slice(0,2).map(k=>k.toLowerCase()),"cerebral","tense","bittersweet","weird"])].map(key=>({id:`mood:${key}`,title:({cerebral:"Something to think about",tense:"Keep you guessing",bittersweet:"Bittersweet stories",weird:"A little out of the ordinary"} as Record<string,string>)[key]??`${key[0]!.toUpperCase()}${key.slice(1)} stories`,subtitle:"A different mood, personalized for you",accepts:(i:ContentItem)=>contentTraits(i).has(key)})),
     {id:"2000s",title:"From the 2000s",subtitle:"Stories worth catching up on",accepts:(i:ContentItem)=>(i.year??0)>=2000&&(i.year??0)<2010},
@@ -107,7 +107,7 @@ export function discoveryShelves(state: State): Shelf[] {
     ordered.splice(6,0,{id:"rewatch",title:"Watch again",subtitle:"Seen and liked, available on your services",accepts:i=>state.watchedKeys.has(titleKey(i))&&state.favorites.some(f=>`${f.mediaType}:${f.tmdbId}`===titleKey(i))});
   return ordered.slice(0,36);
 }
-export function buildDiscoveryRows(items: ContentItem[], state: State, userId: string, filters: HomeFilters = {}, batch?: number, plan?: string[], seen:string[] = [], personal: Pick<RecommendationContext,'personalAdjustments'> = {}) {
+export function buildDiscoveryRows(items: ContentItem[], state: State, userId: string, filters: HomeFilters = {}, batch?: number, plan?: string[], seen:string[] = [], personal: Pick<RecommendationContext,'personalAdjustments'|'scoreCache'> = {}) {
   if (filters.providerIds?.some(id=>!state.ownedProviderIds.includes(id))) return [];
   if (filters.watchStatus === "again") items=items.filter(i=>state.watchedKeys.has(titleKey(i)));
   const global = filterQuerySchema.parse({intent:"DISCOVERY",...filters,excludeWatched:false});
@@ -130,7 +130,10 @@ export function buildDiscoveryRows(items: ContentItem[], state: State, userId: s
   // candidates. Presentation order below stays personalized, not scarcity order.
   candidates.sort((a,b)=>Number(b.shelf.id==='for-you')-Number(a.shelf.id==='for-you')||a.ranked.length-b.ranked.length||selected.indexOf(a.shelf)-selected.indexOf(b.shelf));
   for(const {shelf,query,ranked:available} of candidates){
-    let remaining=available.filter(r=>!occurrences.has(titleKey(r.item))).map(r=>r.item);
+    // Keep the original immutable catalog objects so request-local score/text
+    // caches survive allocation instead of rescoring freshly cloned cards.
+    const originals=new Map(items.map(item=>[titleKey(item),item]));
+    let remaining=available.filter(r=>!occurrences.has(titleKey(r.item))).map(r=>originals.get(titleKey(r.item))!);
     if(shelf.id==='for-you'){
       const scarce=new Set(candidates.filter(c=>c.shelf.id!=='for-you'&&c.ranked.length<=HOME_ROW_TARGET).flatMap(c=>c.ranked.map(r=>titleKey(r.item))));
       const alternatives=remaining.filter(i=>!scarce.has(titleKey(i)));
@@ -224,14 +227,19 @@ export async function discoverHome(catalog: TmdbRepository, state: State, userId
   }
   pool.push(...await savedPool);
   if(!succeeded&&constrained.length&&!pool.length) throw new Error("CATALOG_UNAVAILABLE");
-  let rows=buildDiscoveryRows([...new Map(pool.map(i=>[titleKey(i),i])).values()],state,userId,filters,batch,plan,seen);
+  const baseline={scoreCache:new WeakMap<ContentItem,Map<string,RankedContent|null>>()};
+  let rows=buildDiscoveryRows([...new Map(pool.map(i=>[titleKey(i),i])).values()],state,userId,filters,batch,plan,seen,baseline);
   // Fetch toward twenty AFTER exclusions/allocation, including rows at 12–19.
   // At most 24 refill pages, three concurrent calls and six pages per source.
   // Stop repeated/empty sources; never invent filler or broaden hard filters.
   const sources=currentDefinitions.filter(s=>!['watchlist','rewatch'].includes(s.id)).flatMap(s=>{
     const q=constrain({...common,mediaType:filters.mediaType==='series'?'series':s.filter?.mediaType==='series'?'series':'movie',...shelfSource(s),...s.filter});
     const mixed=(!filters.mediaType||filters.mediaType==='any')&&!s.filter?.mediaType;
-    return [{s,q},...(mixed?[{s,q:{...q,mediaType:'series' as const}}]:[])];
+    return [{s,q},...(mixed?[{s,q:{...q,mediaType:'series' as const}}]:[]),
+      // Niche topics can run out under the general 80-vote retrieval floor.
+      // Explore a bounded lower-vote source, still ranked with Bayesian quality
+      // shrinkage and checked for topic, availability and all user exclusions.
+      ...(s.id.startsWith('concept:')?[{s,q:{...q,minVoteCount:20}}]:[])];
   }).filter(({q})=>queryAllowed(q)&&rangeAllowed(q));
   const cursors=new Map<string,number>(),exhausted=new Set<string>();
   for(const q of constrained){const {page=1,...rest}=q;cursors.set(JSON.stringify(rest),Math.max(page,cursors.get(JSON.stringify(rest))??0));}
@@ -250,13 +258,13 @@ export async function discoverHome(catalog: TmdbRepository, state: State, userId
       r.value.forEach(i=>previous.add(titleKey(i)));sourceSeen.set(key,previous);
       if(!fresh.length)exhausted.add(key);pool.push(...fresh);
     });
-    rows=buildDiscoveryRows([...new Map(pool.map(i=>[titleKey(i),i])).values()],state,userId,filters,batch,plan,seen);
+    rows=buildDiscoveryRows([...new Map(pool.map(i=>[titleKey(i),i])).values()],state,userId,filters,batch,plan,seen,baseline);
   }
   if(personalizer && state.recommendationEngine && state.recommendationEngine!=='baseline') {
     const unique=[...new Map(pool.map(i=>[titleKey(i),i])).values()];
     // Larger retrieval pools must not give the first fetched source every
     // embedding slot. Interleave promising candidates from each current shelf.
-    const context={...state,viewerIds:[userId],temporaryMoods:[]},alreadySeen=new Set(seen);
+    const context={...state,...baseline,viewerIds:[userId],temporaryMoods:[]},alreadySeen=new Set(seen);
     const global=filterQuerySchema.parse({...filters,intent:'DISCOVERY',excludeWatched:false});
     const eligible=unique.filter(i=>!alreadySeen.has(titleKey(i))&&scoreCandidate(i,global,context)!==null);
     const groups=currentDefinitions.map(s=>{
@@ -266,7 +274,7 @@ export async function discoverHome(catalog: TmdbRepository, state: State, userId
     const shortlist=new Map<string,ContentItem>();
     for(let index=0;index<64&&shortlist.size<384;index++)for(const group of groups){const item=group[index]?.item;if(item&&shortlist.size<384)shortlist.set(titleKey(item),item);}
     const personal=await personalizer.prepare([...shortlist.values()],state,userId,filterQuerySchema.parse({...filters,intent:'DISCOVERY',excludeWatched:filters.watchStatus!=='either'}));
-    rows=buildDiscoveryRows(unique,state,userId,filters,batch,plan,seen,personal);
+    if(personal.personalAdjustments.size)rows=buildDiscoveryRows(unique,state,userId,filters,batch,plan,seen,{...personal,scoreCache:new WeakMap()});
   }
   return rows;
 }

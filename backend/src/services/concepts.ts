@@ -5,6 +5,7 @@ import type {ContentItem} from "../domain/types.js";
 const groups:Record<string,string[]>={
   anime:['anime','animes'],
   'k-pop':['k-pop','kpop','k pop'],
+  'car race':['car race','car racing','street race','auto racing','street racing','formula one','formula 1','nascar','racing driver','race car driver'],
   underdog:["underdog","underdogs","against all odds","unlikely champion","unlikely hero"],
   redemption:["redemption","second chance","second chances","atonement"],
   revenge:["revenge","vengeance","retribution"],
@@ -77,15 +78,37 @@ export function conceptMeaning(value:string):string {
   };
   return definitions[key]?`${key}: ${definitions[key]}`:`Stories involving ${key}.`;
 }
-function includesPhrase(text:string,phrase:string):boolean {
-  const escaped=normalize(phrase).replace(/[.*+?^${}()|[\]\\]/g,"\\$&");
-  return new RegExp(`(?:^|[^a-z0-9])${escaped}(?:$|[^a-z0-9])`,"i").test(normalize(text));
+const phrasePatterns=new Map<string,RegExp>();
+function phrasePattern(phrase:string):RegExp {
+  const key=normalize(phrase);
+  let pattern=phrasePatterns.get(key);
+  if(!pattern){
+    const escaped=key.replace(/[.*+?^${}()|[\]\\]/g,"\\$&");
+    pattern=new RegExp(`(?:^|[^a-z0-9])${escaped}(?:$|[^a-z0-9])`,"i");
+    if(phrasePatterns.size>=512)phrasePatterns.delete(phrasePatterns.keys().next().value!);
+    phrasePatterns.set(key,pattern);
+  }
+  return pattern;
 }
+function includesPhrase(text:string,phrase:string):boolean {return phrasePattern(phrase).test(normalize(text));}
+type ConceptFacts={overview:string;tagSignature:string;normalizedOverview:string;tags:Set<string>;results:Map<string,'tag'|'premise'|null>};
+const itemFacts=new WeakMap<ContentItem,ConceptFacts>();
 export function conceptEvidence(item:ContentItem,concept:string):"tag"|"premise"|null {
+  // Weak ownership prevents retaining catalog objects; the signature also makes
+  // this safe if a caller edits a title's tags in place. No user/profile caching.
+  const tags=[...item.keywords,...item.moods,...item.genres],tagSignature=JSON.stringify(tags);
+  let facts=itemFacts.get(item);
+  if(!facts||facts.overview!==item.overview||facts.tagSignature!==tagSignature){
+    facts={overview:item.overview,tagSignature,normalizedOverview:normalize(item.overview),tags:new Set(tags.map(normalize)),results:new Map()};itemFacts.set(item,facts);
+  }
+  const key=canonicalConcept(concept);
+  if(facts.results.has(key))return facts.results.get(key)!;
   const terms=conceptTerms(concept);
-  if([...item.keywords,...item.moods,...item.genres].some(k=>terms.some(t=>normalize(k)===normalize(t))))return "tag";
+  let result:'tag'|'premise'|null=null;
+  if(terms.some(t=>facts.tags.has(normalize(t))))result='tag';
   // Single short ambiguous words (e.g. AI) never match inside arbitrary words.
-  if(terms.some(t=>t.length>2&&includesPhrase(item.overview,t)))return "premise";
-  return null;
+  else if(terms.some(t=>t.length>2&&phrasePattern(t).test(facts.normalizedOverview)))result='premise';
+  if(facts.results.size>=128)facts.results.delete(facts.results.keys().next().value!);
+  facts.results.set(key,result);return result;
 }
 export function mentionedConcepts(message:string):string[]{return Object.keys(groups).filter(k=>conceptTerms(k).some(t=>t.length>2&&includesPhrase(message,t)));}

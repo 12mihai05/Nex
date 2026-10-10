@@ -10,6 +10,11 @@ import { filterQuerySchema } from "../src/domain/types.js";
 const state = () => ({country:"RO",timezone:"Europe/Bucharest",ownedProviderIds:[8],taste:[],watchedIds:new Set<number>(),watchlistIds:new Set<number>(),watchedKeys:new Set<string>(),watchlistKeys:new Set<string>(),ratedKeys:new Set<string>(),rejectedKeys:new Set<string>(),recentlyShown:new Map<string,number>(),wantHints:[],seenHints:[],behaviorPersonalization:true,favorites:[],saved:[]});
 const items = Array.from({length:180},(_,id)=>({...fixtureCatalog[0]!,id:id+1,title:`Title ${id}`,mediaType:id%5===0?"series" as const:"movie" as const,genres:[["Drama"],["Comedy"],["Thriller"],["Animation"]][id%4]!,keywords:id%3===0?["underdog"]:[],moods:[],rating:8,voteCount:500,runtimeMinutes:id%2===0?85:125,year:id%3===0?1990:2026,availability:[{providerId:8,providerName:"Netflix",logoUrl:null,access:"included" as const,owned:true}]}));
 describe("personalized discovery shelves",()=>{
+  it('does not create case-variant duplicate genre rows',()=>{
+    const s={...state(),taste:[{dimension:'genre' as const,key:'crime',score:1,confidence:1,evidenceCount:1,source:'chat_explicit'}]};
+    const ids=discoveryShelves(s).filter(row=>row.id.toLowerCase()==='genre:crime');
+    expect(ids).toHaveLength(1);
+  });
   it('slow initial sources do not trigger a fresh refill budget',async()=>{
     const clock=vi.spyOn(Date,'now');let now=1_000;clock.mockImplementation(()=>now);
     try {

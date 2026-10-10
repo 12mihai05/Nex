@@ -56,8 +56,26 @@ export class PersonalizationService {
     if (!signals.length && !state.favorites.length) return {...result, reason:'no_evidence'};
     if (!this.model.available) return {...result, reason:'unavailable'};
     let reserved = false;
-    const permit = async () => reserved || (reserved = await this.reserve(userId));
+    let denied = false;
+    const permit = async () => {
+      if (reserved) return true;
+      if (denied) return false;
+      reserved = await this.reserve(userId); denied = !reserved;
+      return reserved;
+    };
     try {
+      const preferenceDocs=signals.map(s=>({signal:s,text:`Story preference: ${semanticPreferenceMeaning(s)}`}));
+      // Validate the exact current private profile before loading large public
+      // vector batches. Changed/removed interests cannot reuse an old profile.
+      const profileKey=`interests:${semanticHash([this.model.version,preferenceDocs.map(d=>d.text)])}`;
+      const privateRaw = preferenceDocs.length ? await this.store.privateValue(userId,profileKey) : [];
+      let preferenceVectors = Array.isArray(privateRaw) ? privateRaw.map(unitVector) : [];
+      if(preferenceVectors.length!==preferenceDocs.length || preferenceVectors.some(v=>!v)) {
+        if(!await permit()) return {...result, reason:'budget'};
+        preferenceVectors=(await this.model.embed(preferenceDocs.map(d=>d.text))).map(unitVector);
+        if(preferenceVectors.length!==preferenceDocs.length || preferenceVectors.some(v=>!v)) throw new Error('INVALID_PROFILE_VECTORS');
+        await this.store.putPrivate(userId,profileKey,preferenceVectors); result.embedded+=preferenceVectors.length;
+      }
       const seeds = [...state.favorites].sort((a,b)=>Number(b.reaction==='super_like')-Number(a.reaction==='super_like') || +b.updatedAt-+a.updatedAt || a.tmdbId-b.tmdbId).slice(0,8);
       const examples: Array<{item: ContentItem; reaction: string}> = [];
       for(let i=0;i<seeds.length;i+=4) {
@@ -72,8 +90,10 @@ export class PersonalizationService {
       for(const [key,value] of cached) { const vector=unitVector(value); if(vector) vectors.set(key,vector); }
       const missing = [...new Map(docs.filter(d=>!vectors.has(d.key)).map(d=>[d.key,d])).values()];
       result.cacheHits = docs.length - missing.length;
-      if(missing.length && !await permit()) return {...result, reason:'budget'};
-      for(let i=0;i<missing.length;i+=128) {
+      // Quota governs new paid calls, not reuse of verified cached evidence.
+      const canEmbed = missing.length > 0 && await permit();
+      if (missing.length && !canEmbed) result.reason = 'budget';
+      for(let i=0;canEmbed && i<missing.length;i+=128) {
         const batch=missing.slice(i,i+128), raw=await this.model.embed(batch.map(d=>d.text));
         const valid=raw.map(unitVector);
         if(raw.length!==batch.length || valid.some(v=>!v) || new Set(valid.map(v=>v!.length)).size!==1) throw new Error('INVALID_VECTORS');
@@ -81,21 +101,10 @@ export class PersonalizationService {
         await this.store.putPublic(entries);
         entries.forEach(e=>vectors.set(e.key,e.vector)); result.embedded+=entries.length;
       }
-      const preferenceDocs=signals.map(s=>({signal:s,text:`Story preference: ${semanticPreferenceMeaning(s)}`}));
-      // Scores and derived updatedAt timestamps do not change embedding text.
-      // Including them would invalidate a warm profile on every read.
-      const profileKey=`interests:${semanticHash([this.model.version,preferenceDocs.map(d=>d.text)])}`;
-      const privateRaw = preferenceDocs.length ? await this.store.privateValue(userId,profileKey) : [];
-      let preferenceVectors = Array.isArray(privateRaw) ? privateRaw.map(unitVector) : [];
-      if(preferenceVectors.length!==preferenceDocs.length || preferenceVectors.some(v=>!v)) {
-        if(!await permit()) return {...result, reason:'budget'};
-        preferenceVectors=(await this.model.embed(preferenceDocs.map(d=>d.text))).map(unitVector);
-        if(preferenceVectors.length!==preferenceDocs.length || preferenceVectors.some(v=>!v)) throw new Error('INVALID_PROFILE_VECTORS');
-        await this.store.putPrivate(userId,profileKey,preferenceVectors); result.embedded+=preferenceVectors.length;
-      }
       const interests: Interest[] = preferenceDocs.map((d,i)=>({key:`${d.signal.dimension}:${d.signal.key}`,label:d.signal.key,signal:d.signal,vector:preferenceVectors[i]!,strength:d.signal.score*d.signal.confidence}));
       const vectorFor=(item:ContentItem)=>vectors.get(`title:${semanticHash([this.model.version,semanticTitleText(item)])}`);
       interests.push(...favouriteInterests(examples.flatMap(e=>{const vector=vectorFor(e.item);return vector?[{...e,vector}]:[];})));
+      if (!interests.length || !vectors.size) return {...result,reason:denied?'budget':'no_evidence'};
       const dimensions=new Set([...vectors.values(),...interests.map(i=>i.vector)].map(v=>v.length));
       if(dimensions.size>1) throw new Error('VECTOR_DIMENSION_MISMATCH');
       for(const item of items) {

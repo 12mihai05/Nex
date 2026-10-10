@@ -6,6 +6,9 @@ import {isExplicitKeywordExclusion} from './preference-exclusions.js';
 export { signalStrength } from "./taste.js";
 
 export interface RecommendationContext {
+  // Request-local only: callers must use a fresh cache when user/query context
+  // or semantic adjustments change. Never persist this across requests/users.
+  scoreCache?: WeakMap<ContentItem,Map<string,RankedContent|null>>;
   viewerIds: string[]; taste: TasteSignal[]; temporaryMoods: string[]; ownedProviderIds: number[];
   watchedIds: Set<number>; watchlistIds: Set<number>;
   watchedKeys?: Set<string>; watchlistKeys?: Set<string>; rejectedKeys?: Set<string>;
@@ -21,6 +24,12 @@ export const titleKey = (item: Pick<ContentItem, "mediaType" | "id">) => `${item
 const normalized = (s: string) => s.toLowerCase().trim();
 
 export function scoreCandidate(item: ContentItem, query: FilterQuery, context: RecommendationContext): RankedContent | null {
+  if(!context.scoreCache)return scoreUncached(item,query,context);
+  const key=JSON.stringify(query),cache=context.scoreCache.get(item)??new Map<string,RankedContent|null>();
+  if(cache.has(key))return cache.get(key)!;
+  const value=scoreUncached(item,query,context);cache.set(key,value);context.scoreCache.set(item,cache);return value;
+}
+function scoreUncached(item: ContentItem, query: FilterQuery, context: RecommendationContext): RankedContent | null {
   const key = titleKey(item); const exact = query.intent === "TITLE_LOOKUP" || query.intent === "AVAILABILITY_LOOKUP";
   const watched = context.watchedKeys ? context.watchedKeys.has(key) : context.watchedIds.has(item.id);
   // Rated means familiar, not necessarily seen. Never manufacture history.
@@ -99,11 +108,6 @@ export function scoreCandidate(item: ContentItem, query: FilterQuery, context: R
   return { item: { ...item, availability: item.availability.map((a) => ({ ...a, owned: context.ownedProviderIds.includes(a.providerId) })) }, score, evidence, reason: reasons.length ? `Because ${reasons.map((e)=>e.label).join(" and ")}.` : "A catalog discovery pick; there is not enough preference evidence for a personal explanation yet." };
 }
 
-function similarity(a: ContentItem, b: ContentItem): number {
-  const aa = new Set(a.genres.map(normalized)), bb = new Set(b.genres.map(normalized));
-  const shared = [...aa].filter((g)=>bb.has(g)).length;
-  return Math.max(shared / Math.max(1, new Set([...aa,...bb]).size), a.collection && a.collection === b.collection ? 1 : 0);
-}
 export function rankCandidates(items: ContentItem[], query: FilterQuery, context: RecommendationContext, limit = 12): RankedContent[] {
   const unique = [...new Map(items.map((i)=>[titleKey(i),i])).values()];
   const remaining = unique.map((i)=>scoreCandidate(i,query,context)).filter((r): r is RankedContent => r !== null).sort((a,b)=>b.score-a.score);
@@ -118,15 +122,27 @@ export function rankCandidates(items: ContentItem[], query: FilterQuery, context
   const diversityWeight=context.personalAdjustments?.size ? .24 : rankingWeights.diversity;
   const interests=context.taste.filter(s=>["keyword","theme"].includes(s.dimension)&&s.score>.3&&s.confidence>=.5).map(s=>canonicalConcept(s.key));
   const topics=new Map(remaining.map(r=>[titleKey(r.item),new Set(interests.filter(t=>conceptEvidence(r.item,t)))]));
+  const genres=new Map(remaining.map(r=>[titleKey(r.item),new Set(r.item.genres.map(normalized))]));
+  const overlap=(aa:Set<string>,bb:Set<string>)=>{
+    let common=0;for(const key of aa)if(bb.has(key))common++;
+    return common/Math.max(1,aa.size+bb.size-common);
+  };
   const conceptOverlap=(a:ContentItem,b:ContentItem)=>{
     const aa=topics.get(titleKey(a))!,bb=topics.get(titleKey(b))!;
-    const common=[...aa].filter(t=>bb.has(t)).length;
-    return common/Math.max(1,new Set([...aa,...bb]).size);
+    return overlap(aa,bb);
   };
+  // Incremental maximum is mathematically identical to scanning every previous
+  // pick, without rebuilding genre sets and all pairwise comparisons each turn.
+  const maxOverlap=new Map<RankedContent,number>();
   while (remaining.length && selected.length < limit) {
     let best = 0, bestValue = -Infinity;
-    remaining.forEach((r,index)=>{ const overlap = Math.max(0,...selected.map((s)=>Math.max(similarity(r.item,s.item),conceptOverlap(r.item,s.item)))); const value = r.score-diversityWeight*overlap; if (value>bestValue) { best=index; bestValue=value; } });
-    selected.push(remaining.splice(best,1)[0]!);
+    const last=selected.at(-1)?.item;
+    remaining.forEach((r,index)=>{
+      let similarity=maxOverlap.get(r)??0;
+      if(last){similarity=Math.max(similarity,overlap(genres.get(titleKey(r.item))!,genres.get(titleKey(last))!),r.item.collection&&r.item.collection===last.collection?1:0,conceptOverlap(r.item,last));maxOverlap.set(r,similarity);}
+      const value=r.score-diversityWeight*similarity;if(value>bestValue){best=index;bestValue=value;}
+    });
+    const winner=remaining.splice(best,1)[0]!;selected.push(winner);maxOverlap.delete(winner);
   }
   return selected;
 }

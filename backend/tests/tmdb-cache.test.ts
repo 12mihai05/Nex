@@ -4,6 +4,19 @@ import {drizzle} from "drizzle-orm/libsql";
 import {it,expect,vi} from "vitest";
 import * as schema from "../src/db/schema.js";
 import {LiveTmdbRepository} from "../src/repositories/tmdb-repository.js";
+it('keeps a full shelf batch warm and persists metadata plus availability in one write',async()=>{
+ const client=createClient({url:':memory:'});
+ try{
+  for(const file of (await readdir(new URL('../drizzle/',import.meta.url))).filter(f=>f.endsWith('.sql')).sort())await client.executeMultiple((await readFile(new URL(`../drizzle/${file}`,import.meta.url),'utf8')).replaceAll('--> statement-breakpoint',''));
+  const queries:string[]=[];const db=drizzle(client,{schema,logger:{logQuery(query){queries.push(query);}}});
+  const fetcher=vi.fn(async(url:URL)=>new Response(JSON.stringify({id:Number(url.pathname.split('/').at(-1)),title:'Test',genres:[],keywords:{keywords:[]},'watch/providers':{results:{RO:{}}}}),{status:200}));vi.stubGlobal('fetch',fetcher);
+  const catalog=new LiveTmdbRepository('synthetic-test-token',db);
+  for(let i=0;i<140;i+=20)await Promise.all(Array.from({length:20},(_,n)=>catalog.getTitle('movie',i+n+1,'RO')));
+  expect(queries.filter(q=>q.startsWith('insert into "tmdb_cache"'))).toHaveLength(140);
+  queries.length=0;await catalog.getTitle('movie',1,'RO');
+  expect(fetcher).toHaveBeenCalledTimes(140);expect(queries).toHaveLength(0);
+ }finally{vi.unstubAllGlobals();client.close();}
+});
 it('a cache database outage cannot discard successfully fetched public metadata',async()=>{
  const client=createClient({url:':memory:'});
  try{
