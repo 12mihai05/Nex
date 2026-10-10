@@ -53,4 +53,16 @@ The narrow `car race` discovery query returned 17 raw titles under the account's
 - Final Android debug build and analyzer passed after the final contrast adjustment.
 - GitHub's scheduled EPG workflow is a separate unresolved configuration issue: the latest inspected run failed for all nine countries with generic `SYNC_FAILED` codes. Repository secret metadata shows the required Turso URL/token and optional TMDB token are absent. No secret values were read from GitHub or printed. Permission to provision encrypted repository secrets was requested separately; this is not a backend deployment failure.
 
+## Approved EPG secret setup and live test — later on 10 October
+
+- With explicit user approval, configured `TURSO_DATABASE_URL`, `TURSO_AUTH_TOKEN` and `TMDB_READ_ACCESS_TOKEN` as encrypted GitHub repository secrets. Values were taken from local configuration, encrypted with the repository public key, and never printed, written into source, or committed.
+- Dispatched [EPG workflow run 38036931003](https://github.com/12mihai05/Nex/actions/runs/38036931003), then retried its failed job once. Both attempts successfully synced RO, BG, GB, ES, FR, IT, DE and MD. CH failed with the generic `SYNC_FAILED` code, so the overall GitHub result remains failure. Missing credentials are resolved, but the scheduled job is not fully healthy.
+- Switzerland's public provider loaded successfully in a read-only local check. A subsequent full local sync against the same Turso database succeeded with 7,179 imported entries. This restored a fresh Swiss schedule without changing the provider configuration or application code; it does not establish the cause of the GitHub-only failure.
+- Verified all nine countries have current/upcoming programmes. Retention checks found no programmes outside seven past days / fourteen future days. A failed sync preserved the previous Swiss schedule.
+- A follow-up investigation needs safer, more specific runner error diagnostics for Switzerland; two failed runner attempts plus a successful local sync are not evidence of a permanent repair.
+
 OpenAI Docs informed the structured-output implementation: [Structured Outputs](https://developers.openai.com/api/docs/guides/structured-outputs). Schema conformance is not semantic verification; title resolution and persistence checks are performed separately.
+
+## Superseding reliability pass
+
+The remaining-work pass is recorded in [RELIABILITY_VERIFICATION_2026_10_10.md](RELIABILITY_VERIFICATION_2026_10_10.md). It supersedes the unresolved EPG status above: full GitHub workflow `38040947066` passed for all nine countries after atomic snapshot uploads and bounded transient retry support. It also covers the Home CPU/cache fixes, semantic quota fallback, additional narrow-topic retrieval, live production checks and honest remaining limits. Physical Samsung checks are delegated to the user at their request in [PHONE_TEST_CHECKLIST.md](PHONE_TEST_CHECKLIST.md).
