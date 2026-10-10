@@ -41,7 +41,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
       );
       return;
     }
-    input.clear();
+    if (prompt == null) input.clear();
     await ref.read(appControllerProvider.notifier).sendChat(text);
     await Future<void>.delayed(const Duration(milliseconds: 80));
     if (scroll.hasClients) {
@@ -87,6 +87,9 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
   @override
   Widget build(BuildContext context) {
     final state = ref.watch(appControllerProvider);
+    final latestAssistant = state.chatMessages.lastIndexWhere(
+      (m) => !m.fromUser,
+    );
     return Scaffold(
       appBar: NexTopBar(
         title: 'Ask Nex',
@@ -131,6 +134,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                       return _Message(
                         message: state.chatMessages[index],
                         onPrompt: send,
+                        actionsEnabled: !state.busy && index == latestAssistant,
                       );
                     },
                   ),
@@ -219,9 +223,14 @@ class _EmptyChat extends StatelessWidget {
 }
 
 class _Message extends StatelessWidget {
-  const _Message({required this.message, required this.onPrompt});
+  const _Message({
+    required this.message,
+    required this.onPrompt,
+    required this.actionsEnabled,
+  });
   final ChatMessage message;
   final ValueChanged<String> onPrompt;
+  final bool actionsEnabled;
   @override
   Widget build(BuildContext context) => Align(
     alignment: message.fromUser ? Alignment.centerRight : Alignment.centerLeft,
@@ -315,8 +324,13 @@ class _Message extends StatelessWidget {
                     children: block.actions
                         .map(
                           (action) => ActionChip(
-                            label: Text(chatActionLabel(action)),
-                            onPressed: () => onPrompt(action),
+                            label: Text(
+                              chatActionLabel(action),
+                              softWrap: true,
+                            ),
+                            onPressed: actionsEnabled
+                                ? () => onPrompt(action)
+                                : null,
                           ),
                         )
                         .toList(),

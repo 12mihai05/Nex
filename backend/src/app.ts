@@ -33,7 +33,9 @@ const users = new UserRepository();
 const catalog = createTmdbRepository();
 const ai = new AiService();
 const epg = new EpgService();
-const chat = new ChatService(users, catalog, ai);
+// Same-model combined planning passed the live comparison and continuation QA.
+// The separate path remains available to the comparison harness.
+const chat = new ChatService(users, catalog, ai, epg, {combinedPlanner:true});
 const personalizer = personalizationFor(users,catalog);
 app.use("/api/*",bodyLimit({maxSize:128*1024,onError:(c)=>c.json({error:{code:"REQUEST_TOO_LARGE",message:"Request is too large."}},413)}));
 

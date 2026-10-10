@@ -11,7 +11,8 @@ import 'package:nex/src/screens/chat_screen.dart';
 import 'package:nex/src/screens/taste_screen.dart';
 import 'package:nex/src/state/app_controller.dart';
 
-import 'chat_actions_test.dart' show ChatActionsApi, TasteChatApi;
+import 'chat_actions_test.dart'
+    show ChatActionsApi, TasteChatApi, SuggestionChatApi;
 
 class NaturalChatApi extends ChatActionsApi {
   @override
@@ -119,6 +120,32 @@ void main() {
       );
       await tester.pumpAndSettle();
       await capture('natural');
+      final suggestionContainer = ProviderContainer(
+        overrides: [
+          nexApiClientProvider.overrideWithValue(SuggestionChatApi()),
+        ],
+      );
+      addTearDown(suggestionContainer.dispose);
+      await suggestionContainer
+          .read(appControllerProvider.notifier)
+          .restoreSession();
+      await suggestionContainer
+          .read(appControllerProvider.notifier)
+          .sendChat('More with that same feeling');
+      await tester.pumpWidget(
+        RepaintBoundary(
+          key: key,
+          child: UncontrolledProviderScope(
+            container: suggestionContainer,
+            child: MaterialApp(
+              theme: dark ? NexTheme.dark : NexTheme.light,
+              home: const ChatScreen(),
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      await capture('suggestions');
       final tasteContainer = ProviderContainer(
         overrides: [nexApiClientProvider.overrideWithValue(TasteChatApi())],
       );

@@ -20,6 +20,7 @@ import {personalizationFor} from './personalization.js';
 import {isExplicitExclusion} from './preference-exclusions.js';
 import {resolveTasteExamples} from './taste-examples.js';
 import {cleanChatBlocks,cleanChatCopy} from '../domain/chat-copy.js';
+import type {ChatIntent} from './chat-intent.js';
 const tasteReply=(message:string)=>/^(?:yes|no|yep|nope|correct|exactly|do that|please do|keep them|allow them|exclude them|cancel|never mind)\b/i.test(message.trim());
 
 export class ChatService {
@@ -28,6 +29,7 @@ export class ChatService {
     private readonly catalog: TmdbRepository = new FixtureTmdbRepository(),
     private readonly ai = new AiService(),
     private readonly epg = new EpgService(),
+    private readonly experiment:{parallelReads?:boolean;combinedPlanner?:boolean}={},
   ) {}
 
   async respond(userId: string, message: string, requestedSessionId?: string): Promise<{ sessionId: string; blocks: ChatBlock[] }> {
@@ -43,12 +45,16 @@ export class ChatService {
     const protocolCommand=/^(confirm|cancel) changes(?: [a-f0-9-]{36})?$/i.test(message);
     let route:Awaited<ReturnType<AiService['routeChat']>>=protocolCommand?{route:'action',reply:''}:null;
     let history:Array<{role:string;content:string}>|undefined;
+    let plannedFilter:ChatIntent|undefined;
     // Production decisions come from the model with recent context. Rules below
     // remain only as a no-key fixture fallback and data/action safety checks.
     if(this.ai.mode==='live'&&!protocolCommand){
-      const [recent,context]=await Promise.all([this.users.recentConversationMessages(userId,sessionId),this.users.getSessionContext(userId,sessionId)]);
+      const [recent,context,routeDisplayed]=await Promise.all([this.users.recentConversationMessages(userId,sessionId),this.users.getSessionContext(userId,sessionId),this.experiment.combinedPlanner?this.users.recentDisplayedItems(userId,sessionId):Promise.resolve([])]);
       history=recent;
-      try{route=await this.ai.routeChat(message,recent,{tastePending:context.tastePending,focus:context.focus,tv:context.tv});}
+      try{
+        if(this.experiment.combinedPlanner){const plan=await this.ai.planChat(message,recent,{history:recent,focus:context.focus,tastePending:context.tastePending,tv:context.tv,displayed:routeDisplayed,...(context.filter?{filter:context.filter as Partial<import('../domain/types.js').FilterQuery>}:{})});route=plan;plannedFilter=plan.filter??undefined;}
+        else route=await this.ai.routeChat(message,recent,{tastePending:context.tastePending,focus:context.focus,tv:context.tv,filter:context.filter});
+      }
       catch{const content='I couldn’t read your message properly just now. Nothing changed. Please try again.';await this.users.addConversationMessage(userId,sessionId,'assistant',content,[{type:'text',content}]);return {sessionId,blocks:[{type:'text',content}]};}
       if(route?.route==='conversation'||route?.route==='out_of_scope'){
         const content=route.reply||'Would you like to talk about a film, a series, or something in Nex?';
@@ -73,10 +79,11 @@ export class ChatService {
     const knowledge=(!route||route.route==='knowledge')?await new ChatKnowledge(this.users,this.catalog,this.ai,this.epg).handle(userId,sessionId,message,route?.route==='knowledge').catch(()=>[{type:'text' as const,content:'I couldn’t verify that answer just now. Please try again.'}]):null;
     if(knowledge){await this.users.addConversationMessage(userId,sessionId,'assistant',knowledge.map(b=>'content'in b?b.content:'').join('\n'),knowledge);return {sessionId,blocks:knowledge};}
 
-    const storedState = await this.users.getRecommendationState(userId);
+    const [storedState,savedContext,displayed,shown]=this.experiment.parallelReads!==false
+      ? await Promise.all([this.users.getRecommendationState(userId),this.users.getSessionContext(userId,sessionId),this.users.recentDisplayedItems(userId,sessionId),this.users.sessionRecommendationKeys(userId,sessionId)])
+      : [await this.users.getRecommendationState(userId),await this.users.getSessionContext(userId,sessionId),await this.users.recentDisplayedItems(userId,sessionId),await this.users.sessionRecommendationKeys(userId,sessionId)] as const;
     const requestedCountry=explicitCountry(message);
     const state={...storedState,country:requestedCountry??storedState.country,timezone:requestedCountry?countryTimezones[requestedCountry]??storedState.timezone:storedState.timezone};
-    const savedContext = await this.users.getSessionContext(userId,sessionId);
     const followup=tvFollowup(message);
     if(followup!==null){
       const context=tvContextSchema.safeParse(savedContext.tv);
@@ -111,8 +118,8 @@ export class ChatService {
       return {sessionId,blocks};
     }
     const previous = savedContext.country && savedContext.country!==state.country ? undefined : savedContext.filter as import("../domain/types.js").FilterQuery | undefined;
-    const intentContext:ChatIntentContext={history:history??await this.users.recentConversationMessages(userId,sessionId),focus:savedContext.focus,displayed:await this.users.recentDisplayedItems(userId,sessionId)};
-    const query = await this.ai.parseIntent(message,previous,intentContext).catch(() => undefined);
+    const intentContext:ChatIntentContext={history:history??await this.users.recentConversationMessages(userId,sessionId),focus:savedContext.focus,displayed};
+    const query = plannedFilter??await this.ai.parseIntent(message,previous,intentContext).catch(() => undefined);
     if(query?.clarification||(!query&&this.ai.mode==='live')){
       const content=query?.clarification||'I couldn’t interpret that request just now. Please try again.';
       const blocks:ChatBlock[]=[{type:'text',content}];
@@ -148,9 +155,11 @@ export class ChatService {
       if(!referenceTitle){const content='Which movie or series do you mean? Please include its year so I can match the right one.';const blocks:ChatBlock[]=[{type:'text',content}];await this.users.addConversationMessage(userId,sessionId,'assistant',content,blocks);return {sessionId,blocks};}
       intentContext.referenceTitle={title:referenceTitle.title,overview:referenceTitle.overview.slice(0,1000),keywords:referenceTitle.keywords.slice(0,40),genres:referenceTitle.genres};
     }
-    const candidates = safeQuery.intent === "TITLE_LOOKUP" || safeQuery.intent === "AVAILABILITY_LOOKUP"
+    const newRecommendations=safeQuery.intent==='DISCOVERY'&&query?.recommendationMode!=='repeat';
+    const pool = safeQuery.intent === "TITLE_LOOKUP" || safeQuery.intent === "AVAILABILITY_LOOKUP"
       ? await this.catalog.search({ query: safeQuery.query, region: state.country })
-      : await generateCandidates(this.catalog,state,safeQuery,referenceTitle);
+      : await generateCandidates(this.catalog,state,safeQuery,referenceTitle,newRecommendations&&shown.size?Math.min(500,1+Math.ceil(shown.size/8)):1);
+    const candidates=newRecommendations?pool.filter(i=>!shown.has(titleKey(i))):pool;
     const reviewConcepts=safeQuery.intent==="DISCOVERY"&&(!!safeQuery.similarTo||safeQuery.keywords.length>0||safeQuery.moods.length>0||safeQuery.excludedMoods.length>0);
     const personal=await personalizationFor(this.users,this.catalog).prepare(candidates,state,userId,safeQuery);
     const ranked = rankCandidates(candidates, safeQuery, { ...state,...personal, viewerIds: [userId], temporaryMoods: safeQuery.moods }, safeQuery.similarTo?32:reviewConcepts?12:8);
@@ -163,7 +172,7 @@ export class ChatService {
     composed.intro=addSuitabilityCaution(composed.intro,message,selected.length>0);
     const blocks: ChatBlock[] = [
       { type: "text", content: composed.intro },
-      ...(selected.length ? [{ type: "movie_carousel" as const, items: selected }] : [{ type: "empty_state" as const, title: "No grounded matches", message: "Try loosening a provider or runtime constraint." }]),
+      ...(selected.length ? [{ type: "movie_carousel" as const, items: selected }] : [{ type: "empty_state" as const, title: "No grounded matches", message: newRecommendations&&shown.size?"I couldn’t verify more matches without repeating earlier suggestions. Try another service or loosen one constraint.":"Try loosening a provider or runtime constraint." }]),
       { type: "quick_actions", actions: composed.quickActions },
     ];
     const assistantId = await this.users.addConversationMessage(userId, sessionId, "assistant", composed.intro, blocks);

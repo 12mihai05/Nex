@@ -35,10 +35,10 @@ export function personalizedSources(catalog:TmdbRepository,state:State,options:D
  return jobs;
 }
 
-export async function generateCandidates(catalog: TmdbRepository, state: Awaited<ReturnType<UserRepository["getRecommendationState"]>>, query: FilterQuery,referenceTitle?:ContentItem): Promise<ContentItem[]> {
+export async function generateCandidates(catalog: TmdbRepository, state: Awaited<ReturnType<UserRepository["getRecommendationState"]>>, query: FilterQuery,referenceTitle?:ContentItem,page=1): Promise<ContentItem[]> {
   const options = { region: state.country, providerIds: query.providerIds.length ? query.providerIds : query.availabilityScope === "owned_services" ? state.ownedProviderIds : [], mediaType: query.mediaType, minRuntimeMinutes: query.minRuntimeMinutes, maxRuntimeMinutes: query.maxRuntimeMinutes, genres: query.genres, genreMatch:query.genreMatch, originalLanguages:query.originalLanguages };
   const genres = state.taste.filter((s)=>s.dimension === "genre" && s.score > .3 && s.confidence > .3).sort((a,b)=>b.score*b.confidence-a.score*a.confidence).slice(0,2).map((s)=>s.key);
-  const retrievalOptions=referenceTitle&&!query.genres.length?{...options,genres:referenceTitle.genres,genreMatch:'any' as const}:options;
+  const retrievalOptions=referenceTitle&&!query.genres.length?{...options,page,genres:referenceTitle.genres,genreMatch:'any' as const}:{...options,page};
   const jobs: Promise<ContentItem[]>[] = [catalog.discover(retrievalOptions)];
   // Explicit language interests need a retrieval source, not just a score bonus
   // applied after an English-heavy popular pool has already been chosen.
@@ -46,7 +46,9 @@ export async function generateCandidates(catalog: TmdbRepository, state: Awaited
   if (query.similarTo && catalog.related) {
     jobs.push((referenceTitle?Promise.resolve([referenceTitle]):catalog.search({query:query.similarTo,region:state.country})).then(async items=>{
       const seed=referenceTitle??items.find(i=>i.title.toLowerCase()===query.similarTo!.toLowerCase()||i.originalTitle?.toLowerCase()===query.similarTo!.toLowerCase());
-      return seed ? catalog.related!(seed.mediaType,seed.id,state.country,20) : [];
+      if(!seed)return [];
+      const pages=await Promise.all([catalog.related!(seed.mediaType,seed.id,state.country,20),...(page>1?[catalog.related!(seed.mediaType,seed.id,state.country,20,page)]:[])]);
+      return pages.flat();
     }));
   }
   const relevantGenres=query.genres.length?query.genres:genres;
@@ -54,12 +56,12 @@ export async function generateCandidates(catalog: TmdbRepository, state: Awaited
   const selectedTopics=query.keywords.length?query.keywords:query.similarTo?[]:topics.slice(0,4);
   // Separate sources preserve alternative interests; do not AND unrelated tastes
   // or force a story concept into a background genre preference.
-  for(const topic of selectedTopics.slice(0,4))jobs.push(catalog.discover({...options,keywords:[topic],limit:8}));
+  for(const topic of selectedTopics.slice(0,4))jobs.push(catalog.discover({...options,page,keywords:[topic],limit:8}));
   if (!query.similarTo && genres.length && !query.genres.length) jobs.push(catalog.discover({ ...options, genres }));
   // Broaden the pool, not the popularity weight. Both familiar and less obvious
   // candidates still have to earn their place through the same final ranking.
   jobs.push(catalog.discover({ ...retrievalOptions, genres:query.similarTo?retrievalOptions.genres:relevantGenres, sortBy:"popularity.desc", limit:6 }));
-  jobs.push(catalog.discover({ ...retrievalOptions, genres:query.similarTo?retrievalOptions.genres:relevantGenres, page:2, limit:6 }));
+  jobs.push(catalog.discover({ ...retrievalOptions, genres:query.similarTo?retrievalOptions.genres:relevantGenres, page:Math.min(500,page+1), limit:6 }));
   const seeds=[...state.favorites].sort((a,b)=>Number(b.reaction==="super_like")-Number(a.reaction==="super_like")||+b.updatedAt-+a.updatedAt);
   const offset=seeds.length>2?Math.floor(Date.now()/86_400_000)%seeds.length:0;
   for (const favorite of (query.similarTo?[]:[...seeds.slice(offset),...seeds.slice(0,offset)].slice(0,2))) if (catalog.related) jobs.push(catalog.related(favorite.mediaType,favorite.tmdbId,state.country));

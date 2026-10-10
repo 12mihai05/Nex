@@ -15,7 +15,10 @@ void main() {
         container.read(appControllerProvider).chatMessages.last.blocks.single
             as TextChatBlock;
     expect(block.text, contains('Nothing changed'));
+    expect(container.read(appControllerProvider).busy, false);
     await controller.sendChat('Remind me before the second programme');
+    expect(container.read(appControllerProvider).busy, false);
+    expect(container.read(appControllerProvider).chatMessages.length, 4);
     expect(
       (container.read(appControllerProvider).chatMessages.last.blocks.single
               as TextChatBlock)

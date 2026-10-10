@@ -37,6 +37,49 @@ beforeEach(async()=>{
 });
 afterEach(()=>{vi.restoreAllMocks();client.close();});
 
+it('combined planning uses the same guarded recommendation path without a second intent call',async()=>{
+ vi.spyOn(ai,'mode','get').mockReturnValue('live');
+ const planner=vi.spyOn(ai,'planChat').mockResolvedValue({route:'discovery',reply:'',filter:{...filterQuerySchema.parse({intent:'DISCOVERY',availabilityScope:'all_providers',maxRuntimeMinutes:160}),clarification:null,recommendationMode:'new'}});
+ const parser=vi.spyOn(ai,'parseIntent'),router=vi.spyOn(ai,'routeChat');
+ vi.spyOn(catalog,'discover').mockResolvedValue(items);
+ vi.spyOn(ai,'compose').mockResolvedValue({intro:'Choices.',quickActions:['Other recommendations']});
+ const result=await new ChatService(users,catalog,ai,new EpgService(db),{combinedPlanner:true}).respond('alice','Recommend a movie',session);
+ expect(planner).toHaveBeenCalledTimes(1);expect(parser).not.toHaveBeenCalled();expect(router).not.toHaveBeenCalled();
+ expect(result.blocks.flatMap(b=>b.type==='movie_carousel'?b.items:[])).toHaveLength(8);
+ expect((await users.getSessionContext('alice',session)).filter).toMatchObject({maxRuntimeMinutes:160});
+ expect(await users.getTaste('alice')).toEqual([]);
+});
+
+it('other recommendations exclude every earlier row without crossing sessions or changing Taste',async()=>{
+ vi.spyOn(ai,'mode','get').mockReturnValue('live');
+ vi.spyOn(ai,'routeChat').mockResolvedValue({route:'discovery',reply:''});
+ const parse=vi.spyOn(ai,'parseIntent').mockResolvedValue({...filterQuerySchema.parse({intent:'DISCOVERY',availabilityScope:'all_providers'}),recommendationMode:'new'});
+ vi.spyOn(catalog,'discover').mockResolvedValue(items);
+ vi.spyOn(ai,'compose').mockResolvedValue({intro:'Choices.',quickActions:['Other recommendations']});
+ const chat=new ChatService(users,catalog,ai,new EpgService(db));
+ const shown=new Set<string>();
+ for(let i=0;i<3;i++){
+  const reply=await chat.respond('alice',i?'Other recommendations':'Recommend movies',session);
+  const titles=reply.blocks.flatMap(b=>b.type==='movie_carousel'?b.items:[]);
+  expect(titles).toHaveLength(8);
+  for(const title of titles){const key=`${title.mediaType}:${title.id}`;expect(shown.has(key)).toBe(false);shown.add(key);}
+ }
+ expect(await users.sessionRecommendationKeys('alice',session)).toEqual(shown);
+ await expect(users.sessionRecommendationKeys('bob',session)).rejects.toThrow('CONVERSATION_NOT_FOUND');
+ expect(await users.sessionRecommendationKeys('alice',await users.createConversation('alice'))).toEqual(new Set());
+ expect(await users.getTaste('alice')).toEqual([]);
+ parse.mockResolvedValue({...filterQuerySchema.parse({intent:'DISCOVERY',availabilityScope:'all_providers'}),recommendationMode:'repeat'});
+ vi.mocked(catalog.discover).mockResolvedValue(items.filter(i=>shown.has(`${i.mediaType}:${i.id}`)));
+ const repeated=await chat.respond('alice','Show those again',session);
+ expect(repeated.blocks.flatMap(b=>b.type==='movie_carousel'?b.items:[]).some(i=>shown.has(`${i.mediaType}:${i.id}`))).toBe(true);
+ const lookup=items.find(i=>shown.has(`${i.mediaType}:${i.id}`))!;
+ parse.mockResolvedValue(filterQuerySchema.parse({intent:'TITLE_LOOKUP',query:lookup.title,availabilityScope:'all_providers'}));
+ expect((await chat.respond('alice',lookup.title,session)).blocks.flatMap(b=>b.type==='movie_carousel'?b.items:[]).map(i=>i.id)).toContain(lookup.id);
+ vi.spyOn(catalog,'discover').mockResolvedValue([]);
+ parse.mockResolvedValue({...filterQuerySchema.parse({intent:'DISCOVERY',availabilityScope:'all_providers'}),recommendationMode:'new'});
+ expect((await chat.respond('alice','More',session)).blocks.some(b=>b.type==='empty_state'&&b.message.includes('without repeating'))).toBe(true);
+});
+
 it('passes the discussed film and feeling to retrieval and editorial review, not only the router',async()=>{
  vi.spyOn(ai,'mode','get').mockReturnValue('live');
  vi.spyOn(ai,'routeChat').mockResolvedValue({route:'discovery',reply:''});

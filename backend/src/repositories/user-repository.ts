@@ -214,6 +214,13 @@ export class UserRepository {
     await this.db.delete(userEvents).where(and(eq(userEvents.userId,userId),lt(userEvents.createdAt,new Date(Date.now()-90*86_400_000))));
   }
 
+  async sessionRecommendationKeys(userId:string,conversationSessionId:string):Promise<Set<string>>{
+    if(!await this.assertConversation(userId,conversationSessionId))throw new Error('CONVERSATION_NOT_FOUND');
+    const rows=await this.db.select({mediaType:userEvents.mediaType,tmdbId:userEvents.tmdbId}).from(userEvents)
+      .where(and(eq(userEvents.userId,userId),eq(userEvents.eventType,'shown'),sql`json_extract(${userEvents.metadataJson}, '$.context') = ${conversationSessionId}`));
+    return new Set(rows.filter(r=>r.tmdbId!==null).map(r=>`${r.mediaType}:${r.tmdbId}`));
+  }
+
   async rejectTitle(userId: string, mediaType: string, tmdbId: number) { await this.addEvent(userId,"rejected",mediaType,tmdbId,0); }
 
   async getSessionContext(userId: string, conversationSessionId: string) {

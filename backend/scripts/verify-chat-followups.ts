@@ -11,15 +11,27 @@ import {UserRepository} from '../src/repositories/user-repository.js';
 import {LiveTmdbRepository} from '../src/repositories/tmdb-repository.js';
 import {EpgService} from '../src/services/epg/service.js';
 import type {FilterQuery} from '../src/domain/types.js';
+import type {OpenAI} from 'openai';
 
 // Synthetic profiles and catalog cache stay in memory. Real TMDB/OpenAI calls.
 const client=createClient({url:':memory:'});let stage='setup';
 try{
  for(const f of (await readdir(new URL('../drizzle/',import.meta.url))).filter(n=>n.endsWith('.sql')).sort())await client.executeMultiple((await readFile(new URL(`../drizzle/${f}`,import.meta.url),'utf8')).replaceAll('--> statement-breakpoint',''));
  const db=drizzle(client,{schema}),users=new UserRepository(db),ai=new AiService();
+ if(process.argv.includes('--editor-diagnostics')){
+  const sdk=(ai as unknown as {client:OpenAI}).client;
+  const parse=sdk.responses.parse.bind(sdk.responses);
+  sdk.responses.parse=((...args:Parameters<typeof parse>)=>{
+   const result=parse(...args);
+   if(args[0].text?.format?.type==='json_schema'&&args[0].text.format.name==='nex_chat_composition')void result.then(r=>console.log(JSON.stringify({stage:'synthetic-editor-output',parsed:r.output_parsed}))).catch(()=>{});
+   return result;
+  }) as typeof sdk.responses.parse;
+ }
+ const compose=ai.compose.bind(ai);
+ ai.compose=async(...args)=>{try{return await compose(...args);}catch(error){const e=error as {name?:string;message?:string;status?:number;code?:string;issues?:Array<{code:string;path:unknown[]}>};console.log(JSON.stringify({stage:'composition-diagnostic',name:e.name,status:e.status,code:e.code,missing:e.message==='AI_STRUCTURED_OUTPUT_MISSING',schema:e.message?.includes('schema'),unsupported:e.message?.includes('Unsupported'),length:e.message?.length,issues:e.issues?.map(i=>({code:i.code,path:i.path}))}));throw error;}};
  assert.equal(ai.mode,'live');
  const tmdbToken=getConfig().TMDB_READ_ACCESS_TOKEN;assert.ok(tmdbToken);
- const catalog=new LiveTmdbRepository(tmdbToken,db),chat=new ChatService(users,catalog,ai,new EpgService(db));
+ const catalog=new LiveTmdbRepository(tmdbToken,db),chat=new ChatService(users,catalog,ai,new EpgService(db),{combinedPlanner:process.argv.includes('--combined')});
  await db.insert(schema.user).values({id:'qa',name:'QA',email:'followup@example.test'});
  await users.updateSettings('qa',{country:'RO'});
  await users.replaceServices('qa',[{providerId:8,providerName:'Netflix'},{providerId:119,providerName:'Prime Video'},{providerId:1899,providerName:'Max'},{providerId:337,providerName:'Disney+'}]);
@@ -50,11 +62,28 @@ try{
  console.log(JSON.stringify({stage,ms:Math.round(performance.now()-started),filters:context.filter,titles:movies.map(m=>m.title),reply:result.blocks.flatMap(b=>'content'in b?[b.content]:[])}));
  assert.ok(movies.length>0);assert.ok(!movies.some(m=>/fast (?:five|& furious)|furious 7|Life on Our Planet|Long Pond Studio/i.test(m.title)));
  assert.ok(JSON.stringify(context.filter).toLowerCase().includes('wallflower'));
+ const seen=new Set(movies.map(m=>`${m.mediaType}:${m.id}`));
+ for(const prompt of ['Other recommendations','Give me some more options with that same feeling']){
+   stage='non-repeating-continuation';const start=performance.now();
+   const next=await chat.respond('qa',prompt,session);
+   const titles=next.blocks.flatMap(b=>b.type==='movie_carousel'?b.items:[]);
+   const current=(await users.getSessionContext('qa',session)).filter as FilterQuery;
+   console.log(JSON.stringify({stage,ms:Math.round(performance.now()-start),titles:titles.map(m=>m.title),filters:current,reply:next.blocks.flatMap(b=>'content'in b?[b.content]:[])}));
+   assert.equal(current.similarTo,(context.filter as FilterQuery).similarTo);
+   assert.ok(titles.length>0);
+   for(const item of titles){const key=`${item.mediaType}:${item.id}`;assert.ok(!seen.has(key));seen.add(key);}
+   assert.ok(!titles.some(m=>/fast (?:five|& furious)|furious 7/i.test(m.title)));
+   console.log(JSON.stringify({stage,ms:Math.round(performance.now()-start),titles:titles.map(m=>m.title),filters:current,passed:true}));
+ }
  stage='discovery-refinement';
  const previous=context.filter as FilterQuery;
  const refined=await ai.parseIntent('Same feeling but under 110 minutes',previous,{history:await users.recentConversationMessages('qa',session)});
- assert.equal(refined.maxRuntimeMinutes,110);assert.equal(refined.similarTo,previous.similarTo);
+ console.log(JSON.stringify({stage,refined}));
+ // Both the strict integer interpretation (<110) and conventional inclusive
+ // runtime cap (<=110) are valid here; neither may loosen the requested bound.
+ assert.ok([109,110].includes(refined.maxRuntimeMinutes!));assert.equal(refined.similarTo,previous.similarTo);
  const reset=await ai.parseIntent('Forget that film and feeling. A tense mystery instead, no time limit.',refined,{history:await users.recentConversationMessages('qa',session)});
+ console.log(JSON.stringify({stage,reset}));
  assert.equal(reset.similarTo,null);assert.equal(reset.maxRuntimeMinutes,null);assert.ok(reset.genres.some(g=>g.toLowerCase()==='mystery'));
  console.log(JSON.stringify({stage,passed:true}));
  stage='routing-boundaries';
@@ -68,8 +97,8 @@ try{
    ['Write a cake recipe inspired by that film','out_of_scope'],
  ] as const){
    const history=message.includes('lead')?[{role:'user',content:'Tell me about The Perks of Being a Wallflower'},{role:'assistant',content:'It is a coming-of-age drama.'}]:[{role:'user',content:request},{role:'assistant',content:'Should international co-productions remain eligible?'}];
-   const routed=await ai.routeChat(message,history,{});
-   console.log(JSON.stringify({stage,message,expected,actual:routed?.route}));
+   const routed=process.argv.includes('--combined')?await ai.planChat(message,history,{history}):await ai.routeChat(message,history,{});
+   console.log(JSON.stringify({stage,message,expected,actual:routed?.route,reply:routed?.reply}));
    // Both explanation and preference no-op are valid for withdrawal.
    assert.ok(routed?.route===expected||(message.includes('joking')&&routed?.route==='conversation'));
  }

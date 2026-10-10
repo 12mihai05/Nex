@@ -137,6 +137,30 @@ class TasteChatApi extends ChatActionsApi {
   }
 }
 
+class SuggestionChatApi extends ChatActionsApi {
+  Completer<void>? pending;
+  @override
+  Future<Map<String, dynamic>> chat(String message, {String? sessionId}) async {
+    messages.add(message);
+    sessions.add(sessionId);
+    if (pending != null) await pending!.future;
+    return {
+      'sessionId': 'suggestion-session',
+      'blocks': [
+        {'type': 'text', 'content': 'Here are some options.'},
+        {
+          'type': 'quick_actions',
+          'actions': [
+            'Other recommendations',
+            'Something more intense',
+            'Show all services',
+          ],
+        },
+      ],
+    };
+  }
+}
+
 class LoadingTasteApi extends ChatActionsApi {
   Completer<List<Map<String, dynamic>>>? pendingTaste;
   @override
@@ -149,6 +173,55 @@ class LoadingTasteApi extends ChatActionsApi {
 }
 
 void main() {
+  testWidgets(
+    'last suggestion is separate, preserves session and draft, blocks duplicate taps',
+    (tester) async {
+      tester.view.physicalSize = const Size(320, 800);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+      final api = SuggestionChatApi();
+      final container = ProviderContainer(
+        overrides: [nexApiClientProvider.overrideWithValue(api)],
+      );
+      addTearDown(container.dispose);
+      final controller = container.read(appControllerProvider.notifier);
+      await controller.restoreSession();
+      await controller.sendChat('Movies with that same feeling');
+      await tester.pumpWidget(
+        UncontrolledProviderScope(
+          container: container,
+          child: const MaterialApp(home: ChatScreen()),
+        ),
+      );
+      await tester.pumpAndSettle();
+      expect(find.byType(ActionChip), findsNWidgets(3));
+      expect(tester.takeException(), isNull);
+      await tester.enterText(find.byType(TextField), 'My unfinished draft');
+      api.pending = Completer<void>();
+      await tester.ensureVisible(
+        find.widgetWithText(ActionChip, 'Show all services'),
+      );
+      await tester.tap(find.widgetWithText(ActionChip, 'Show all services'));
+      await tester.pump();
+      expect(api.messages.last, 'Show all services');
+      expect(api.sessions.last, 'suggestion-session');
+      expect(
+        tester.widget<TextField>(find.byType(TextField)).controller!.text,
+        'My unfinished draft',
+      );
+      expect(
+        tester
+            .widgetList<ActionChip>(find.byType(ActionChip))
+            .every((chip) => chip.onPressed == null),
+        true,
+      );
+      api.pending!.complete();
+      await tester.pumpAndSettle();
+      expect(api.messages.length, 2);
+      expect(tester.takeException(), isNull);
+    },
+  );
   testWidgets(
     'uncached taste shows matching skeletons, retry handles failure',
     (tester) async {
@@ -280,13 +353,17 @@ void main() {
       );
       await tester.pumpAndSettle();
       expect(find.textContaining('Korean-language titles'), findsWidgets);
-      await tester.enterText(find.byType(TextField),'Korean');
+      await tester.enterText(find.byType(TextField), 'Korean');
       await tester.pumpAndSettle();
-      await tester.scrollUntilVisible(find.text('Korean-language titles'),200,scrollable:find.byType(Scrollable).first);
+      await tester.scrollUntilVisible(
+        find.text('Korean-language titles'),
+        200,
+        scrollable: find.byType(Scrollable).first,
+      );
       expect(find.text('Korean-language titles'), findsOneWidget);
-      await tester.drag(find.byType(CustomScrollView),const Offset(0,700));
+      await tester.drag(find.byType(CustomScrollView), const Offset(0, 700));
       await tester.pumpAndSettle();
-      await tester.enterText(find.byType(TextField),'');
+      await tester.enterText(find.byType(TextField), '');
       await tester.pumpAndSettle();
       expect(controller.tasteEntries, hasLength(43));
       await tester.tap(find.text('Include learned patterns'));

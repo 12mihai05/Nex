@@ -1009,6 +1009,7 @@ class AppController extends Notifier<AppState> {
       if (RegExp(r'\b(add|put|mark|rate|remove|clear|remind|reminder)\b')
           .hasMatch(lower)) {
         state = state.copyWith(
+          busy: false,
           chatMessages: [
             ...state.chatMessages,
             ChatMessage(
