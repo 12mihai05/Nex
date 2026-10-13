@@ -43,16 +43,19 @@ function array<T>(value: T | T[] | undefined): T[] {
 }
 
 function text(value: unknown): string | null {
+  if (Array.isArray(value)) return value.map(text).find(Boolean) ?? null;
   if (typeof value === "string" || typeof value === "number") return String(value).trim() || null;
   if (value && typeof value === "object" && "#text" in value) return text((value as { "#text": unknown })["#text"]);
   return null;
 }
 
 export function parseXmlTvTimestamp(raw: string): Date {
-  const match = raw.trim().match(/^(\d{4})(\d{2})(\d{2})(\d{2})(\d{2})(\d{2})?\s*([+-])(\d{2})(\d{2})$/);
+  const match = raw.trim().replace(/\s+(?:UTC|GMT)$/i,' +0000').match(/^(\d{4})(\d{2})(\d{2})(\d{2})(\d{2})(\d{2})?(?:\s*([+-])(\d{2})(\d{2}))?$/);
   if (!match) throw new Error(`Invalid XMLTV timestamp format`);
-  const [, year, month, day, hour, minute, second = "00", sign, offsetHour, offsetMinute] = match;
+  const [, year, month, day, hour, minute, second = "00", sign='+', offsetHour='00', offsetMinute='00'] = match;
   const utc = Date.UTC(Number(year), Number(month) - 1, Number(day), Number(hour), Number(minute), Number(second));
+  const check=new Date(utc);
+  if(check.getUTCFullYear()!==Number(year)||check.getUTCMonth()!==Number(month)-1||check.getUTCDate()!==Number(day)||Number(hour)>23||Number(minute)>59||Number(second)>59||Number(offsetHour)>23||Number(offsetMinute)>59)throw new Error('Invalid XMLTV timestamp value');
   const offset = (Number(offsetHour) * 60 + Number(offsetMinute)) * 60_000 * (sign === "+" ? 1 : -1);
   const date = new Date(utc - offset);
   if (Number.isNaN(date.getTime())) throw new Error("Invalid XMLTV timestamp value");
@@ -70,7 +73,7 @@ export function parseXmlTv(xml: string): ParsedXmlTv {
     const names = array<any>(entry["display-name"]);
     const primary = names[0];
     return {
-      externalId: String(entry["@_id"]),
+      externalId: String(entry["@_id"]??''),
       displayName: text(primary) ?? String(entry["@_id"]),
       logoUrl: typeof entry.icon?.["@_src"] === "string" ? entry.icon["@_src"] : null,
       language: typeof primary?.["@_lang"] === "string" ? primary["@_lang"] : null,
@@ -95,9 +98,9 @@ export function parseXmlTv(xml: string): ParsedXmlTv {
       description: text(entry.desc),
       startAt,
       endAt,
-      category: text(array<any>(entry.category)[0]),
+      category: array<any>(entry.category).map(text).filter(Boolean).join(' / ') || null,
       language: typeof titleNode?.["@_lang"] === "string" ? titleNode["@_lang"] : null,
-      year: yearText && /^\d{4}$/.test(yearText) ? Number(yearText) : null,
+      year: yearText && /^\d{4}(?:\d{2}(?:\d{2})?)?$/.test(yearText) ? Number(yearText.slice(0,4)) : null,
     } satisfies NormalizedProgram;
     } catch { return null; }
   }).filter((entry): entry is NormalizedProgram => entry !== null);

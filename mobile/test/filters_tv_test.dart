@@ -55,6 +55,24 @@ class ChannelApi extends OfflineCatalogApi {
   Future<void> setChannelFavorite(String id, bool favorite) => save.future;
 }
 
+class PreparingTvApi extends ChannelApi {
+  int preparations = 0, reads = 0;
+  @override
+  Future<void> prepareTv() async {
+    preparations++;
+  }
+
+  @override
+  Future<Map<String, dynamic>> object(String path) async {
+    if (++reads > 1) return super.object(path);
+    return {
+      'channels': [],
+      'hasMore': false,
+      'preparation': {'state': 'not_loaded'},
+    };
+  }
+}
+
 class BusyTvApi extends ChannelApi {
   @override
   Future<Map<String, dynamic>> object(String path) async {
@@ -112,6 +130,32 @@ class BusyTvApi extends ChannelApi {
 }
 
 void main() {
+  testWidgets('cold country prepares once and guide appears after polling', (
+    tester,
+  ) async {
+    final api = PreparingTvApi();
+    final container = ProviderContainer(
+      overrides: [nexApiClientProvider.overrideWithValue(api)],
+    );
+    addTearDown(container.dispose);
+    await container.read(appControllerProvider.notifier).restoreSession();
+    await tester.pumpWidget(
+      UncontrolledProviderScope(
+        container: container,
+        child: const MaterialApp(home: TvScreen()),
+      ),
+    );
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 200));
+    expect(api.preparations, 1);
+    expect(find.textContaining('Preparing your country'), findsOneWidget);
+    expect(find.textContaining('No channels match'), findsNothing);
+    await tester.pump(const Duration(seconds: 11));
+    await tester.pumpAndSettle();
+    expect(find.text('Test channel'), findsOneWidget);
+    expect(api.preparations, 1);
+    await tester.pumpWidget(const SizedBox());
+  });
   testWidgets(
     'unified guide lazily loads thirty favorites and other channels in batches',
     (tester) async {

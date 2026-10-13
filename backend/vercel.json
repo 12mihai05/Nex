@@ -3,6 +3,6 @@
   "version": 2,
   "framework": "hono",
   "functions": {
-    "src/app.ts": { "maxDuration": 120 }
+    "src/app.ts": { "maxDuration": 300 }
   }
 }

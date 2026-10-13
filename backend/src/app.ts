@@ -12,6 +12,8 @@ import { UserRepository } from "./repositories/user-repository.js";
 import { AiService } from "./services/ai.js";
 import { ChatService } from "./services/chat.js";
 import { EpgService } from "./services/epg/service.js";
+import {EpgDemand} from './services/epg/demand.js';
+import {prepareCountry} from './services/epg/prepare.js';
 import { detectSearchIntent } from "./services/intent.js";
 import { rankCandidates } from "./services/recommendation.js";
 import { generateCandidates } from "./services/candidates.js";
@@ -283,7 +285,13 @@ app.get('/api/tv/guide',async c=>{
   if(+start<Date.now()-86400000||+start>Date.now()+14*86400000)throw new HTTPException(400,{message:'Choose a day within the available TV guide.'});
   const userId=c.get('authSession').user.id,{profile}=await users.getSettings(userId);
   c.header('Cache-Control','private, no-store');
-  return c.json({data:await epg.guide(userId,profile.country,start,new Date(+start+6*3600000),input.q,input.offset,input.favorites==='true',orderOverrides)});
+  const [guide,preparation]=await Promise.all([epg.guide(userId,profile.country,start,new Date(+start+6*3600000),input.q,input.offset,input.favorites==='true',orderOverrides),new EpgDemand().status(profile.country)]);
+  return c.json({data:{...guide,preparation}});
+});
+app.post('/api/tv/prepare',async c=>{
+  const {profile}=await users.getSettings(c.get('authSession').user.id);
+  await prepareCountry(profile.country);
+  return c.json({data:await new EpgDemand().status(profile.country)});
 });
 app.put("/api/me/channel-favorites",async c=>{
   const body=z.object({channelId:z.string().min(1).max(500),favorite:z.boolean()}).strict().parse(await c.req.json());
@@ -331,6 +339,7 @@ app.put("/api/me/settings", async (c) => {
   const body = settingsBodySchema.parse(await c.req.json()); const userId = c.get("authSession").user.id;
   const { services, audioLanguages, subtitleLanguages, preferOriginal, ...profile } = body;
   if (Object.keys(profile).length) await users.updateSettings(userId, profile);
+  if(profile.country)await prepareCountry(profile.country).catch(()=>undefined);
   if (services) await users.replaceServices(userId, services);
   if (audioLanguages || subtitleLanguages || preferOriginal !== undefined) {
     const current = (await users.getSettings(userId)).languages;

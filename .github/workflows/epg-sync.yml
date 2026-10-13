@@ -24,15 +24,15 @@ jobs:
           node-version: '22'
           cache: npm
       - run: npm ci
-      - name: Sync bounded country feeds directly to Turso
+      - name: Sync all schedules for countries in use
         env:
           TURSO_DATABASE_URL: ${{ secrets.TURSO_DATABASE_URL }}
           TURSO_AUTH_TOKEN: ${{ secrets.TURSO_AUTH_TOKEN }}
           TMDB_READ_ACCESS_TOKEN: ${{ secrets.TMDB_READ_ACCESS_TOKEN }}
           EPG_SOURCE_TYPE: iptv-org
-          EPG_COUNTRIES: ${{ inputs.countries || vars.EPG_COUNTRIES || 'RO,BG,GB,ES,FR,CH,IT,DE,MD' }}
+          EPG_COUNTRIES: ${{ vars.EPG_COUNTRIES || 'RO,BG,GB,ES,FR,CH,IT,DE,MD' }}
+          EPG_SYNC_COUNTRIES: ${{ inputs.countries }}
           EPG_COUNTRY_SOURCES_JSON: ${{ vars.EPG_COUNTRY_SOURCES_JSON || '{"RO":["https://epgshare01.online/epgshare01/epg_ripper_RO1.xml.gz"],"BG":["https://epgshare01.online/epgshare01/epg_ripper_BG1.xml.gz"]}' }}
-          EPG_MAX_CHANNELS_PER_COUNTRY: '120'
           EPG_MAX_DOWNLOAD_BYTES: '75000000'
           EPG_MAX_MATCHES_PER_SYNC: '5'
         run: npm --workspace backend run epg:sync

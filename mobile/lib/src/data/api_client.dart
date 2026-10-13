@@ -251,6 +251,8 @@ class NexApiClient {
     _planEpoch++;
   }
 
+  Future<void> prepareTv() => _dio.post<void>('/api/tv/prepare');
+
   Future<Map<String, dynamic>> object(String path) async =>
       ((await _dio.get<Map<String, dynamic>>(path)).data!['data'] as Map)
           .cast<String, dynamic>();

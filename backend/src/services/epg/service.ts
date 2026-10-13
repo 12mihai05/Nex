@@ -139,7 +139,7 @@ export class EpgService {
         for(let i=0;i<channelRows.length;i+=50)channelWrites.push(this.db.insert(channels).values(channelRows.slice(i,i+50)).onConflictDoUpdate({target:[channels.sourceId,channels.externalId],set:{active:true,displayName:sql`excluded.display_name`,logoUrl:sql`excluded.logo_url`,language:sql`excluded.language`,canonicalId:sql`excluded.canonical_id`,updatedAt:now}}));
         for (let i = 0; i < rows.length; i += 40) {
           programWrites.push(this.db.insert(epgPrograms).values(rows.slice(i, i + 40)).onConflictDoUpdate({ target: [epgPrograms.sourceId, epgPrograms.sourceProgramId], set: {
-            title: sql`excluded.title`, description: sql`excluded.description`, endAt: sql`excluded.end_at`, updatedAt: now,
+            title: sql`excluded.title`, description: sql`excluded.description`, subtitle:sql`excluded.subtitle`, category:sql`excluded.category`,language:sql`excluded.language`,year:sql`excluded.year`,endAt: sql`excluded.end_at`, updatedAt: now,
             matchedTmdbId: sql`coalesce(excluded.matched_tmdb_id, epg_programs.matched_tmdb_id)`, matchedMediaType: sql`coalesce(excluded.matched_media_type, epg_programs.matched_media_type)`, matchConfidence: sql`coalesce(excluded.match_confidence, epg_programs.match_confidence)`,
           } }));
         }
@@ -205,7 +205,9 @@ export class EpgService {
     const normalizedTitle = `${this.provider.country ?? "RO"}:${normalizeEpgTitle(program.title)}:${program.year ?? "unknown"}`;
     const cached = (await this.db.select().from(epgTmdbMatches).where(and(eq(epgTmdbMatches.normalizedTitle, normalizedTitle), eq(epgTmdbMatches.mediaType, mediaType))).limit(1))[0];
     if (cached?.confidence && cached.confidence >= 0.72) return { mediaType: cached.mediaType, tmdbId: cached.tmdbId, confidence: cached.confidence, evidence: JSON.parse(cached.evidenceJson) as string[] };
-    const candidates = await this.catalog.search({ query: program.title, region: this.provider.country ?? "RO" });
+    // Matching needs titles/year/overview, not streaming-provider hydration for
+    // twenty search results. Avoid blocking the guide import on unrelated reads.
+    const candidates = await this.catalog.search({ query: program.title, region: this.provider.country ?? "RO",summaryOnly:true });
     const match = bestEpgMatch(program, candidates.filter((candidate) => candidate.mediaType === mediaType));
     if (!match) return null;
     await this.db.insert(epgTmdbMatches).values({ normalizedTitle, mediaType: match.mediaType, tmdbId: match.tmdbId, confidence: match.confidence, evidenceJson: JSON.stringify(match.evidence) })

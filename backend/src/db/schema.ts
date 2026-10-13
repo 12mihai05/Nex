@@ -193,6 +193,13 @@ export const channelFavorites = sqliteTable("channel_favorites", {
   createdAt: createdAt(),
 }, table=>[primaryKey({columns:[table.userId,table.channelId]}),index("favorite_channel_idx").on(table.channelId)]);
 
+export const epgCountryDemand = sqliteTable('epg_country_demand', {
+  country: text('country').primaryKey(),
+  everSelected: integer('ever_selected', {mode:'boolean'}).notNull().default(false),
+  inactiveSince: integer('inactive_since', {mode:'timestamp_ms'}),
+  requestedAt: integer('requested_at', {mode:'timestamp_ms'}),
+});
+
 export const epgPrograms = sqliteTable("epg_programs", {
   id: text("id").primaryKey(),
   sourceId: text("source_id").notNull(),

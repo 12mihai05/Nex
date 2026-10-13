@@ -7,7 +7,7 @@ describe("native Hono deployment configuration", () => {
     expect(config.framework).toBe("hono");
     expect(config.rewrites).toBeUndefined();
     expect(config.routes).toBeUndefined();
-    expect(config.functions).toEqual({ "src/app.ts": { maxDuration: 120 } });
+    expect(config.functions).toEqual({ "src/app.ts": { maxDuration: 300 } });
     expect(existsSync(new URL("../api/index.ts", import.meta.url))).toBe(false);
     const entry = readFileSync(new URL("../src/app.ts", import.meta.url), "utf8");
     expect(entry).toContain("export default app;");

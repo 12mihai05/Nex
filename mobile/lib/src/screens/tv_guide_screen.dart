@@ -43,7 +43,9 @@ class _TvGuideScreenState extends ConsumerState<TvGuideScreen> {
   String? error;
   bool loading = false, hasMore = false, favorites = false;
   int generation = 0;
-  Timer? debounce, clock;
+  Timer? debounce, clock, preparationPoll;
+  String preparation = 'ready';
+  DateTime? preparationStarted;
   static DateTime _currentStart() {
     final now = DateTime.now();
     return DateTime(
@@ -83,6 +85,7 @@ class _TvGuideScreenState extends ConsumerState<TvGuideScreen> {
     generation++;
     debounce?.cancel();
     clock?.cancel();
+    preparationPoll?.cancel();
     search.dispose();
     vertical.dispose();
     horizontal.dispose();
@@ -98,6 +101,9 @@ class _TvGuideScreenState extends ConsumerState<TvGuideScreen> {
     if (scope != nextScope) {
       scope = nextScope;
       cache.clear();
+      preparationPoll?.cancel();
+      preparation = 'ready';
+      preparationStarted = null;
       channels = [];
       next = false;
       query = '';
@@ -163,7 +169,32 @@ class _TvGuideScreenState extends ConsumerState<TvGuideScreen> {
       }
       if (!mounted || ticket != generation) return;
       if (cache.length >= 40) cache.remove(cache.keys.first);
-      cache[key] = (at: DateTime.now(), data: data);
+      final preparationState =
+          (data['preparation'] as Map?)?['state'] as String? ?? 'ready';
+      if (preparationState == 'ready') {
+        cache[key] = (at: DateTime.now(), data: data);
+      }
+      preparation = preparationState;
+      if (!state.demoMode && preparationState == 'not_loaded') {
+        await ref.read(nexApiClientProvider).prepareTv();
+        if (!mounted || ticket != generation) return;
+        preparation = 'preparing';
+      }
+      if (preparation == 'preparing') {
+        preparationStarted ??= DateTime.now();
+        if (DateTime.now().difference(preparationStarted!) >
+            const Duration(minutes: 6)) {
+          preparation = 'unavailable';
+        } else {
+          preparationPoll?.cancel();
+          preparationPoll = Timer(const Duration(seconds: 10), () {
+            if (mounted && widget.active) load(force: true);
+          });
+        }
+      } else {
+        preparationPoll?.cancel();
+        if (preparation == 'ready') preparationStarted = null;
+      }
       final incoming = (data['channels'] as List)
           .map((c) => (c as Map).cast<String, dynamic>())
           .where((c) => !state.demoMode || !favorites || c['favorite'] == true)
@@ -561,14 +592,14 @@ class _TvGuideScreenState extends ConsumerState<TvGuideScreen> {
                     itemExtent: rowHeight,
                     itemCount:
                         channels.length +
-                        (loading
+                        (loading || preparation == 'preparing'
                             ? (constraints.maxHeight / rowHeight).ceil()
                             : hasMore
                             ? 1
                             : 0),
                     itemBuilder: (context, index) {
                       if (index >= channels.length) {
-                        if (!loading) {
+                        if (!loading && preparation != 'preparing') {
                           return TextButton(
                             onPressed: () => load(next: true),
                             child: const Text('More channels'),
@@ -655,7 +686,51 @@ class _TvGuideScreenState extends ConsumerState<TvGuideScreen> {
                 ),
               ),
             ),
-            if (!loading && channels.isEmpty && error == null)
+            if (preparation == 'preparing' && error == null)
+              const Padding(
+                padding: EdgeInsets.all(16),
+                child: Text(
+                  'Preparing your country’s TV guide. You can keep using Nex while it loads.',
+                ),
+              ),
+            if (preparation == 'unavailable' && error == null)
+              Padding(
+                padding: const EdgeInsets.all(16),
+                child: Column(
+                  children: [
+                    const Text(
+                      'The TV guide is not ready yet. Please try again in a few minutes.',
+                    ),
+                    TextButton(
+                      onPressed: loading
+                          ? null
+                          : () async {
+                              try {
+                                await ref
+                                    .read(nexApiClientProvider)
+                                    .prepareTv();
+                                if (mounted) {
+                                  preparationStarted = null;
+                                  load(force: true);
+                                }
+                              } catch (_) {
+                                if (context.mounted) {
+                                  showNexNotice(
+                                    context,
+                                    'Could not prepare the guide. Please try again.',
+                                  );
+                                }
+                              }
+                            },
+                      child: const Text('Retry'),
+                    ),
+                  ],
+                ),
+              ),
+            if (!loading &&
+                preparation == 'ready' &&
+                channels.isEmpty &&
+                error == null)
               const Padding(
                 padding: EdgeInsets.all(24),
                 child: Text(
