@@ -1,6 +1,6 @@
 import {and,eq,gt,sql} from 'drizzle-orm';
 import {getDatabase,type NexDatabase} from '../../db/client.js';
-import {channels,epgPrograms,epgCountryDemand} from '../../db/schema.js';
+import {channels,epgPrograms,epgCountryDemand,epgSyncRuns,epgTmdbMatches} from '../../db/schema.js';
 import {getConfig} from '../../config.js';
 
 const DAY=86_400_000;
@@ -38,21 +38,20 @@ export class EpgDemand {
     return rows.length===1;
   }
   async cleanup(now=new Date()){
-    // Recheck demand inside each SQL statement. A profile change and its triggers
-    // cannot interleave with the atomic cleanup transaction.
-    return this.db.transaction(async tx=>{
-      const dormant=await tx.all<{country:string}>(sql`select country from epg_country_demand d
+    // A single atomic batch avoids a remote interactive transaction expiring
+    // during many country-by-country network round trips. Every predicate is
+    // evaluated inside that transaction, so a concurrent return cannot be purged.
+    const dormant=sql`select country from epg_country_demand d
         where inactive_since<=${+now-14*DAY} and not exists(select 1 from profiles p where p.country=d.country)
-        and not exists(select 1 from epg_sync_runs s where s.source_id='iptv-org:'||d.country and s.status='running' and s.started_at>${+now-15*60_000})`);
-      for(const {country} of dormant){
-        await tx.run(sql`delete from epg_programs where channel_id in (select id from channels where country=${country})`);
-        // Keep only the small identities referenced by personal favourites.
-        await tx.run(sql`update channels set active=0 where country=${country}`);
-        await tx.run(sql`delete from channels where country=${country} and not exists(select 1 from channel_favorites f where f.channel_id=channels.id)`);
-        await tx.run(sql`delete from epg_sync_runs where source_id=${'iptv-org:'+country}`);
-        await tx.run(sql`delete from epg_tmdb_matches where normalized_title like ${country+':%'}`);
-      }
-      return dormant.map(r=>r.country);
-    });
+        and not exists(select 1 from epg_sync_runs s where s.source_id='iptv-org:'||d.country and s.status='running' and s.started_at>${+now-15*60_000})`;
+    const result=await this.db.batch([
+      this.db.select({country:epgCountryDemand.country}).from(epgCountryDemand).where(sql`${epgCountryDemand.country} in (${dormant})`),
+      this.db.delete(epgPrograms).where(sql`${epgPrograms.channelId} in (select id from channels where country in (${dormant}))`),
+      this.db.update(channels).set({active:false}).where(sql`${channels.country} in (${dormant})`),
+      this.db.delete(channels).where(sql`${channels.country} in (${dormant}) and not exists(select 1 from channel_favorites f where f.channel_id=channels.id)`),
+      this.db.delete(epgSyncRuns).where(sql`substr(${epgSyncRuns.sourceId},10) in (${dormant}) and ${epgSyncRuns.sourceId} like 'iptv-org:%'`),
+      this.db.delete(epgTmdbMatches).where(sql`substr(${epgTmdbMatches.normalizedTitle},1,2) in (${dormant}) and substr(${epgTmdbMatches.normalizedTitle},3,1)=':'`),
+    ]);
+    return result[0].map(r=>r.country);
   }
 }

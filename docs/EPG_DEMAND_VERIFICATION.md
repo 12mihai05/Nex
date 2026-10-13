@@ -23,8 +23,23 @@
 - New tests cover full import beyond 120, XMLTV dates/repeated fields, shared claims/retries, account changes/deletion, grace/reset, favourite-safe cleanup, running-sync protection, and skeleton-to-guide completion.
 - Dependency audit: zero known vulnerabilities after compatible source-map-js patch.
 
-## Remaining work in this conversation
+## Deployment and Chat follow-up
 
-Deployment/real API verification; TV chat recommendation selection and PPV follow-up regressions; broader private app-context/Taste/broadcast lookup capability audit. Source metadata such as credits/episode numbering is not yet fully persisted; do not claim that every optional XMLTV field is exposed in Nex.
+- EPG commit `31cd56a` deployed READY on Vercel; manual GitHub EPG workflow `38468319945` succeeded.
+- Production authenticated API pagination verified 344 nonempty channels in the checked six-hour window. Preparation endpoint rejects unauthenticated calls and returns ready without starting another import for loaded RO. Disposable RO account deleted after verification; real account untouched.
+- TV Chat now uses model-planned, validated schedule/next/title-airing/recommendation intents. Named-title questions reuse the detail-page broadcast lookup. Recommendations exclude off-air placeholders, shortlist favourites plus alternatives, and use actual Taste with grounded listing metadata. Returned model IDs must exist in supplied listings.
+- Read-only personal Chat retrieves the signed-in user's Taste, ratings, Seen, watchlist, reminders and settings/favourite channels. Reads are paged with counts; a sample is not represented as the full profile. Missing Seen is not evidence the user never watched a title. No credentials or other account identity are exposed to the model.
+- Real OpenAI tests with synthetic local accounts verified Taste explanations, current PPV2, next PPV2, a standalone yes to a TV clarification, personalised TV choices, named-title lookup, and unrelated-task rejection. An initial unnecessary preference clarification was caught and the planner instructions corrected. These are scenario tests, not a guarantee of every possible model response.
+- Dormant cleanup uses one atomic database batch rather than many network round trips inside an interactive transaction.
+- Final backend verification: 278 tests passed across 36 files; typecheck, lint and build passed. Real AI rerun passed all seven synthetic scenarios after the clarification fix. Representative local live-AI latency was 4–6 seconds for factual TV follow-ups, about 8 seconds for Taste explanation and 15–16 seconds for personalised TV selection; this is not an instant-response claim.
+
+## Limits and manual checks
+
+- Source metadata such as credits/episode numbering is not yet fully persisted; not every optional XMLTV field is exposed in Nex. Imported schedule coverage does not mean every programme is linked to TMDB.
+- Fourteen upstream eligible RO channel identities currently have no future listings. No fabricated schedules or new data provider were added.
+- Full cold-country preparation is covered by repository/widget tests, but not proven on a physical phone or an empty production country. It remains bounded by Vercel's 300-second lifetime and provider availability, with retry/daily sync recovery.
+- The 14-day production purge has not elapsed; synthetic tests cover grace, return, deletion, active-sync safety and favourite preservation.
+- Ask Chat what is good on TV, what is next on one specific channel, when a named film airs, and what your saved Taste says. Check the displayed channel/time against the TV guide. Rebuild Flutter for the new country-loading UI; backend-only Chat changes do not require reinstalling.
+- Chat cannot promise to know all user data or every entertainment fact. It reads relevant authorised fields, preserves normal write confirmations, and reports missing evidence. Editing/removing Taste remains available in Profile; no unimplemented Chat deletion capability is promised.
 
 References: [XMLTV format](https://github.com/XMLTV/xmltv/blob/master/xmltv.dtd), [current EPGShare directory](https://epgshare01.online/epgshare01/), [Vercel background lifetime](https://vercel.com/docs/functions/functions-api-reference/vercel-functions-package#waituntil).

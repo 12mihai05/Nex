@@ -21,6 +21,8 @@ import {isExplicitExclusion} from './preference-exclusions.js';
 import {resolveTasteExamples} from './taste-examples.js';
 import {cleanChatBlocks,cleanChatCopy} from '../domain/chat-copy.js';
 import type {ChatIntent} from './chat-intent.js';
+import {ChatTvGuide} from './chat-tv-guide.js';
+import {ChatPersonal} from './chat-personal.js';
 const tasteReply=(message:string)=>/^(?:yes|no|yep|nope|correct|exactly|do that|please do|keep them|allow them|exclude them|cancel|never mind)\b/i.test(message.trim());
 
 export class ChatService {
@@ -52,8 +54,8 @@ export class ChatService {
       const [recent,context,routeDisplayed]=await Promise.all([this.users.recentConversationMessages(userId,sessionId),this.users.getSessionContext(userId,sessionId),this.experiment.combinedPlanner?this.users.recentDisplayedItems(userId,sessionId):Promise.resolve([])]);
       history=recent;
       try{
-        if(this.experiment.combinedPlanner){const plan=await this.ai.planChat(message,recent,{history:recent,focus:context.focus,tastePending:context.tastePending,tv:context.tv,displayed:routeDisplayed,...(context.filter?{filter:context.filter as Partial<import('../domain/types.js').FilterQuery>}:{})});route=plan;plannedFilter=plan.filter??undefined;}
-        else route=await this.ai.routeChat(message,recent,{tastePending:context.tastePending,focus:context.focus,tv:context.tv,filter:context.filter});
+        if(this.experiment.combinedPlanner){const plan=await this.ai.planChat(message,recent,{history:recent,focus:context.focus,personalRead:context.personalRead,tastePending:context.tastePending,tv:context.tv,displayed:routeDisplayed,...(context.filter?{filter:context.filter as Partial<import('../domain/types.js').FilterQuery>}:{})});route=plan;plannedFilter=plan.filter??undefined;}
+        else route=await this.ai.routeChat(message,recent,{tastePending:context.tastePending,personalRead:context.personalRead,focus:context.focus,tv:context.tv,filter:context.filter});
       }
       catch{const content='I couldn’t read your message properly just now. Nothing changed. Please try again.';await this.users.addConversationMessage(userId,sessionId,'assistant',content,[{type:'text',content}]);return {sessionId,blocks:[{type:'text',content}]};}
       if(route?.route==='conversation'||route?.route==='out_of_scope'){
@@ -61,6 +63,14 @@ export class ChatService {
         await this.users.addConversationMessage(userId,sessionId,'assistant',content,[{type:'text',content}]);
         return {sessionId,blocks:[{type:'text',content}]};
       }
+    }
+    if(route?.route==='personal'){
+      const content=await new ChatPersonal(this.users,this.ai,this.epg,this.catalog).answer(userId,sessionId,message).catch(()=>'I couldn’t read your saved profile just now. Nothing changed. Please try again.');
+      const blocks:ChatBlock[]=[{type:'text',content}];await this.users.addConversationMessage(userId,sessionId,'assistant',content,blocks);return {sessionId,blocks};
+    }
+    if(route?.route==='tv'){
+      try{return {sessionId,blocks:await new ChatTvGuide(this.users,this.catalog,this.ai,this.epg).handle(userId,sessionId,message)};}
+      catch{const content='I couldn’t verify the TV guide just now. Please try again.';await this.users.addConversationMessage(userId,sessionId,'assistant',content,[{type:'text',content}]);return {sessionId,blocks:[{type:'text',content}]};}
     }
     const help=route||isPersistentPreference(message)?null:chatCapabilityReply(message);
     if(help){const blocks:ChatBlock[]=[{type:'text',content:help}];await this.users.addConversationMessage(userId,sessionId,'assistant',help,blocks);return {sessionId,blocks};}
@@ -101,7 +111,7 @@ export class ChatService {
       await this.users.saveDisplayedReferences(userId,sessionId,id,programs.map(p=>broadcastReference(p,context.success?context.data.country:state.country)));
       return {sessionId,blocks};
     }
-    const mightBeTv=route?.route==='tv'||/\b(tv|television|channel|broadcast|on|pe|canal)\b|\b(?:at|la)\s*\d/i.test(message);
+    const mightBeTv=!route&&/\b(tv|television|channel|broadcast|on|pe|canal)\b|\b(?:at|la)\s*\d/i.test(message);
     const scope=mightBeTv?requestedTvScope(message,await this.epg.chatChannels(state.country),state.timezone):null;
     if(scope){
       // A new TV question replaces the old anchor even when it cannot be resolved.
