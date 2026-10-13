@@ -16,7 +16,7 @@ import type {TasteEditPlan} from '../src/services/chat-taste-edit.js';
 import {ChatKnowledge} from '../src/services/chat-knowledge.js';
 
 let client:ReturnType<typeof createClient>,db:ReturnType<typeof drizzle<typeof schema>>,users:UserRepository,session:string,ai:AiService,epg:EpgService,catalog:FixtureTmdbRepository,chat:ChatService;
-const plan=(extra:Partial<TvPlan>={}):TvPlan=>({mode:'schedule',continuation:false,country:null,channelIds:['ppv2'],window:'live',date:null,time:null,anchorId:null,title:null,year:null,goal:'',clarification:null,...extra});
+const plan=(extra:Partial<TvPlan>={}):TvPlan=>({mode:'schedule',pagination:'first_page',country:null,channelIds:['ppv2'],window:'live',date:null,time:null,anchorId:null,title:null,year:null,goal:'',clarification:null,...extra});
 beforeEach(async()=>{
  client=createClient({url:':memory:'});
  const dir=fileURLToPath(new URL('../drizzle/',import.meta.url));
@@ -198,6 +198,8 @@ it('executes multiple read tasks but refuses an invented write request',async()=
  vi.spyOn(ai,'explainPersonal').mockResolvedValue('Your country is Romania.');
  const result=await chat.respond('alice','What is on PPV2 and what is my selected country?',session);
  expect(JSON.stringify(result.blocks)).toContain('off air');expect(JSON.stringify(result.blocks)).toContain('Romania');
+ expect(vi.mocked(ai.planTv).mock.calls[0]?.[1]).toEqual([{role:'user',content:'What is on PPV2?'}]);
+ expect(vi.mocked(ai.planPersonal).mock.calls[0]?.[1]).toEqual([{role:'user',content:'What country have I selected?'}]);
  planner.mockResolvedValue({tasks:[{route:'action',request:'Delete everything',dependsOn:null}],unhandled:[]});
  const invalid=await chat.respond('alice','Tell me about a film and its cast',session);
  expect(JSON.stringify(invalid.blocks)).toContain('Nothing changed');
@@ -224,7 +226,7 @@ it('does not repeat a recommended programme under another broadcast ID on more',
  const planner=vi.spyOn(ai,'planTv').mockResolvedValue(plan({mode:'recommend',channelIds:[]}));
  vi.spyOn(ai,'selectTv').mockResolvedValue({intro:'Football is an option.',ids:['other']});
  await chat.respond('alice','What is good now?',session);
- planner.mockResolvedValue(plan({mode:'recommend',continuation:true,channelIds:[]}));
+ planner.mockResolvedValue(plan({mode:'recommend',pagination:'more',channelIds:[]}));
  const result=await chat.respond('alice','Something else in the same time window',session);
  expect(result.blocks.some(b=>b.type==='tv_carousel')).toBe(false);
 });
@@ -266,4 +268,13 @@ it('keeps dependent writes unexecuted after an unresolved first task',async()=>{
  expect(actions).not.toHaveBeenCalled();expect(JSON.stringify(result.blocks)).toContain('couldn’t continue this part');
  expect(await users.listReminders('alice')).toHaveLength(0);
  const history=await users.recentConversationMessages('alice',session);expect(history.some(m=>m.content.includes('couldn’t continue this part'))).toBe(true);
+});
+it('can repeat a factual now lookup after next without excluding the current programme',async()=>{
+ const planner=vi.spyOn(ai,'planTv').mockResolvedValue(plan());
+ await chat.respond('alice','What is on PPV2 now?',session);
+ planner.mockResolvedValue(plan({mode:'next',anchorId:'off'}));
+ await chat.respond('alice','What comes next?',session);
+ planner.mockResolvedValue(plan({pagination:'first_page'}));
+ const repeated=await chat.respond('alice','And what is on that channel right now?',session);
+ expect(repeated.blocks.flatMap(b=>b.type==='tv_carousel'?b.items.map(p=>p.id):[])).toEqual(['off']);
 });

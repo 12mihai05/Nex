@@ -18,6 +18,8 @@ const {AiService}=await import('../src/services/ai.js');
 const originalRouter=AiService.prototype.planChat;
 AiService.prototype.planChat=async function(...args){const result=await originalRouter.apply(this,args);console.log(JSON.stringify({stage,route:result.route}));return result;};
 const originalPersonal=AiService.prototype.planPersonal;
+const originalTv=AiService.prototype.planTv;
+AiService.prototype.planTv=async function(...args){const result=await originalTv.apply(this,args);console.log(JSON.stringify({stage,tvPlan:result}));return result;};
 AiService.prototype.planPersonal=async function(...args){const result=await originalPersonal.apply(this,args);console.log(JSON.stringify({stage,personalPlan:result}));return result;};
 const originalPersonalAnswer=AiService.prototype.explainPersonal;
 AiService.prototype.explainPersonal=async function(...args){console.log(JSON.stringify({stage,syntheticPersonalFacts:args[1]}));return originalPersonalAnswer.apply(this,args);};

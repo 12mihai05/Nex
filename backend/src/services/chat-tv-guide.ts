@@ -8,6 +8,7 @@ import {explicitCountry,countryTimezones} from './country-context.js';
 import {tvWindow,localDayWindow,localClockTime} from './tv-window.js';
 import {normalizeSearch} from './search-ranking.js';
 import {isOffAir,shortlistTv,type TvListing} from './tv-selection.js';
+import {historyForTask} from './chat-capability-plans.js';
 
 export class ChatTvGuide {
   constructor(private users:UserRepository,private catalog:TmdbRepository,private ai:AiService,private epg:EpgService){}
@@ -25,7 +26,7 @@ export class ChatTvGuide {
       if(programs.length)await this.users.saveDisplayedReferences(userId,sessionId,id,programs.map(p=>broadcastReference(p,country)));
       return blocks;
     };
-    const plan=await this.ai.planTv(message,history,context,channels,{country,profileCountry:state.country,date:localDate(now),timezone,nowResolution:'The server resolves now to the exact current instant. Do not convert now to HH:mm; time must be null unless the user requested a particular clock time.'});
+    const plan=await this.ai.planTv(message,historyForTask(history,message),context,channels,{country,profileCountry:state.country,date:localDate(now),timezone,nowResolution:'The server resolves now to the exact current instant. Do not convert now to HH:mm; time must be null unless the user requested a particular clock time.'});
     if(plan.clarification)return reply(plan.clarification);
     if(plan.country){
       if(!(plan.country in countryTimezones))return reply('Which supported country should I check for TV listings?');
@@ -55,9 +56,10 @@ export class ChatTvGuide {
       return window;
     };
     const previous=context.tv as {window?:{start:string;end:string};delivered?:string[];deliveredTitles?:string[];country?:string}|undefined;
-    const window=plan.continuation&&previous?.country===country&&previous.window?{start:new Date(previous.window.start),end:new Date(previous.window.end)}:requestedWindow();
-    const delivered=new Set(plan.continuation?previous?.delivered??[]:[]);
-    const deliveredTitles=new Set(plan.continuation?previous?.deliveredTitles??[]:[]);
+    const more=plan.pagination==='more'&&previous?.country===country;
+    const window=more&&previous.window?{start:new Date(previous.window.start),end:new Date(previous.window.end)}:requestedWindow();
+    const delivered=new Set(more?previous?.delivered??[]:[]);
+    const deliveredTitles=new Set(more?previous?.deliveredTitles??[]:[]);
     if(+window.end<=+now-86400000||+window.start>+now+14*86400000)return reply('That date is outside the available TV guide. I can check the upcoming two weeks where listings exist.');
     let programs:TvListing[]=[],intro:string;
     if(plan.mode==='title_airings'){

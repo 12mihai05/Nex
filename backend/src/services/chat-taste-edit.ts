@@ -2,13 +2,14 @@ import {randomUUID} from 'node:crypto';
 import type {UserRepository} from '../repositories/user-repository.js';
 import type {AiService} from './ai.js';
 import type {TasteSignal,ChatBlock} from '../domain/types.js';
-import {tasteEditSchema} from './chat-capability-plans.js';
+import {tasteEditSchema,historyForTask} from './chat-capability-plans.js';
 export type TasteEditPlan={id:string;expiresAt:number;snapshot:string;targets:Array<{dimension:string;key:string}>;replacements:TasteSignal[];summary:string};
 export class ChatTasteEdit {
  constructor(private users:UserRepository,private ai:AiService){}
  async handle(userId:string,sessionId:string,message:string):Promise<ChatBlock[]>{
   const snapshot=await this.users.tasteSnapshot(userId);
-  const [taste,context,history]=await Promise.all([this.users.getTaste(userId),this.users.getSessionContext(userId,sessionId),this.users.recentConversationMessages(userId,sessionId)]);
+  const [taste,context,recent]=await Promise.all([this.users.getTaste(userId),this.users.getSessionContext(userId,sessionId),this.users.recentConversationMessages(userId,sessionId)]);
+  const history=historyForTask(recent,message);
   if(await this.users.tasteSnapshot(userId)!==snapshot)throw new Error('TASTE_EDIT_STALE');
   delete context.chatPlan;delete context.tasteEditPlan;await this.users.setSessionContext(userId,sessionId,context);
   if(!taste.length)return [{type:'text',content:'There are no saved Taste preferences to remove or correct. Your title ratings and library are separate.'}];

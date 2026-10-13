@@ -1,4 +1,12 @@
 import {z} from 'zod';
+/** A delegated step must not re-interpret the original compound user turn.
+ * Prior conversation is retained; current results travel in canonical context.
+ * This shapes model input only and never rewrites stored conversation history. */
+export function historyForTask(history:Array<{role:string;content:string}>,message:string){
+ const index=history.map(h=>h.role).lastIndexOf('user');
+ if(index<0||history[index]?.content===message)return history;
+ return [...history.slice(0,index),{role:'user',content:message}];
+}
 export const releasePlanSchema=z.object({
  mode:z.enum(['upcoming','title']),title:z.string(),mediaType:z.enum(['movie','series']),year:z.number().int().nullable(),
  country:z.string().regex(/^[A-Z]{2}$/),from:z.string().regex(/^\d{4}-\d{2}-\d{2}$/).nullable(),to:z.string().regex(/^\d{4}-\d{2}-\d{2}$/).nullable(),

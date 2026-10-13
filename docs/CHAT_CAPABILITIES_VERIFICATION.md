@@ -13,7 +13,7 @@
 
 ## Verification completed locally
 
-- Backend: typecheck, lint, 292 tests in 36 files, deployable build.
+- Backend: typecheck, lint, regression tests in 36 files, deployable build (final count recorded with production verification below).
 - Flutter: analyzer clean; 102 tests passed, 20 opt-in tests skipped; Android debug APK built against the production API URL.
 - `backend/scripts/verify-chat-capabilities.ts all`: complete 26-turn run passed through real authentication and the same Hono API endpoints as the app, using an isolated in-memory database. Live OpenAI and TMDB were enabled and exercised; TV programmes were explicitly synthetic. No production user profile was read or changed. Disposable account deleted.
 - Read actual responses, not merely HTTP status. Covered learning/reading/removing Taste with confirmation; channel summary/current/next; compound TV plus settings; upcoming plus more; sourced season announcement; Wallflower feeling recommendations plus explanation and different follow-up titles; multi-title watchlist; Seen without rating; 15-minute reminder and reading it back; out-of-scope coding request.
@@ -27,6 +27,7 @@
 - Country-local release dates were not safely globally ordered by provider primary dates. An out-of-range page no longer terminates the scan prematurely.
 - A supplied rounded current clock minute could select the previous programme near a boundary. The server now retains exact “now” semantics.
 - A reminder-read answer once contradicted the stored reminder. Factual reminder list rendering removes that additional generative step.
+- First deployment verification exposed another compound-TV failure. Specialist history is now scoped to its delegated task without rewriting the stored conversation; duplicate task requests are rejected. TV pagination is explicitly separate from contextual follow-up, so repeating a factual “now” lookup does not suppress an already shown programme.
 - Fixed one grammatical ranking-evidence label and reduced unnecessary technical wording in personal summaries.
 
 ## Limits and remaining physical checks

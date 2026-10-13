@@ -3,12 +3,13 @@ import type {AiService} from './ai.js';
 import type {EpgService} from './epg/service.js';
 import {normalizeSearch} from './search-ranking.js';
 import type {TmdbRepository} from '../repositories/tmdb-repository.js';
+import {historyForTask} from './chat-capability-plans.js';
 
 export class ChatPersonal {
   constructor(private users:UserRepository,private ai:AiService,private epg:EpgService,private catalog:TmdbRepository){}
   async answer(userId:string,sessionId:string,message:string){
     const [context,history]=await Promise.all([this.users.getSessionContext(userId,sessionId),this.users.recentConversationMessages(userId,sessionId)]);
-    const plan=await this.ai.planPersonal(message,history,context.personalRead);
+    const plan=await this.ai.planPersonal(message,historyForTask(history,message),context.personalRead);
     const facts:Record<string,unknown>={};
     const wanted=(scope:string)=>plan.scope===scope||plan.scope==='overview';
     const match=(text:string)=>!plan.query||normalizeSearch(text).includes(normalizeSearch(plan.query));

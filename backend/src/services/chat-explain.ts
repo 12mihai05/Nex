@@ -5,13 +5,14 @@ import {displayedEntity,entitySchema,type Entity} from '../domain/entities.js';
 import {chatReference} from './chat-reference.js';
 import type {TmdbRepository} from '../repositories/tmdb-repository.js';
 import {normalizeSearch} from './search-ranking.js';
+import {historyForTask} from './chat-capability-plans.js';
 export class ChatExplain {
  constructor(private users:UserRepository,private ai:AiService,private catalog?:TmdbRepository){}
  async handle(userId:string,sessionId:string,message:string):Promise<ChatBlock[]>{
   const [context,displayed,history]=await Promise.all([this.users.getSessionContext(userId,sessionId),this.users.recentDisplayedItems(userId,sessionId),this.users.recentConversationMessages(userId,sessionId)]);
   const focus=entitySchema.safeParse(context.focus);
   const entities=displayed.map(displayedEntity).filter((e):e is Entity=>!!e);
-  let {entity,choices}=await chatReference(this.ai,message,entities.length?entities:focus.success?[focus.data]:[],history);
+  let {entity,choices}=await chatReference(this.ai,message,entities.length?entities:focus.success?[focus.data]:[],historyForTask(history,message));
   if(!entity&&this.catalog){
    const subject=await this.ai.knowledgeSubject(message);
    if(subject?.query&&subject.type!=='person'){

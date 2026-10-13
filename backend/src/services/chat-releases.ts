@@ -2,7 +2,7 @@ import type {UserRepository} from '../repositories/user-repository.js';
 import type {TmdbRepository} from '../repositories/tmdb-repository.js';
 import type {AiService} from './ai.js';
 import type {ChatBlock} from '../domain/types.js';
-import {releasePlanSchema} from './chat-capability-plans.js';
+import {releasePlanSchema,historyForTask} from './chat-capability-plans.js';
 import {calendarDay,releaseDate} from '../domain/releases.js';
 import {normalizeSearch} from './search-ranking.js';
 import {countryTimezones} from './country-context.js';
@@ -10,7 +10,8 @@ import {countryTimezones} from './country-context.js';
 export class ChatReleases {
  constructor(private users:UserRepository,private catalog:TmdbRepository,private ai:AiService){}
  async handle(userId:string,sessionId:string,message:string):Promise<ChatBlock[]>{
-  const [context,history,{profile}]=await Promise.all([this.users.getSessionContext(userId,sessionId),this.users.recentConversationMessages(userId,sessionId),this.users.getSettings(userId)]);
+  const [context,recent,{profile}]=await Promise.all([this.users.getSessionContext(userId,sessionId),this.users.recentConversationMessages(userId,sessionId),this.users.getSettings(userId)]);
+  const history=historyForTask(recent,message);
   let today=calendarDay(new Date(),profile.timezone);
   const plan=await this.ai.structured(releasePlanSchema,'release_request','Interpret release questions. upcoming is a list of future cinema films, title is a named film or series release/renewal/season question. Resolve title and country from recent context; otherwise use profile country. Never interpret next season as a new series premiere. continuation=true only for more/next page of the same upcoming list; retain its dates/country. news=true for announcements, renewal, cancellation, delay or requests for the latest news. Dates are local YYYY-MM-DD. No date does not mean cancelled. Clarify ambiguous references rather than inventing a title.',{message,history,focus:context.focus,previous:context.releaseBrowse,country:profile.country,today});
   if(plan.clarification)return [{type:'text',content:plan.clarification}];

@@ -6,6 +6,7 @@ import type {AiService} from './ai.js';
 import type {EpgService} from './epg/service.js';
 import {normalizeSearch} from './search-ranking.js';
 import {chatReference} from './chat-reference.js';
+import {historyForTask} from './chat-capability-plans.js';
 
 export const isKnowledgeQuestion=(s:string)=>/\b(who (?:plays|played|is|was|directed|wrote)|what else|tell me (?:more|about)|what(?: is|['’]s) .+ about|where (?:was|is) .+ filmed|based on a true story|cancelled|canceled|another season|renewed|announced|confirmed|when is .+ (?:on|airing)|when will .+ air|what episode|how many (?:seasons|episodes))\b/i.test(s);
 const text=(content:string):ChatBlock[]=>[{type:'text',content}];
@@ -27,7 +28,7 @@ export class ChatKnowledge {
   if(subject?.query&&(!entity||normalizeSearch(entity.title)!==normalizeSearch(subject.query)))entity=null;
   if(!entity&&focus.success&&focusedEpisode)entity=focus.data;
   if(refersBack(message)&&!entity&&!subject?.query){
-   const resolved=await chatReference(this.ai,message,displayed,await this.users.recentConversationMessages(userId,sessionId));entity=resolved.entity;
+   const resolved=await chatReference(this.ai,message,displayed,historyForTask(await this.users.recentConversationMessages(userId,sessionId),message));entity=resolved.entity;
    if(!entity)return [...text('Which one do you mean? Choose a title or tell me its position in the cards.'),...(resolved.choices.length?[{type:'quick_actions' as const,actions:resolved.choices.map(t=>`Tell me about ${t}`)}]:[])];
   }
   const {profile}=await this.users.getSettings(userId);

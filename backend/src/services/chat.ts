@@ -26,7 +26,7 @@ import {ChatPersonal} from './chat-personal.js';
 import {ChatReleases} from './chat-releases.js';
 import {ChatExplain} from './chat-explain.js';
 import {ChatTasteEdit} from './chat-taste-edit.js';
-import {taskPlanSchema,chatTaskInstructions} from './chat-capability-plans.js';
+import {taskPlanSchema,chatTaskInstructions,historyForTask} from './chat-capability-plans.js';
 import type {ChatRoute} from './chat-routing.js';
 const tasteReply=(message:string)=>/^(?:yes|no|yep|nope|correct|exactly|do that|please do|keep them|allow them|exclude them|cancel|never mind)\b/i.test(message.trim());
 
@@ -51,7 +51,7 @@ export class ChatService {
     // language intent. They are quota-exempt and must never trigger an LLM call.
     const protocolCommand=/^(confirm|cancel) changes(?: [a-f0-9-]{36})?$/i.test(message);
     let route:Awaited<ReturnType<AiService['routeChat']>>=forcedRoute?{route:forcedRoute,reply:''}:protocolCommand?{route:'action',reply:''}:null;
-    let history:Array<{role:string;content:string}>|undefined=forcedRoute?await this.users.recentConversationMessages(userId,sessionId):undefined;
+    let history:Array<{role:string;content:string}>|undefined=forcedRoute?historyForTask(await this.users.recentConversationMessages(userId,sessionId),message):undefined;
     let plannedFilter:ChatIntent|undefined;
     if(protocolCommand){
       const context=await this.users.getSessionContext(userId,sessionId),id=message.match(/[a-f0-9-]{36}$/i)?.[0];
@@ -80,7 +80,7 @@ export class ChatService {
       const context=await this.users.getSessionContext(userId,sessionId);
       const plan=await this.ai.structured(taskPlanSchema,'chat_tasks',chatTaskInstructions,{message,history,context:{focus:context.focus,tv:context.tv,filter:context.filter,releaseBrowse:context.releaseBrowse,personalRead:context.personalRead}}).catch(()=>null);
       const write=(r:string)=>['action','preference','taste_edit'].includes(r);
-      if(!plan||!plan.tasks.length||plan.unhandled.length||plan.tasks.filter(t=>write(t.route)).length>1||plan.tasks.some((t,i)=>t.dependsOn!==null&&t.dependsOn>=i||write(t.route)&&!message.includes(t.request))){
+      if(!plan||!plan.tasks.length||plan.unhandled.length||new Set(plan.tasks.map(t=>t.request.trim())).size!==plan.tasks.length||plan.tasks.filter(t=>write(t.route)).length>1||plan.tasks.some((t,i)=>t.dependsOn!==null&&t.dependsOn>=i||write(t.route)&&!message.includes(t.request))){
         const content='I couldn’t safely separate all the parts of that request. Please send them as smaller requests so none gets missed and each change can be checked. Nothing changed.';
         await this.users.addConversationMessage(userId,sessionId,'assistant',content,[{type:'text',content}]);return {sessionId,blocks:[{type:'text',content}]};
       }
