@@ -24,6 +24,13 @@ try{
   const data=await response.json() as {data:{blocks:Array<{type:string;content?:string}>}};
   assert.ok(data.data.blocks.some(b=>b.type==='text'&&/Romania|\bRO\b/i.test(b.content??'')));
   console.log(JSON.stringify({deployedPersonalChatVerified:true}));
+  stage='deployed title broadcast lookup';
+  const broadcast=await request('/api/chat','POST',{message:'Will Interstellar (2014) be on TV?'});assert.equal(broadcast.status,200);
+  const answer=await broadcast.json() as {data:{blocks:Array<{type:string;content?:string}>}};
+  assert.ok(answer.data.blocks.some(b=>b.type==='text'&&b.content?.includes('Interstellar')));
+  assert.ok(!answer.data.blocks.some(b=>b.type==='movie_carousel'));
+  assert.ok(!JSON.stringify(answer).includes('couldn’t verify the TV guide'));
+  console.log(JSON.stringify({deployedTitleBroadcastLookupVerified:true}));
  }
 }catch{console.log(JSON.stringify({failedStage:stage,detailsWithheld:true}));process.exitCode=1;}
 finally{if(token){const r=await request('/api/auth/delete-user','POST',{password}).catch(()=>null);console.log(JSON.stringify({testAccountDeleted:r?.status===200}));if(r?.status!==200)process.exitCode=1;}}

@@ -32,6 +32,7 @@
 - Real OpenAI tests with synthetic local accounts verified Taste explanations, current PPV2, next PPV2, a standalone yes to a TV clarification, personalised TV choices, named-title lookup, and unrelated-task rejection. An initial unnecessary preference clarification was caught and the planner instructions corrected. These are scenario tests, not a guarantee of every possible model response.
 - Dormant cleanup uses one atomic database batch rather than many network round trips inside an interactive transaction.
 - Final backend verification: 278 tests passed across 36 files; typecheck, lint and build passed. Real AI rerun passed all seven synthetic scenarios after the clarification fix. Representative local live-AI latency was 4–6 seconds for factual TV follow-ups, about 8 seconds for Taste explanation and 15–16 seconds for personalised TV selection; this is not an instant-response claim.
+- Chat/runtime commit `fee1b59` deployed READY as `dpl_48J4Js1YReV2jPfNgaVzs65yFjTR` with both production aliases. Post-deployment verification passed: full 344-channel guide pagination, preparation authorization/idempotence, Chat reading the disposable account's real selected country, and a real Interstellar/TMDB broadcast lookup. Disposable account deleted. Latest EPG and release-check GitHub runs both successful.
 
 ## Limits and manual checks
 
