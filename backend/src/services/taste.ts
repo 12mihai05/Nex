@@ -1,23 +1,34 @@
 import type { ContentItem, TasteSignal } from "../domain/types.js";
+import {balancedTaste} from './interest-coverage.js';
 
-export interface TasteEvidence { id: string; source: string; score: number; weight: number; explicit: boolean; at: string; conditions?:TasteSignal['conditions']; statement?:string; meaning?:string; example?:TasteSignal['example']; exclude?:boolean; }
+export interface TasteEvidence { id: string; source: string; score: number; weight: number; explicit: boolean; at: string; group?:string; conditions?:TasteSignal['conditions']; statement?:string; meaning?:string; example?:TasteSignal['example']; exclude?:boolean; }
+export const titleReliability:Record<string,number>={genre:.75,keyword:.5,mood:.5,director:.3,actor:.2,language:.1,decade:.1,format:.1,country:.1,franchise:.5};
 export const signalStrength = { super_like: 1, like: .72, meh: 0, dislike: -1, watchlist: .35, watched: 0, explicit_preference: 1, search: .015, detail_open: .01 } as const;
 export function evidenceWeight(source: string): number {
   return ({ super_like: 2, like: 1.3, dislike: 2, onboarding_favorite: 1.3, watchlist: .35, search: .015, detail_open: .01, watched: 0 } as Record<string, number>)[source] ?? 3;
 }
 export function aggregateEvidence(dimension: string, key: string, entries: TasteEvidence[], now = Date.now()): TasteSignal {
   const correction = entries.filter((e) => ["explicit_edit", "chat_explicit", "onboarding_explicit", "onboarding_text"].includes(e.source)).reverse().sort((a,b) => b.at.localeCompare(a.at))[0];
-  const active = correction ? [correction] : entries;
-  let sum = 0, mass = 0;
+  const unique=[...new Map([...entries].sort((a,b)=>a.at.localeCompare(b.at)).map(e=>[e.id,e])).values()];
+  const active = correction ? [correction] : balancedTaste()?unique:entries;
+  const groups=new Map<string,number>();
+  let sum = 0, mass = 0, freshMass=0;
   for (const entry of active) {
     const ageDays = Math.floor(Math.max(0, now - Date.parse(entry.at)) / 86_400_000);
     // A rating is explicit about a title, not about every actor/genre in it.
     // Directly stated traits persist; inferred traits decay gently over a year.
     const durable = ["explicit_edit", "chat_explicit", "onboarding_explicit", "onboarding_text"].includes(entry.source);
-    const weight = entry.weight * (durable ? 1 : Math.pow(.5, ageDays / 365));
+    const group=entry.group??entry.id;
+    const repeats=groups.get(group)??0;groups.set(group,repeats+1);
+    const freshWeight=entry.weight*(balancedTaste()&&!durable?1/(1+repeats):1);
+    freshMass+=freshWeight;
+    const weight = freshWeight * (durable ? 1 : Math.pow(.5, ageDays / 365));
     sum += entry.score * weight; mass += weight;
   }
-  return { dimension, key, score: mass ? sum / mass : 0, confidence: mass / (mass + 1), evidenceCount: Math.max(1, entries.length), source: correction?.source ?? entries.at(-1)?.source ?? "unknown", explicit: Boolean(correction || entries.some((e) => e.explicit)), sources: [...new Set(entries.map((e) => e.source))], lastEvidenceAt: entries.map((e) => e.at).sort().at(-1) ?? new Date(now).toISOString(), updatedAt: new Date(now).toISOString(),...(typeof correction?.exclude==='boolean'?{exclude:correction.exclude}:{}),...(correction?.conditions?.length?{conditions:correction.conditions}:{}),...(correction?.statement?{statement:correction.statement}:{}),...(correction?.meaning?{meaning:correction.meaning}:{}),...(correction?.example?{example:correction.example}:{}) };
+  const incidental=['actor','director','language','country','decade','format'].includes(dimension);
+  const confidenceCap=balancedTaste()&&!correction?Math.min(.9,(incidental?.18:.38)+Math.max(0,groups.size-1)*(incidental?.08:.14)):1;
+  const confidence=balancedTaste()&&!correction?Math.min(confidenceCap,freshMass/(freshMass+1))*(freshMass?mass/freshMass:0):mass/(mass+1);
+  return { dimension, key, score: mass ? sum / mass : 0, confidence, evidenceCount: Math.max(1, balancedTaste()&&!correction?groups.size:entries.length), source: correction?.source ?? entries.at(-1)?.source ?? "unknown", explicit: Boolean(correction || entries.some((e) => e.explicit)), sources: [...new Set(entries.map((e) => e.source))], lastEvidenceAt: entries.map((e) => e.at).sort().at(-1) ?? new Date(now).toISOString(), updatedAt: new Date(now).toISOString(),...(typeof correction?.exclude==='boolean'?{exclude:correction.exclude}:{}),...(correction?.conditions?.length?{conditions:correction.conditions}:{}),...(correction?.statement?{statement:correction.statement}:{}),...(correction?.meaning?{meaning:correction.meaning}:{}),...(correction?.example?{example:correction.example}:{}) };
 }
 export function titleDimensions(item: ContentItem): Array<{ dimension: string; key: string }> {
   return [

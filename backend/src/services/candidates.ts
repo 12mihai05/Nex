@@ -2,15 +2,16 @@ import type { ContentItem, FilterQuery } from "../domain/types.js";
 import type { TmdbRepository,DiscoverOptions } from "../repositories/tmdb-repository.js";
 import type { UserRepository } from "../repositories/user-repository.js";
 import {canonicalConcept} from "./concepts.js";
+import {balancedTaste,interestSeeds,positiveInterests} from './interest-coverage.js';
 
 type State=Awaited<ReturnType<UserRepository['getRecommendationState']>>;
 export function personalizedSources(catalog:TmdbRepository,state:State,options:DiscoverOptions):Promise<ContentItem[]>[] {
  const jobs:Promise<ContentItem[]>[]=[];
  // Verified conversational examples supplement retrieval; final ranking still enforces all filters.
- const examples=state.taste.filter(s=>s.example&&s.score>.3&&s.confidence>.5).sort((a,b)=>b.score*b.confidence-a.score*a.confidence).slice(0,2);
+ const examples=positiveInterests(state.taste.filter(s=>s.example&&s.confidence>.5),2);
  if(catalog.related)for(const signal of examples)jobs.push(catalog.related(signal.example!.mediaType,signal.example!.tmdbId,state.country));
  const targetedLimit=jobs.length+2;
- const interests=state.taste.filter(s=>['language','country','combination'].includes(s.dimension)&&s.score>.3&&s.confidence>.5).sort((a,b)=>b.score*b.confidence-a.score*a.confidence);
+ const interests=positiveInterests(state.taste.filter(s=>['language','country','combination'].includes(s.dimension)&&s.confidence>.5),2);
  for(const interest of interests){
    if(jobs.length>=targetedLimit)break;
    const conditions=interest.conditions??[{dimension:interest.dimension,values:[interest.key]}];
@@ -22,7 +23,8 @@ export function personalizedSources(catalog:TmdbRepository,state:State,options:D
    if(values('keyword')?.length&&!options.keywords?.length){query.keywords=values('keyword')!;targeted=true;}
    if(targeted)jobs.push(catalog.discover(query));
  }
- const person=state.taste.filter(s=>['actor','director'].includes(s.dimension)&&s.score>.3&&s.confidence>.5).sort((a,b)=>b.score*b.confidence-a.score*a.confidence)[0];
+ const peopleInterests=state.taste.filter(s=>['actor','director'].includes(s.dimension)&&s.score>.3&&s.confidence>.5).sort((a,b)=>b.score*b.confidence-a.score*a.confidence);
+ const person=balancedTaste()?peopleInterests[Math.floor(Date.now()/86_400_000)%Math.max(1,peopleInterests.length)]:peopleInterests[0];
  if(person&&catalog.people&&catalog.knowledge)jobs.push((async()=>{
    const people=(await catalog.people!(person.key)).filter(p=>p.name.toLowerCase()===person.key.toLowerCase());
    if(people.length!==1)return [];
@@ -53,7 +55,7 @@ export async function generateCandidates(catalog: TmdbRepository, state: Awaited
   }
   const relevantGenres=query.genres.length?query.genres:genres;
   const topics=[...new Set(state.taste.filter(s=>["keyword","theme"].includes(s.dimension)&&s.score>.3&&s.confidence>.3).sort((a,b)=>b.score*b.confidence-a.score*a.confidence).map(s=>canonicalConcept(s.key)))];
-  const selectedTopics=query.keywords.length?query.keywords:query.similarTo?[]:topics.slice(0,4);
+  const selectedTopics=query.keywords.length?query.keywords:query.similarTo?[]:interestSeeds(topics,4,t=>t);
   // Separate sources preserve alternative interests; do not AND unrelated tastes
   // or force a story concept into a background genre preference.
   for(const topic of selectedTopics.slice(0,4))jobs.push(catalog.discover({...options,page,keywords:[topic],limit:8}));

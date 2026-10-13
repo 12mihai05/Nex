@@ -19,6 +19,7 @@ const envSchema = z.object({
   OPENAI_EMBEDDING_MODEL: z.string().default("text-embedding-3-large"),
   OPENAI_EMBEDDING_DIMENSIONS: z.coerce.number().int().min(64).max(1536).default(1024),
   RECOMMENDATION_AI_DAILY_LIMIT: z.coerce.number().int().min(1).max(100).default(15),
+  RECOMMENDATION_PROFILE_VERSION: z.enum(['legacy','balanced']).default('balanced'),
   AI_DAILY_MESSAGE_LIMIT: z.coerce.number().int().min(1).max(1000).default(30),
   EPG_SOURCE_TYPE: z.enum(["fixture", "xmltv", "iptv-org", "iptv_org"]).default("fixture"),
   IPTV_ORG_API_BASE: z.string().url().default("https://iptv-org.github.io/api"),

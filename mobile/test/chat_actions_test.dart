@@ -478,6 +478,8 @@ void main() {
     expect(find.text('Update your taste'), findsOneWidget);
     expect(find.text('Manage your library'), findsOneWidget);
     await tester.ensureVisible(find.text('Set a TV reminder'));
+    await tester.tap(find.text('Set a TV reminder'));
+    await tester.pumpAndSettle();
     expect(find.textContaining('advance minutes'), findsOneWidget);
     expect(tester.takeException(), isNull);
   });

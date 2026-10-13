@@ -41,10 +41,10 @@ export class ChatService {
 
   async respond(userId: string, message: string, requestedSessionId?: string): Promise<{ sessionId: string; blocks: ChatBlock[] }> {
     const result=await this.respondInternal(userId,message,requestedSessionId);
-    return {...result,blocks:cleanChatBlocks(result.blocks)};
+    return {sessionId:result.sessionId,blocks:cleanChatBlocks(result.blocks)};
   }
 
-  private async respondInternal(userId: string, message: string, requestedSessionId?: string,forcedRoute?:ChatRoute['route']): Promise<{ sessionId: string; blocks: ChatBlock[] }> {
+  private async respondInternal(userId: string, message: string, requestedSessionId?: string,forcedRoute?:ChatRoute['route']): Promise<{ sessionId: string; blocks: ChatBlock[]; readVerified?:boolean }> {
     const sessionId = requestedSessionId ?? await this.users.createConversation(userId);
     if(!forcedRoute)await this.users.addConversationMessage(userId, sessionId, "user", message);
     // These are application-generated confirmation commands, not natural-
@@ -84,15 +84,16 @@ export class ChatService {
         const content='I couldn’t safely separate all the parts of that request. Please send them as smaller requests so none gets missed and each change can be checked. Nothing changed.';
         await this.users.addConversationMessage(userId,sessionId,'assistant',content,[{type:'text',content}]);return {sessionId,blocks:[{type:'text',content}]};
       }
-      const blocks:ChatBlock[]=[],resolved:boolean[]=[];
+      const blocks:ChatBlock[]=[],resolved:boolean[]=[],completed:boolean[]=[];
       for(const task of plan.tasks){
-        if(task.dependsOn!==null&&!resolved[task.dependsOn]){const block:ChatBlock={type:'text',content:`I couldn’t continue this part without a verified result: ${task.request}. Please clarify the title or programme first.`};blocks.push(block);await this.users.addConversationMessage(userId,sessionId,'assistant',block.content,[block]);resolved.push(false);continue;}
+        if(task.dependsOn!==null&&!(write(task.route)?resolved[task.dependsOn]:completed[task.dependsOn])){const block:ChatBlock={type:'text',content:`I couldn’t continue this part without a verified result: ${task.request}. Please clarify the title or programme first.`};blocks.push(block);await this.users.addConversationMessage(userId,sessionId,'assistant',block.content,[block]);resolved.push(false);completed.push(false);continue;}
         const before=await this.users.getSessionContext(userId,sessionId);
         try{
           const result=await this.respondInternal(userId,task.request,sessionId,task.route);blocks.push(...result.blocks);
           const after=await this.users.getSessionContext(userId,sessionId);
           resolved.push(result.blocks.some(b=>(b.type==='movie_carousel'||b.type==='tv_carousel')&&b.items.length>0)||Boolean(after.focus&&(result.blocks.some(b=>b.type==='knowledge')||JSON.stringify(after.focus)!==JSON.stringify(before.focus))));
-        }catch{const content=`I couldn’t complete this part just now: ${task.request}. Other completed parts are shown above; check any saved changes before retrying.`;blocks.push({type:'text',content});await this.users.addConversationMessage(userId,sessionId,'assistant',content,[{type:'text',content}]);resolved.push(false);}
+          completed.push(Boolean(result.readVerified||resolved[resolved.length-1]));
+        }catch{const content=`I couldn’t complete this part just now: ${task.request}. Other completed parts are shown above; check any saved changes before retrying.`;blocks.push({type:'text',content});await this.users.addConversationMessage(userId,sessionId,'assistant',content,[{type:'text',content}]);resolved.push(false);completed.push(false);}
       }
       return {sessionId,blocks};
     }
@@ -105,8 +106,9 @@ export class ChatService {
       return {sessionId,blocks};
     }
     if(route?.route==='personal'){
-      const content=await new ChatPersonal(this.users,this.ai,this.epg,this.catalog).answer(userId,sessionId,message).catch(()=>'I couldn’t read your saved profile just now. Nothing changed. Please try again.');
-      const blocks:ChatBlock[]=[{type:'text',content}];await this.users.addConversationMessage(userId,sessionId,'assistant',content,blocks);return {sessionId,blocks};
+      let readVerified=true;
+      const content=await new ChatPersonal(this.users,this.ai,this.epg,this.catalog).answer(userId,sessionId,message).catch(()=>{readVerified=false;return 'I couldn’t read your saved profile just now. Nothing changed. Please try again.';});
+      const blocks:ChatBlock[]=[{type:'text',content}];await this.users.addConversationMessage(userId,sessionId,'assistant',content,blocks);return {sessionId,blocks,readVerified};
     }
     if(route?.route==='tv'){
       try{return {sessionId,blocks:await new ChatTvGuide(this.users,this.catalog,this.ai,this.epg).handle(userId,sessionId,message)};}

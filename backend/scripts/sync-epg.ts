@@ -6,8 +6,17 @@ import { createEpgProvider } from "../src/services/epg/provider.js";
 import { getDatabase } from "../src/db/client.js";
 import { EpgSyncError, syncErrorCode } from '../src/services/epg/sync-error.js';
 import {EpgDemand} from '../src/services/epg/demand.js';
+import {lt} from 'drizzle-orm';
+import {userEvents} from '../src/db/schema.js';
 
 try {
+  // Retention runs in existing scheduled maintenance, not the Home request.
+  try {
+    await getDatabase().delete(userEvents).where(lt(userEvents.createdAt,new Date(Date.now()-90*86_400_000)));
+  } catch {
+    console.error('USER_EVENT_RETENTION_FAILED');
+    process.exitCode = 1; // Still attempt TV sync; report failed maintenance to CI.
+  }
   const demand=new EpgDemand();
   console.log(JSON.stringify({cleanupCountries:await demand.cleanup()}));
   const requested=process.env.EPG_SYNC_COUNTRIES?.split(',').map(c=>c.trim().toUpperCase());

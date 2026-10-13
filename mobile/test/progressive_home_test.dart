@@ -41,7 +41,48 @@ class ProgressiveApi extends MutableApi {
   }
 }
 
+class StartupApi extends MutableApi {
+  final extras = Completer<List<Map<String, dynamic>>>();
+  final flags = Completer<List<Map<String, dynamic>>>();
+  final started = <String>[];
+  @override
+  Future<List<Map<String, dynamic>>> list(String path) {
+    started.add(path);
+    if (path == '/api/me/reminders' || path == '/api/me/taste') {
+      return extras.future;
+    }
+    if (path == '/api/me/history') return flags.future;
+    return super.list(path);
+  }
+}
+
 void main() {
+  test('discovery starts before flags complete; reminders and Taste cannot block Home', () async {
+    final api = StartupApi();
+    final container = ProviderContainer(
+      overrides: [nexApiClientProvider.overrideWithValue(api)],
+    );
+    addTearDown(container.dispose);
+    final controller = container.read(appControllerProvider.notifier);
+    await controller.restoreSession(background: true);
+    await Future<void>.delayed(Duration.zero);
+    expect(api.started, contains('/api/discovery?batch=0'));
+    expect(container.read(appControllerProvider).busy, isTrue);
+    api.flags.complete([
+      {'tmdbId': 101, 'mediaType': 'movie', 'titleSnapshot': 'Title 101'},
+    ]);
+    await Future<void>.delayed(Duration.zero);
+    expect(container.read(appControllerProvider).busy, isFalse);
+    expect(
+      controller.browseRows.expand((r) => r.items).any((i) => i.id == 101),
+      isFalse,
+    );
+    expect(api.extras.isCompleted, isFalse);
+    expect(api.started, isNot(contains('/api/tv/upcoming')));
+    api.extras.completeError(StateError('Independent service failed'));
+    await Future<void>.delayed(Duration.zero);
+    expect(container.read(appControllerProvider).error, isNull);
+  });
   test('startup returns after validation while first shelves are still pending; pagination retries and appends', () async {
     final api = ProgressiveApi();
     final container = ProviderContainer(
@@ -68,7 +109,7 @@ void main() {
       await controller.loadMoreHome();
     }
     expect(controller.hasMoreHome, isFalse);
-    expect(controller.browseRows.length, 6);
+    expect(controller.browseRows.length, 7);
   });
   test(
     'append preserves existing rows and suppresses repeated shelf contents',

@@ -261,6 +261,11 @@ class NexApiClient {
     var uri = Uri.parse(path);
     final params = Map<String, String>.from(uri.queryParameters);
     final discovery = uri.path == '/api/discovery';
+    if (discovery) {
+      params['firstRows'] = '3';
+      params['compact'] = 'true';
+      uri = uri.replace(queryParameters: params);
+    }
     final keyEntries = params.entries.where((e) => e.key != 'batch').toList()
       ..sort((a, b) => a.key.compareTo(b.key));
     final key = keyEntries.map((e) => '${e.key}=${e.value}').join('&');

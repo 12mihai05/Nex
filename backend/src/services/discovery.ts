@@ -7,6 +7,9 @@ import { contentTraits } from "./content-traits.js";
 import {personalizedSources} from './candidates.js';
 import type { PersonalizationService } from './personalization.js';
 import type { RecommendationContext } from './recommendation.js';
+import {homeWindow} from './home-delivery.js';
+import {balancedTaste,interestSeeds} from './interest-coverage.js';
+import {boundedSettled} from './bounded-map.js';
 
 type State = Awaited<ReturnType<UserRepository["getRecommendationState"]>>;
 export type HomeFilters = Partial<FilterQuery> & {watchStatus?: "new" | "again" | "either"};
@@ -68,7 +71,7 @@ export function discoveryShelves(state: State): Shelf[] {
   const liked = (dimension: string) => state.taste.filter(s => s.dimension === dimension && s.score > .3 && s.confidence >= .35)
     .sort((a,b) => b.score*b.confidence-a.score*a.confidence).map(s=>s.key);
   const genres = [...new Map([...liked("genre"), "Drama", "Comedy", "Thriller", "Animation"].map(g=>[g.toLowerCase(),g])).values()].slice(0,4);
-  const concepts = [...new Set([...liked("keyword"), ...liked("theme")])].slice(0,4);
+  const concepts = [...new Set([...liked("keyword"), ...liked("theme")])].slice(0,balancedTaste()?8:4);
   const shelves: Shelf[] = [
     { id:"for-you",title:"Your opening credits",subtitle:"Personal picks, ranked around your taste" },
     ...(state.watchlistKeys.size?[{id:"watchlist",title:"From your watchlist",subtitle:"Unseen picks available on your services",accepts:(i:ContentItem)=>state.watchlistKeys.has(titleKey(i))}]:[]),
@@ -107,7 +110,7 @@ export function discoveryShelves(state: State): Shelf[] {
     ordered.splice(6,0,{id:"rewatch",title:"Watch again",subtitle:"Seen and liked, available on your services",accepts:i=>state.watchedKeys.has(titleKey(i))&&state.favorites.some(f=>`${f.mediaType}:${f.tmdbId}`===titleKey(i))});
   return ordered.slice(0,36);
 }
-export function buildDiscoveryRows(items: ContentItem[], state: State, userId: string, filters: HomeFilters = {}, batch?: number, plan?: string[], seen:string[] = [], personal: Pick<RecommendationContext,'personalAdjustments'|'scoreCache'> = {}) {
+export function buildDiscoveryRows(items: ContentItem[], state: State, userId: string, filters: HomeFilters = {}, batch?: number, plan?: string[], seen:string[] = [], personal: Pick<RecommendationContext,'personalAdjustments'|'scoreCache'> = {}, firstBatchSize=6) {
   if (filters.providerIds?.some(id=>!state.ownedProviderIds.includes(id))) return [];
   if (filters.watchStatus === "again") items=items.filter(i=>state.watchedKeys.has(titleKey(i)));
   const global = filterQuerySchema.parse({intent:"DISCOVERY",...filters,excludeWatched:false});
@@ -116,7 +119,8 @@ export function buildDiscoveryRows(items: ContentItem[], state: State, userId: s
   const occurrences = new Map<string,number>(seen.map(key=>[key,1]));
   const rows: Array<{id:string;title:string;subtitle:string;items:RankedContent[]}> = [];
   const definitions=plannedShelves(state,plan);
-  const selected=batch===undefined?definitions:definitions.slice(batch*6,batch*6+6);
+  const window=homeWindow(batch??0,firstBatchSize);
+  const selected=batch===undefined?definitions:definitions.slice(window.start,window.end);
   const candidates=selected.flatMap(shelf=>{
     if (shelf.id === "rewatch" && filters.watchStatus !== undefined) return [];
     const query = filterQuerySchema.parse({intent:"DISCOVERY",...shelf.filter,excludeWatched:shelf.id!=="rewatch" && filters.watchStatus!=="again" && filters.watchStatus!=="either"});
@@ -149,13 +153,15 @@ export function buildDiscoveryRows(items: ContentItem[], state: State, userId: s
   // Rank within a bounded batch using actual match strength and avoid adjacent
   // variants of the same category. The first shelf remains a familiar anchor.
   const arranged:typeof rows=[];
+  const represented=new Set<string>();
+  const interestsFor=(r:typeof rows[number])=>new Set(r.items.slice(0,8).flatMap(i=>i.evidence.filter(e=>e.weight>.3&&(e.code.startsWith('taste:')||e.code==='semantic:interest')).map(e=>e.label)));
   const pending=[...rows];
   while(pending.length){
     const value=(r:typeof rows[number])=>r.id==="rewatch" && batch===undefined && arranged.length<3 ? -10000 : r.id==="for-you"?10000:r.id==="watchlist"?9999:
       r.items.slice(0,8).reduce((n,i)=>n+i.score,0)/Math.min(8,r.items.length)+
-      Math.min(r.items.length,20)*.03-
+      Math.min(r.items.length,20)*.03+(balancedTaste()?Math.min(.6,[...interestsFor(r)].filter(i=>!represented.has(i)).length*.2):0)-
       (arranged.at(-1)?.id.split(":")[0]===r.id.split(":")[0]?1.5:0);
-    pending.sort((a,b)=>value(b)-value(a));arranged.push(pending.shift()!);
+    pending.sort((a,b)=>value(b)-value(a));const chosen=pending.shift()!;arranged.push(chosen);interestsFor(chosen).forEach(i=>represented.add(i));
   }
   return arranged;
 }
@@ -166,7 +172,7 @@ function plannedShelves(state:State,plan?:string[]) {
   const byId=new Map(shelves.map(s=>[s.id,s]));
   return plan.map(id=>byId.get(id)??{id,title:"",subtitle:"",accepts:()=>false});
 }
-export async function discoverHome(catalog: TmdbRepository, state: State, userId: string, filters: HomeFilters = {}, batch?: number, plan?:string[],seen:string[] = [], personalizer?: PersonalizationService) {
+export async function discoverHome(catalog: TmdbRepository, state: State, userId: string, filters: HomeFilters = {}, batch?: number, plan?:string[],seen:string[] = [], personalizer?: PersonalizationService, firstBatchSize=6) {
   const retrievalStarted=Date.now();
   if (filters.providerIds?.some(id=>!state.ownedProviderIds.includes(id))) return [];
   const hardFilters = {...filters};
@@ -174,12 +180,13 @@ export async function discoverHome(catalog: TmdbRepository, state: State, userId
   if(!hardFilters.genres?.length) delete hardFilters.genres;
   const common: DiscoverOptions = {region:state.country,providerIds:state.ownedProviderIds,limit:20};
   const definitions=plannedShelves(state,plan);
-  if(batch!==undefined&&batch*6>=definitions.length) return [];
-  const currentDefinitions=batch===undefined?definitions:definitions.slice(batch*6,batch*6+6);
+  const window=homeWindow(batch??0,firstBatchSize);
+  if(batch!==undefined&&window.start>=definitions.length) return [];
+  const currentDefinitions=batch===undefined?definitions:definitions.slice(window.start,window.end);
   if(filters.watchStatus==="again") {
     const watched=await watchedCandidates(catalog,state);
     const personal=await personalizer?.prepare(watched,state,userId,filterQuerySchema.parse({...filters,intent:'DISCOVERY',excludeWatched:false}));
-    return buildDiscoveryRows(watched,state,userId,filters,batch,plan,seen,personal);
+    return buildDiscoveryRows(watched,state,userId,filters,batch,plan,seen,personal,firstBatchSize);
   }
   const queries: DiscoverOptions[] = batch===undefined?[
     {...common,mediaType:"movie"}, {...common,mediaType:"series"},
@@ -197,38 +204,33 @@ export async function discoverHome(catalog: TmdbRepository, state: State, userId
   if(batch===undefined && filters.mediaType==="series" && !filters.genres?.length) for(const genre of ["Drama","Comedy","Mystery","Documentary"])
     constrained.push({...common,...filters,mediaType:"series",genres:filters.genres?.length?filters.genres:[genre]});
   const pool: ContentItem[] = [];
-  const savedPool=(async()=>{const found:ContentItem[]=[];
+  const savedPool=(async()=>{const jobs:Promise<ContentItem[]>[]=[];
   if(batch===undefined||batch===0){
-    const personal=await Promise.allSettled(personalizedSources(catalog,state,{...common,...hardFilters}));
-    found.push(...personal.flatMap(r=>r.status==='fulfilled'?r.value:[]));
+    jobs.push(...personalizedSources(catalog,state,{...common,...hardFilters}));
     if(state.recommendationEngine && state.recommendationEngine!=='baseline' && catalog.related) {
-      const seeds=[...state.favorites].sort((a,b)=>Number(b.reaction==='super_like')-Number(a.reaction==='super_like')||+b.updatedAt-+a.updatedAt).slice(0,2);
-      const related=await Promise.allSettled(seeds.map(seed=>catalog.related!(seed.mediaType,seed.tmdbId,state.country)));
-      found.push(...related.flatMap(r=>r.status==='fulfilled'?r.value:[]));
+      const seeds=interestSeeds([...state.favorites].sort((a,b)=>Number(b.reaction==='super_like')-Number(a.reaction==='super_like')||+b.updatedAt-+a.updatedAt),2,f=>`${f.mediaType}:${f.tmdbId}`);
+      jobs.push(...seeds.map(seed=>catalog.related!(seed.mediaType,seed.tmdbId,state.country)));
     }
   }
   if(filters.watchStatus==="either" || (filters.watchStatus===undefined && currentDefinitions.some(s=>s.id==="rewatch")))
-    found.push(...await watchedCandidates(catalog,state,filters.watchStatus!=="either").catch(()=>[]));
-  if((batch===undefined?definitions:definitions.slice(batch*6,batch*6+6)).some(s=>s.id==="watchlist")){
+    jobs.push(watchedCandidates(catalog,state,filters.watchStatus!=="either"));
+  if(currentDefinitions.some(s=>s.id==="watchlist")){
     const saved=state.saved.filter(s=>s.mediaType==="movie"||s.mediaType==="series").slice(0,20);
-    for(let i=0;i<saved.length;i+=3){
-      const result=await Promise.allSettled(saved.slice(i,i+3).map(s=>catalog.getTitle(s.mediaType as "movie"|"series",s.tmdbId,state.country,state.ownedProviderIds)));
-      found.push(...result.flatMap(r=>r.status==="fulfilled"&&r.value?[r.value]:[]));
-    }
+    jobs.push(boundedSettled(saved,3,s=>catalog.getTitle(s.mediaType as "movie"|"series",s.tmdbId,state.country,state.ownedProviderIds)).then(result=>result.flatMap(r=>r.status==='fulfilled'&&r.value?[r.value]:[])));
   }
-  return found;})();
+  return (await Promise.allSettled(jobs)).flatMap(r=>r.status==='fulfilled'?r.value:[]);})();
   let succeeded = 0;
   const sourceSeen=new Map<string,Set<string>>();
-  for(let start=0;start<constrained.length;start+=3) {
-    const results = await Promise.allSettled(constrained.slice(start,start+3).map(q=>catalog.discover(q)));
+  {
+    const results = await boundedSettled(constrained,3,q=>catalog.discover(q));
     results.forEach((result,index)=>{if(result.status==="fulfilled") { succeeded++;pool.push(...result.value);
-      const key=JSON.stringify(withoutPage(constrained[start+index]!)),known=sourceSeen.get(key)??new Set<string>();result.value.forEach(i=>known.add(titleKey(i)));sourceSeen.set(key,known);
+      const key=JSON.stringify(withoutPage(constrained[index]!)),known=sourceSeen.get(key)??new Set<string>();result.value.forEach(i=>known.add(titleKey(i)));sourceSeen.set(key,known);
     }});
   }
   pool.push(...await savedPool);
   if(!succeeded&&constrained.length&&!pool.length) throw new Error("CATALOG_UNAVAILABLE");
   const baseline={scoreCache:new WeakMap<ContentItem,Map<string,RankedContent|null>>()};
-  let rows=buildDiscoveryRows([...new Map(pool.map(i=>[titleKey(i),i])).values()],state,userId,filters,batch,plan,seen,baseline);
+  let rows=buildDiscoveryRows([...new Map(pool.map(i=>[titleKey(i),i])).values()],state,userId,filters,batch,plan,seen,baseline,firstBatchSize);
   // Fetch toward twenty AFTER exclusions/allocation, including rows at 12–19.
   // At most 24 refill pages, three concurrent calls and six pages per source.
   // Stop repeated/empty sources; never invent filler or broaden hard filters.
@@ -270,7 +272,7 @@ export async function discoverHome(catalog: TmdbRepository, state: State, userId
       r.value.forEach(i=>previous.add(titleKey(i)));sourceSeen.set(key,previous);
       if(!fresh.length)exhausted.add(key);pool.push(...fresh);
     });
-    rows=buildDiscoveryRows([...new Map(pool.map(i=>[titleKey(i),i])).values()],state,userId,filters,batch,plan,seen,baseline);
+    rows=buildDiscoveryRows([...new Map(pool.map(i=>[titleKey(i),i])).values()],state,userId,filters,batch,plan,seen,baseline,firstBatchSize);
   }
   if(personalizer && state.recommendationEngine && state.recommendationEngine!=='baseline') {
     const unique=[...new Map(pool.map(i=>[titleKey(i),i])).values()];
@@ -286,7 +288,7 @@ export async function discoverHome(catalog: TmdbRepository, state: State, userId
     const shortlist=new Map<string,ContentItem>();
     for(let index=0;index<64&&shortlist.size<384;index++)for(const group of groups){const item=group[index]?.item;if(item&&shortlist.size<384)shortlist.set(titleKey(item),item);}
     const personal=await personalizer.prepare([...shortlist.values()],state,userId,filterQuerySchema.parse({...filters,intent:'DISCOVERY',excludeWatched:filters.watchStatus!=='either'}));
-    if(personal.personalAdjustments.size)rows=buildDiscoveryRows(unique,state,userId,filters,batch,plan,seen,{...personal,scoreCache:new WeakMap()});
+    if(personal.personalAdjustments.size)rows=buildDiscoveryRows(unique,state,userId,filters,batch,plan,seen,{...personal,scoreCache:new WeakMap()},firstBatchSize);
   }
   return rows;
 }

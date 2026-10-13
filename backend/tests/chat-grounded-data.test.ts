@@ -278,3 +278,19 @@ it('can repeat a factual now lookup after next without excluding the current pro
  const repeated=await chat.respond('alice','And what is on that channel right now?',session);
  expect(repeated.blocks.flatMap(b=>b.type==='tv_carousel'?b.items.map(p=>p.id):[])).toEqual(['off']);
 });
+it('allows a TV read dependent on a successful settings read without requiring an entity card',async()=>{
+ vi.mocked(ai.routeChat).mockResolvedValue({route:'compound',reply:''});
+ vi.spyOn(ai,'structured').mockResolvedValue({tasks:[{route:'personal',request:'Which country is selected?',dependsOn:null},{route:'tv',request:'What is on PPV2 now?',dependsOn:0}],unhandled:[]});
+ vi.spyOn(ai,'planPersonal').mockResolvedValue({scope:'settings',query:'',library:'all',offset:0});
+ vi.spyOn(ai,'explainPersonal').mockResolvedValue('Romania.');vi.spyOn(ai,'planTv').mockResolvedValue(plan());
+ const result=await chat.respond('alice','Which country is selected and what is on PPV2 now?',session);
+ expect(result.blocks.some(b=>b.type==='tv_carousel')).toBe(true);expect(result).not.toHaveProperty('readVerified');
+});
+it('does not allow a dependent write to substitute an unrelated old card for a personal text answer',async()=>{
+ vi.mocked(ai.routeChat).mockResolvedValue({route:'compound',reply:''});
+ vi.spyOn(ai,'structured').mockResolvedValue({tasks:[{route:'personal',request:'Read my profile',dependsOn:null},{route:'action',request:'mark the first one seen',dependsOn:0}],unhandled:[]});
+ vi.spyOn(ai,'planPersonal').mockResolvedValue({scope:'settings',query:'',library:'all',offset:0});
+ vi.spyOn(ai,'explainPersonal').mockResolvedValue('Romania.');const parser=vi.spyOn(ai,'parseActions');
+ const result=await chat.respond('alice','Read my profile and mark the first one seen',session);
+ expect(parser).not.toHaveBeenCalled();expect(JSON.stringify(result.blocks)).toContain('couldn’t continue this part');
+});

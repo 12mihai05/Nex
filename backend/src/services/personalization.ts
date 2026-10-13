@@ -3,6 +3,7 @@ import type { UserRepository } from '../repositories/user-repository.js';
 import type { SemanticStore } from '../repositories/recommendation-store.js';
 import type { TmdbRepository } from '../repositories/tmdb-repository.js';
 import { getConfig } from '../config.js';
+import {representativeFavorites} from './interest-coverage.js';
 import { rankCandidates, titleKey } from './recommendation.js';
 import { OpenAiSemanticModel, shortlistReviewSchema, type SemanticModel, type ReviewInput } from './semantic-model.js';
 import { conditionApplies, favouriteInterests, semanticAdjustment, semanticHash, semanticSignals, semanticTitleText, semanticPreferenceMeaning, unitVector, type Interest } from './semantic-taste.js';
@@ -76,7 +77,7 @@ export class PersonalizationService {
         if(preferenceVectors.length!==preferenceDocs.length || preferenceVectors.some(v=>!v)) throw new Error('INVALID_PROFILE_VECTORS');
         await this.store.putPrivate(userId,profileKey,preferenceVectors); result.embedded+=preferenceVectors.length;
       }
-      const seeds = [...state.favorites].sort((a,b)=>Number(b.reaction==='super_like')-Number(a.reaction==='super_like') || +b.updatedAt-+a.updatedAt || a.tmdbId-b.tmdbId).slice(0,8);
+      const seeds = representativeFavorites(state.favorites,items,8);
       const examples: Array<{item: ContentItem; reaction: string}> = [];
       for(let i=0;i<seeds.length;i+=4) {
         const found = await Promise.allSettled(seeds.slice(i,i+4).map(async seed => ({item: items.find(t=>t.id===seed.tmdbId&&t.mediaType===seed.mediaType) ?? await this.catalog.getTitle(seed.mediaType,seed.tmdbId,state.country,[]),reaction:seed.reaction})));

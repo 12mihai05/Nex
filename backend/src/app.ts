@@ -18,6 +18,7 @@ import { detectSearchIntent } from "./services/intent.js";
 import { rankCandidates } from "./services/recommendation.js";
 import { generateCandidates } from "./services/candidates.js";
 import { discoverHome, discoveryShelves } from "./services/discovery.js";
+import {homeWindow,compactHomeRows} from './services/home-delivery.js';
 import { pickTitle } from "./services/pick.js";
 import { personalizationFor } from './services/personalization.js';
 import { catalogFilterSchema, filteredCatalog } from "./services/filtered-catalog.js";
@@ -184,16 +185,18 @@ app.get("/api/title/:mediaType/:tmdbId/broadcasts", async c=>{
 
 app.on(['GET','POST'],"/api/discovery", async c => {
   const userId=c.get("authSession").user.id;
-  const {batch:rawBatch,plan:rawPlan,seen:rawSeen,...query}=z.record(z.string(),z.unknown()).parse(c.req.method==='POST'?await c.req.json():c.req.query());
+  const {batch:rawBatch,plan:rawPlan,seen:rawSeen,firstRows:rawFirst,compact:rawCompact,...query}=z.record(z.string(),z.unknown()).parse(c.req.method==='POST'?await c.req.json():c.req.query());
+  const firstRows=rawFirst===undefined?6:z.coerce.number().pipe(z.union([z.literal(3),z.literal(6)])).parse(rawFirst);
+  const compact=rawCompact==='true'||rawCompact===true;
   const seen=rawSeen===undefined?[]:z.array(z.string().regex(/^(movie|series):\d+$/)).max(720).parse(rawSeen);
   const input=catalogFilterSchema.parse(query);
   const filters=Object.keys(query).length?{mediaType:input.mediaType,genres:input.genre?[input.genre]:[],minRuntimeMinutes:input.minMinutes??null,maxRuntimeMinutes:input.maxMinutes??null,...(input.watchStatus?{watchStatus:input.watchStatus}:{}),...(input.providerIds?{providerIds:input.providerIds}:{})}:{};
-  const batch=rawBatch===undefined?undefined:z.coerce.number().int().min(0).max(5).parse(rawBatch);
+  const batch=rawBatch===undefined?undefined:z.coerce.number().int().min(0).max(firstRows===3?6:5).parse(rawBatch);
   const state=await users.getRecommendationState(userId);
   let decoded:unknown;
   try{decoded=rawPlan?JSON.parse(z.string().parse(rawPlan)):undefined;}catch{throw new HTTPException(400,{message:"Invalid discovery plan."});}
   const plan=decoded===undefined?discoveryShelves(state).map(s=>s.id):z.array(z.string().max(160)).max(36).parse(decoded);
-  const rows=await discoverHome(catalog,state,userId,filters,batch,plan,seen,personalizer);
+  const rows=await discoverHome(catalog,state,userId,filters,batch,plan,seen,personalizer,firstRows);
   // Record only the lead shelf, not hundreds of titles below the fold.
   if(batch===undefined||batch===0) {
     // Impression telemetry is not a prerequisite for displaying valid picks.
@@ -201,7 +204,7 @@ app.on(['GET','POST'],"/api/discovery", async c => {
     catch { console.warn('HOME_IMPRESSION_WRITE_FAILED'); }
   }
   c.header("Cache-Control","private, no-store");
-  return c.json({data:rows,meta:{plan}});
+  return c.json({data:compact?compactHomeRows(rows):rows,meta:{plan,hasMore:batch!==undefined&&homeWindow(batch,firstRows).end<plan.length}});
 });
 
 app.get("/api/catalog", async c => {

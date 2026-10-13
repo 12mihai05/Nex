@@ -10,7 +10,7 @@ import {
 import type { ContentItem, TasteSignal, ChatBlock } from "../domain/types.js";
 import type {ChatActionPlan} from '../services/chat-action-types.js';
 import { calculateReminderTime } from "../services/reminder.js";
-import { aggregateEvidence, evidenceWeight, signalStrength, titleDimensions, type TasteEvidence } from "../services/taste.js";
+import { aggregateEvidence, evidenceWeight, signalStrength, titleDimensions, titleReliability, type TasteEvidence } from "../services/taste.js";
 import type { RankedContent } from "../domain/types.js";
 import { RecommendationStore } from './recommendation-store.js';
 import {cleanChatBlocks,cleanChatCopy} from '../domain/chat-copy.js';
@@ -38,8 +38,10 @@ export class UserRepository {
   async getSettings(userId: string) {
     let profile = (await this.db.select().from(profiles).where(eq(profiles.userId, userId)).limit(1))[0];
     if(!profile){await this.ensureProfile(userId);profile=(await this.db.select().from(profiles).where(eq(profiles.userId,userId)).limit(1))[0]!;}
-    const services = await this.db.select().from(userStreamingServices).where(eq(userStreamingServices.userId, userId));
-    const languages = await this.db.select().from(userLanguagePreferences).where(eq(userLanguagePreferences.userId, userId));
+    const [services,languages] = await Promise.all([
+      this.db.select().from(userStreamingServices).where(eq(userStreamingServices.userId, userId)),
+      this.db.select().from(userLanguagePreferences).where(eq(userLanguagePreferences.userId, userId)),
+    ]);
     return { profile, services, languages };
   }
 
@@ -73,7 +75,7 @@ export class UserRepository {
     });
   }
 
-  async upsertTaste(userId: string, signals: TasteSignal[], evidenceId?: string): Promise<void> {
+  async upsertTaste(userId: string, signals: TasteSignal[], evidenceId?: string, evidenceGroup?:string): Promise<void> {
     await this.recommendationStore().clearPrivate(userId);
     for (const original of signals) {
       const signal = { ...original };
@@ -91,7 +93,7 @@ export class UserRepository {
       const conditions=signal.conditions??(existing?JSON.parse(existing.evidenceJson) as TasteEvidence[]:[]).filter(e=>e.conditions?.length).at(-1)?.conditions;
       const meaning=signal.meaning??(signal.source==='explicit_edit'?priorMeaning:undefined);
       const example=signal.example??(signal.source==='explicit_edit'?priorExample:undefined);
-      entries.push({ id, source: signal.source, score: signal.score, weight: evidenceWeight(signal.source)*signal.confidence, explicit: !["watchlist","search","detail_open"].includes(signal.source), at: new Date().toISOString(),...(typeof signal.exclude==='boolean'?{exclude:signal.exclude}:{}),...(conditions?.length?{conditions}:{}),...(signal.statement?{statement:signal.statement}:{}),...(meaning?{meaning}:{}),...(example?{example}:{}) });
+      entries.push({ id, ...(evidenceGroup?{group:evidenceGroup}:{}), source: signal.source, score: signal.score, weight: evidenceWeight(signal.source)*signal.confidence, explicit: !["watchlist","search","detail_open"].includes(signal.source), at: new Date().toISOString(),...(typeof signal.exclude==='boolean'?{exclude:signal.exclude}:{}),...(conditions?.length?{conditions}:{}),...(signal.statement?{statement:signal.statement}:{}),...(meaning?{meaning}:{}),...(example?{example}:{}) });
       entries = entries.slice(-64);
       const merged = aggregateEvidence(signal.dimension,key,entries);
       const values = { dimension: signal.dimension, key, score: merged.score, confidence: merged.confidence, evidenceCount: merged.evidenceCount, source: merged.source, explicit: merged.explicit ?? false, evidenceJson: JSON.stringify(entries), lastEvidenceAt: new Date(), updatedAt: new Date() };
@@ -107,8 +109,7 @@ export class UserRepository {
     }
     if (["watchlist","search","detail_open"].includes(source) && !(await this.getSettings(userId)).profile.behaviorPersonalization) return;
     const score = source === "onboarding_favorite" ? .8 : signalStrength[source];
-    const reliability:Record<string,number>={genre:.75,keyword:.5,mood:.5,director:.3,actor:.2,language:.1,decade:.1,format:.1,country:.1,franchise:.5};
-    await this.upsertTaste(userId,titleDimensions(item).map((d)=>({ ...d, score, confidence: reliability[d.dimension] ?? .1, evidenceCount: 1, source })), `reaction:${item.mediaType}:${item.id}`);
+    await this.upsertTaste(userId,titleDimensions(item).map((d)=>({ ...d, score, confidence: titleReliability[d.dimension] ?? .1, evidenceCount: 1, source })), `reaction:${item.mediaType}:${item.id}`,item.collection?`collection:${item.collection}`:undefined);
   }
 
   async clearTaste(userId: string): Promise<void> {
@@ -213,7 +214,6 @@ export class UserRepository {
 
   async recordRecommendations(userId: string, ranked: RankedContent[], context: string): Promise<void> {
     if (ranked.length) await this.db.insert(userEvents).values(ranked.map((r,index)=>({ id: randomUUID(), userId, eventType: "shown", mediaType: r.item.mediaType, tmdbId: r.item.id, strength: 0, metadataJson: JSON.stringify({ context, rank: index+1, evidence: r.evidence, score: r.score }) })));
-    await this.db.delete(userEvents).where(and(eq(userEvents.userId,userId),lt(userEvents.createdAt,new Date(Date.now()-90*86_400_000))));
   }
 
   async recommendationEvidence(userId:string,mediaType:string,tmdbId:number,context:string){
@@ -308,7 +308,6 @@ export class UserRepository {
           for(const [key,value] of taste){const filtered=value.entries.filter(e=>e.id!==evidenceId&&e.id!==`watchlist:${item.mediaType}:${item.id}`);
             if(filtered.length!==value.entries.length){value.entries=filtered;touched.add(key);}}
           if(change.rating==='clear'||change.rating==='meh')continue;
-          const reliability:Record<string,number>={genre:.75,keyword:.5,mood:.5,director:.3,actor:.2,language:.1,decade:.1,format:.1,country:.1,franchise:.5};
           for(const d of titleDimensions(item)){
             let key=d.key.trim().toLowerCase();let dimension=d.dimension;
             if(['sci-fi','scifi'].includes(key))key='science fiction';if(key==='musicals')key='musical';
@@ -317,7 +316,7 @@ export class UserRepository {
             if(!value){value={dimension,key,entries:[]};taste.set(mapKey,value);}
             if(value.row&&!value.entries.length&&!touched.has(mapKey))value.entries=[{id:'legacy',source:value.row.source,score:value.row.score,weight:Math.max(.1,value.row.confidence),explicit:/explicit|onboarding/.test(value.row.source),at:value.row.updatedAt.toISOString()}];
             value.entries=value.entries.filter(e=>e.id!==evidenceId);
-            value.entries.push({id:evidenceId,source:change.rating,score:signalStrength[change.rating],weight:evidenceWeight(change.rating)*(reliability[dimension]??.1),explicit:true,at:now.toISOString()});
+            value.entries.push({id:evidenceId,...(item.collection?{group:`collection:${item.collection}`} : {}),source:change.rating,score:signalStrength[change.rating],weight:evidenceWeight(change.rating)*(titleReliability[dimension]??.1),explicit:true,at:now.toISOString()});
             value.entries=value.entries.slice(-64);touched.add(mapKey);
           }
         }

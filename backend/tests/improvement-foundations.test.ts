@@ -25,7 +25,9 @@ it('retrieves scoped country/genre interests without replacing explicit runtime 
 it('inferred title traits decay while direct declarations remain stable',()=>{
  const now=Date.now(),at=new Date(now-365*86400000).toISOString();
  const entry={id:'a',source:'like',score:1,weight:2,explicit:true,at};
- expect(aggregateEvidence('genre','drama',[entry],now).confidence).toBeCloseTo(.5);
+ const fresh=aggregateEvidence('genre','drama',[{...entry,at:new Date(now).toISOString()}],now);
+ expect(fresh.confidence).toBeCloseTo(.38);
+ expect(aggregateEvidence('genre','drama',[entry],now).confidence).toBeCloseTo(fresh.confidence/2);
  expect(aggregateEvidence('genre','drama',[{...entry,source:'chat_explicit'}],now).confidence).toBeCloseTo(2/3);
 });
 it('search supports partial reordered accented and typo matches without demoting exact titles',()=>{

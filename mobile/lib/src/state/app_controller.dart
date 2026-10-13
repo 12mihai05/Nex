@@ -146,7 +146,7 @@ class AppController extends Notifier<AppState> {
   int _homeGeneration = 0, _nextHomeBatch = 1;
   bool homeBatchLoading = false;
   String? homeBatchError;
-  bool get hasMoreHome => !state.demoMode && _nextHomeBatch < 6;
+  bool get hasMoreHome => !state.demoMode && _nextHomeBatch < 7;
 
   Future<void> loadMoreHome() async {
     if (!hasMoreHome || homeBatchLoading || state.busy) return;
@@ -181,6 +181,7 @@ class AppController extends Notifier<AppState> {
   Map<int, String> _liveProviders = {};
   bool providersLoading = false;
   final Map<String, Map<String, dynamic>> _reminders = {};
+  int _remindersRevision = 0;
   Map<int, String> get availableServices => state.demoMode
       ? const {
           8: 'Netflix',
@@ -457,19 +458,27 @@ class AppController extends Notifier<AppState> {
       if (!ref.mounted || ticket != _homeGeneration) return;
       final profile = settings['profile'] as Map;
       state = state.copyWith(
+        country: profile['country'] as String,
+        appearance: ThemeMode.values.byName(profile['appearance'] as String),
         displayName: ((settings['user'] as Map?)?['name'] as String? ?? '')
             .trim(),
       );
-      final lists = await Future.wait(
-        [
-          '/api/providers',
-          '/api/me/watchlist',
-          '/api/me/history',
-          '/api/me/feedback',
-          '/api/me/reminders',
-          '/api/me/taste',
-        ].map(_api.list),
-      );
+      // The backend reads Taste itself. Start discovery immediately, while the
+      // phone loads action flags. Neither request depends on the other's result.
+      unawaited(_refreshHomeExtras(ticket));
+      final startup = await Future.wait<Object>([
+        _api.list('/api/discovery?batch=0'),
+        Future.wait(
+          [
+            '/api/providers',
+            '/api/me/watchlist',
+            '/api/me/history',
+            '/api/me/feedback',
+          ].map(_api.list),
+        ),
+      ]);
+      final shelves = startup[0] as List<Map<String, dynamic>>;
+      final lists = startup[1] as List<List<Map<String, dynamic>>>;
       final providers = lists[0];
       if (!ref.mounted || ticket != _homeGeneration) return;
       _liveProviders = {
@@ -490,12 +499,6 @@ class AppController extends Notifier<AppState> {
       final saved = lists[1];
       final history = lists[2];
       final feedback = lists[3];
-      final reminders = lists[4];
-      _reminders.clear();
-      for (final reminder in reminders.where((r) => r['active'] == true)) {
-        _reminders[reminder['epgProgramId'] as String] = reminder;
-      }
-      _taste = lists[5];
       state = state.copyWith(
         country: profile['country'] as String,
         onboardingComplete: profile['onboardingComplete'] as bool,
@@ -522,7 +525,6 @@ class AppController extends Notifier<AppState> {
         recommendationEngine:
             profile['recommendationEngine'] as String? ?? 'baseline',
       );
-      final shelves = await _api.list('/api/discovery?batch=0');
       final ranked = shelves
           .expand(
             (r) => (r['items'] as List).map(
@@ -561,21 +563,6 @@ class AppController extends Notifier<AppState> {
         _reasons[_ranked[i].key] = ranked[i]['reason'] as String;
       }
       // Publish Home now; library artwork and TV are not startup dependencies.
-      _liveCatalog = [..._ranked];
-      state = state.copyWith(busy: false);
-      final library = await Future.wait(
-        [...saved, ...history].take(30).map((r) async {
-          try {
-            return await _api.title(
-              r['mediaType'] as String,
-              r['tmdbId'] as int,
-            );
-          } catch (_) {
-            return null;
-          }
-        }),
-      );
-      if (!ref.mounted || ticket != _homeGeneration) return;
       _liveCatalog = {
         for (final r in [...saved, ...history])
           '${r['mediaType']}:${r['tmdbId']}': ContentItem.fromJson({
@@ -586,30 +573,64 @@ class AppController extends Notifier<AppState> {
             'overview': '',
             'metadataOnly': true,
           }),
-        for (final i in [..._ranked, ...library.whereType<ContentItem>()])
-          i.key: i,
+        for (final i in _ranked) i.key: i,
       }.values.toList();
-      // TV failure must not make streaming discovery fail.
-      final tv = await _api
-          .list('/api/tv/upcoming')
-          .catchError((_) => <Map<String, dynamic>>[]);
-      if (!ref.mounted || ticket != _homeGeneration) return;
-      _liveTv = tv
-          .map(
-            (i) => TvProgram(
-              id: i['id'] as String,
-              title: i['title'] as String,
-              channel: (i['channel'] as Map)['name'] as String,
-              startsAt: DateTime.parse(i['startAt'] as String).toLocal(),
-              endsAt: DateTime.parse(i['endAt'] as String).toLocal(),
-            ),
-          )
-          .toList();
-      state = state.copyWith();
+      // The library already hydrates filtered titles lazily. TV owns its guide.
+      state = state.copyWith(busy: false);
     } catch (error) {
       if (!ref.mounted || ticket != _homeGeneration) return;
       state = state.copyWith(busy: false, error: readableApiError(error));
     }
+  }
+
+  Future<void> _refreshHomeExtras(int ticket) async {
+    final epoch = _mutationEpoch;
+    final revision = _tasteRevision;
+    final remindersRevision = _remindersRevision;
+    await Future.wait([
+      () async {
+        try {
+          final reminders = await _api.list('/api/me/reminders');
+          if (!ref.mounted ||
+              ticket != _homeGeneration ||
+              epoch != _mutationEpoch ||
+              remindersRevision != _remindersRevision) {
+            return;
+          }
+          _reminders.clear();
+          for (final reminder in reminders.where((r) => r['active'] == true)) {
+            _reminders[reminder['epgProgramId'] as String] = reminder;
+          }
+          state = state.copyWith(reminderProgramIds: _reminders.keys.toSet());
+        } catch (_) {
+          /* Retry on the next refresh; do not fail Home. */
+        }
+      }(),
+      () async {
+        try {
+          final taste = await _api.list('/api/me/taste');
+          if (!ref.mounted ||
+              ticket != _homeGeneration ||
+              epoch != _mutationEpoch ||
+              revision != _tasteRevision) {
+            return;
+          }
+          _taste = taste;
+          state = state.copyWith(
+            genres: taste
+                .where((s) => s['dimension'] == 'genre' && (s['score'] as num) > 0)
+                .map((s) => s['key'] as String)
+                .toSet(),
+            moods: taste
+                .where((s) => s['dimension'] == 'mood' && (s['score'] as num) > 0)
+                .map((s) => s['key'] as String)
+                .toSet(),
+          );
+        } catch (_) {
+          /* Your Taste has its own retry state. */
+        }
+      }(),
+    ]);
   }
 
   Future<bool> restoreSession({bool background = false}) async {
@@ -1136,6 +1157,7 @@ class AppController extends Notifier<AppState> {
                 );
               }
             } else if (action is Map && action['type'] == 'cancelReminder') {
+              _remindersRevision++;
               final programId = action['epgProgramId'] as String;
               await NotificationService.instance.cancel(
                 NotificationService.idFor(programId),
@@ -1343,6 +1365,7 @@ class AppController extends Notifier<AppState> {
   }
 
   Future<void> _scheduleSavedReminder(Map<String, dynamic> record) async {
+    _remindersRevision++;
     final programId = record['epgProgramId'] as String;
     final previous = _reminders[programId];
     try {
@@ -1370,6 +1393,7 @@ class AppController extends Notifier<AppState> {
   }
 
   Future<void> cancelReminder(String programId) async {
+    _remindersRevision++;
     final reminder = _reminders[programId];
     if (!state.demoMode && reminder != null) {
       await _api.cancelReminder(reminder['id'] as String);
@@ -1485,6 +1509,7 @@ class AppController extends Notifier<AppState> {
   }
 
   Future<void> setRemindersEnabled(bool value) async {
+    _remindersRevision++;
     if (!state.demoMode) await _api.saveSettings({'remindersEnabled': value});
     if (!value) {
       await NotificationService.instance.cancelAll();

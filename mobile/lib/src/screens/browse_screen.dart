@@ -48,7 +48,7 @@ class _BrowseScreenState extends ConsumerState<BrowseScreen> {
     }
     if (filtering ||
         loadingMore ||
-        nextBatch >= 6 ||
+        nextBatch >= 7 ||
         ref.read(appControllerProvider).demoMode) {
       return;
     }
@@ -350,7 +350,7 @@ class _BrowseScreenState extends ConsumerState<BrowseScreen> {
           onNotification: (event) {
             if (event.depth == 0 &&
                 event.metrics.axis == Axis.vertical &&
-                event.metrics.extentAfter < 600 &&
+                event.metrics.extentAfter < 1200 &&
                 (hasFilters
                     ? moreError == null
                     : controller.homeBatchError == null)) {
@@ -506,7 +506,7 @@ class _BrowseScreenState extends ConsumerState<BrowseScreen> {
               else if (!state.demoMode &&
                   !filtering &&
                   !state.busy &&
-                  (hasFilters ? nextBatch < 6 : controller.hasMoreHome))
+                  (hasFilters ? nextBatch < 7 : controller.hasMoreHome))
                 SliverToBoxAdapter(
                   child: Column(
                     children: [
