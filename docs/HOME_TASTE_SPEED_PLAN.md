@@ -33,3 +33,13 @@ References: Google recommendation architecture and re-ranking guidance; Flutter 
 - Existing evidence is recalculated without resetting ratings. Historical entries without a franchise group are not silently backfilled; new title evidence records the group. Direct statements retain priority. Rollback: RECOMMENDATION_PROFILE_VERSION=legacy (no data reset).
 - No new provider, cache layer, model or paid infrastructure. Existing catalogue/vector caches remain. Official embedding guidance checked: https://developers.openai.com/api/docs/guides/embeddings
 - Physical Samsung startup/scrolling and notifications require user testing. Backend timings exclude image rendering and phone network overhead.
+
+## Production verification
+
+- Commit 21d9ce5 deployed READY on Vercel, production alias nex-three-omega.vercel.app. Disposable account only, deleted afterward.
+- Progressive first responses: 3 rows / 60 titles, 58.6–59.1 KB, 832 ms and 370 ms. End-to-end startup reads took 3.41 and 3.31 seconds because a supporting History/provider request took about 3.2 seconds. No universal cold/warm speed-up claim: the earlier warm baseline was faster in total despite the larger catalogue response, and these small samples have network/server variation.
+- Next request returned six rows with no titles repeated from the first response. Compact card hydrated into the complete detail endpoint successfully (282 ms).
+- Five opt-in recommendation-settings/Chat visual tests also passed; inspected generated light Chat help and dark Taste screenshots. Regular skipped checks include credential-gated live tests, not only visual captures.
+- The existing production Chat capability verification passed Taste preview/commit, compound TV/settings, channel follow-up, upcoming continuation, account deletion and session revocation. GitHub's most recent existing EPG/release scheduled runs show success; neither schedule was manually triggered by this change, and this repository has no push-triggered CI workflow.
+
+Phone check: fully rerun Flutter against production, refresh Home once, check hero plus three initial rows, scroll for six-row additions without repeats/jumps, open a title, exercise service/type/runtime/Seen filters, then check Want to see and History. Compare different interests in Taste without resetting the profile. Very narrow categories may remain short rather than being filled with unrelated titles.

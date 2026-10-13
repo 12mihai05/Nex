@@ -39,3 +39,9 @@
 - Release listings only include dates supplied by the catalog. No claim of complete cinema coverage or a local streaming date inferred from a season's original premiere.
 - Physical Samsung notification delivery, permissions, UI appearance and the complete mobile network journey were not exercised in this run. Backend reminder persistence and action payloads were tested; the phone still needs a real notification check.
 - Production deployment verification is recorded below after the deployment completes.
+
+## Production follow-up, 2026-10-14
+
+Commit 21d9ce5 is deployed READY. The remaining compound coordinator issue was a successful settings read being treated as unresolved because it returned no entity card. Internal verified-read status now allows dependent reads to proceed; it is not exposed publicly and does not authorize dependent writes without a resolved entity. Regression tests cover both cases.
+
+`verify-chat-capabilities-deployment.ts` passed against the production alias: Taste preview/commit, compound Antena 1 plus selected country, channel programming follow-up, dated upcoming releases and non-repeating continuation. The disposable account was deleted and its session was confirmed revoked. No real user's account or chat was accessed. Compound read took 18.9 seconds; channel knowledge 14.9 seconds; upcoming requests 3.8–4.3 seconds. This does not verify physical-device notifications or every possible AI phrase.

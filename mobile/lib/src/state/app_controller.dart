@@ -618,11 +618,15 @@ class AppController extends Notifier<AppState> {
           _taste = taste;
           state = state.copyWith(
             genres: taste
-                .where((s) => s['dimension'] == 'genre' && (s['score'] as num) > 0)
+                .where(
+                  (s) => s['dimension'] == 'genre' && (s['score'] as num) > 0,
+                )
                 .map((s) => s['key'] as String)
                 .toSet(),
             moods: taste
-                .where((s) => s['dimension'] == 'mood' && (s['score'] as num) > 0)
+                .where(
+                  (s) => s['dimension'] == 'mood' && (s['score'] as num) > 0,
+                )
                 .map((s) => s['key'] as String)
                 .toSet(),
           );
