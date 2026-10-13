@@ -93,7 +93,7 @@ function scoreUncached(item: ContentItem, query: FilterQuery, context: Recommend
   const mood = requested.find((m) => keys.has(m));
   if (mood) add("session:mood", `catalog tags suggest a ${mood} fit`, rankingWeights.session);
   const topic=query.keywords.find(k=>conceptEvidence(item,k));
-  if(topic)add("session:concept",`the catalog ${conceptEvidence(item,topic)==="tag"?"tags":"premise"} relates to ${canonicalConcept(topic)}`,rankingWeights.session);
+  if(topic)add("session:concept",`the catalog ${conceptEvidence(item,topic)==="tag"?"tags relate":"premise relates"} to ${canonicalConcept(topic)}`,rankingWeights.session);
   if (!exact && query.excludedMoods.some((m) => keys.has(normalized(m)))) return null;
   if (included) add("availability:owned", `included with ${included.providerName}`, rankingWeights.availability);
   else if (!exact) add("availability:unavailable", "no included availability confirmed on your services", rankingWeights.unavailable);

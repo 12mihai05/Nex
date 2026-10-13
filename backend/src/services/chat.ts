@@ -23,6 +23,11 @@ import {cleanChatBlocks,cleanChatCopy} from '../domain/chat-copy.js';
 import type {ChatIntent} from './chat-intent.js';
 import {ChatTvGuide} from './chat-tv-guide.js';
 import {ChatPersonal} from './chat-personal.js';
+import {ChatReleases} from './chat-releases.js';
+import {ChatExplain} from './chat-explain.js';
+import {ChatTasteEdit} from './chat-taste-edit.js';
+import {taskPlanSchema,chatTaskInstructions} from './chat-capability-plans.js';
+import type {ChatRoute} from './chat-routing.js';
 const tasteReply=(message:string)=>/^(?:yes|no|yep|nope|correct|exactly|do that|please do|keep them|allow them|exclude them|cancel|never mind)\b/i.test(message.trim());
 
 export class ChatService {
@@ -39,23 +44,30 @@ export class ChatService {
     return {...result,blocks:cleanChatBlocks(result.blocks)};
   }
 
-  private async respondInternal(userId: string, message: string, requestedSessionId?: string): Promise<{ sessionId: string; blocks: ChatBlock[] }> {
+  private async respondInternal(userId: string, message: string, requestedSessionId?: string,forcedRoute?:ChatRoute['route']): Promise<{ sessionId: string; blocks: ChatBlock[] }> {
     const sessionId = requestedSessionId ?? await this.users.createConversation(userId);
-    await this.users.addConversationMessage(userId, sessionId, "user", message);
+    if(!forcedRoute)await this.users.addConversationMessage(userId, sessionId, "user", message);
     // These are application-generated confirmation commands, not natural-
     // language intent. They are quota-exempt and must never trigger an LLM call.
     const protocolCommand=/^(confirm|cancel) changes(?: [a-f0-9-]{36})?$/i.test(message);
-    let route:Awaited<ReturnType<AiService['routeChat']>>=protocolCommand?{route:'action',reply:''}:null;
-    let history:Array<{role:string;content:string}>|undefined;
+    let route:Awaited<ReturnType<AiService['routeChat']>>=forcedRoute?{route:forcedRoute,reply:''}:protocolCommand?{route:'action',reply:''}:null;
+    let history:Array<{role:string;content:string}>|undefined=forcedRoute?await this.users.recentConversationMessages(userId,sessionId):undefined;
     let plannedFilter:ChatIntent|undefined;
+    if(protocolCommand){
+      const context=await this.users.getSessionContext(userId,sessionId),id=message.match(/[a-f0-9-]{36}$/i)?.[0];
+      if(id&&[(context.tasteEditPlan as {id?:string}|undefined)?.id,(context.tasteEditReceipt as {id?:string}|undefined)?.id].includes(id)){
+        const blocks=await this.users.commitTasteEdit(userId,sessionId,id,/^cancel/i.test(message)).catch(()=>[{type:'text' as const,content:'That Taste preview expired or your preferences changed since it was created. Please request the correction again; no new change was applied.'}]);
+        await this.users.addConversationMessage(userId,sessionId,'assistant',blocks.map(b=>'content'in b?b.content:'').join('\n'),blocks);return {sessionId,blocks};
+      }
+    }
     // Production decisions come from the model with recent context. Rules below
     // remain only as a no-key fixture fallback and data/action safety checks.
-    if(this.ai.mode==='live'&&!protocolCommand){
+    if(this.ai.mode==='live'&&!protocolCommand&&!forcedRoute){
       const [recent,context,routeDisplayed]=await Promise.all([this.users.recentConversationMessages(userId,sessionId),this.users.getSessionContext(userId,sessionId),this.experiment.combinedPlanner?this.users.recentDisplayedItems(userId,sessionId):Promise.resolve([])]);
       history=recent;
       try{
-        if(this.experiment.combinedPlanner){const plan=await this.ai.planChat(message,recent,{history:recent,focus:context.focus,personalRead:context.personalRead,tastePending:context.tastePending,tv:context.tv,displayed:routeDisplayed,...(context.filter?{filter:context.filter as Partial<import('../domain/types.js').FilterQuery>}:{})});route=plan;plannedFilter=plan.filter??undefined;}
-        else route=await this.ai.routeChat(message,recent,{tastePending:context.tastePending,personalRead:context.personalRead,focus:context.focus,tv:context.tv,filter:context.filter});
+        if(this.experiment.combinedPlanner){const plan=await this.ai.planChat(message,recent,{history:recent,focus:context.focus,personalRead:context.personalRead,releaseBrowse:context.releaseBrowse,tasteEditPending:!!context.tasteEditPlan,tastePending:context.tastePending,tv:context.tv,displayed:routeDisplayed,...(context.filter?{filter:context.filter as Partial<import('../domain/types.js').FilterQuery>}:{})});route=plan;plannedFilter=plan.filter??undefined;}
+        else route=await this.ai.routeChat(message,recent,{tastePending:context.tastePending,personalRead:context.personalRead,releaseBrowse:context.releaseBrowse,tasteEditPending:!!context.tasteEditPlan,focus:context.focus,tv:context.tv,filter:context.filter});
       }
       catch{const content='I couldn’t read your message properly just now. Nothing changed. Please try again.';await this.users.addConversationMessage(userId,sessionId,'assistant',content,[{type:'text',content}]);return {sessionId,blocks:[{type:'text',content}]};}
       if(route?.route==='conversation'||route?.route==='out_of_scope'){
@@ -63,6 +75,34 @@ export class ChatService {
         await this.users.addConversationMessage(userId,sessionId,'assistant',content,[{type:'text',content}]);
         return {sessionId,blocks:[{type:'text',content}]};
       }
+    }
+    if(route?.route==='compound'){
+      const context=await this.users.getSessionContext(userId,sessionId);
+      const plan=await this.ai.structured(taskPlanSchema,'chat_tasks',chatTaskInstructions,{message,history,context:{focus:context.focus,tv:context.tv,filter:context.filter,releaseBrowse:context.releaseBrowse,personalRead:context.personalRead}}).catch(()=>null);
+      const write=(r:string)=>['action','preference','taste_edit'].includes(r);
+      if(!plan||!plan.tasks.length||plan.unhandled.length||plan.tasks.filter(t=>write(t.route)).length>1||plan.tasks.some((t,i)=>t.dependsOn!==null&&t.dependsOn>=i||write(t.route)&&!message.includes(t.request))){
+        const content='I couldn’t safely separate all the parts of that request. Please send them as smaller requests so none gets missed and each change can be checked. Nothing changed.';
+        await this.users.addConversationMessage(userId,sessionId,'assistant',content,[{type:'text',content}]);return {sessionId,blocks:[{type:'text',content}]};
+      }
+      const blocks:ChatBlock[]=[],resolved:boolean[]=[];
+      for(const task of plan.tasks){
+        if(task.dependsOn!==null&&!resolved[task.dependsOn]){const block:ChatBlock={type:'text',content:`I couldn’t continue this part without a verified result: ${task.request}. Please clarify the title or programme first.`};blocks.push(block);await this.users.addConversationMessage(userId,sessionId,'assistant',block.content,[block]);resolved.push(false);continue;}
+        const before=await this.users.getSessionContext(userId,sessionId);
+        try{
+          const result=await this.respondInternal(userId,task.request,sessionId,task.route);blocks.push(...result.blocks);
+          const after=await this.users.getSessionContext(userId,sessionId);
+          resolved.push(result.blocks.some(b=>(b.type==='movie_carousel'||b.type==='tv_carousel')&&b.items.length>0)||Boolean(after.focus&&(result.blocks.some(b=>b.type==='knowledge')||JSON.stringify(after.focus)!==JSON.stringify(before.focus))));
+        }catch{const content=`I couldn’t complete this part just now: ${task.request}. Other completed parts are shown above; check any saved changes before retrying.`;blocks.push({type:'text',content});await this.users.addConversationMessage(userId,sessionId,'assistant',content,[{type:'text',content}]);resolved.push(false);}
+      }
+      return {sessionId,blocks};
+    }
+    if(route&&['releases','explain','taste_edit'].includes(route.route)){
+      let blocks:ChatBlock[];
+      try{blocks=route.route==='releases'?await new ChatReleases(this.users,this.catalog,this.ai).handle(userId,sessionId,message):route.route==='explain'?await new ChatExplain(this.users,this.ai,this.catalog).handle(userId,sessionId,message):await new ChatTasteEdit(this.users,this.ai).handle(userId,sessionId,message);}
+      catch{blocks=[{type:'text',content:route.route==='taste_edit'?'I couldn’t prepare that Taste correction. Nothing changed. You can retry or edit it in Profile > Your Taste.':'I couldn’t retrieve that information just now. Please retry; missing information is not confirmation that a release or recommendation does not exist.'}];}
+      const id=await this.users.addConversationMessage(userId,sessionId,'assistant',blocks.map(b=>'content'in b?b.content:'').join('\n'),blocks);
+      for(const b of blocks)if(b.type==='movie_carousel'&&b.items.length)await this.users.saveDisplayedItems(userId,sessionId,id,b.items);
+      return {sessionId,blocks};
     }
     if(route?.route==='personal'){
       const content=await new ChatPersonal(this.users,this.ai,this.epg,this.catalog).answer(userId,sessionId,message).catch(()=>'I couldn’t read your saved profile just now. Nothing changed. Please try again.');

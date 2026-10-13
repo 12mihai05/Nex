@@ -5,6 +5,7 @@ import type {TmdbRepository} from '../repositories/tmdb-repository.js';
 import type {AiService} from './ai.js';
 import type {EpgService} from './epg/service.js';
 import {normalizeSearch} from './search-ranking.js';
+import {chatReference} from './chat-reference.js';
 
 export const isKnowledgeQuestion=(s:string)=>/\b(who (?:plays|played|is|was|directed|wrote)|what else|tell me (?:more|about)|what(?: is|['’]s) .+ about|where (?:was|is) .+ filmed|based on a true story|cancelled|canceled|another season|renewed|announced|confirmed|when is .+ (?:on|airing)|when will .+ air|what episode|how many (?:seasons|episodes))\b/i.test(s);
 const text=(content:string):ChatBlock[]=>[{type:'text',content}];
@@ -18,13 +19,20 @@ export class ChatKnowledge {
   const focus=entitySchema.safeParse(context.focus);
   const ordinal=/\b(first|second|third|fourth|fifth|last)\b/i.test(message);
   const named=displayed.filter(e=>e.title.length>2&&(` ${normalizeSearch(message)} `).includes(` ${normalizeSearch(e.title)} `));
+  // A pronoun inside a newly named question ("Severance ... does it ...")
+  // must not bind to an unrelated old card. Resolve explicit subjects first.
+  const focusedEpisode=focus.success&&['series','episode'].includes(focus.data.type)&&/^(?:who (?:directed|wrote)|tell me about) (?:season \d+ )?episode \d+[?. ]*$/i.test(message);
+  const subject=!ordinal&&!named.length&&!focusedEpisode?await this.ai.knowledgeSubject(message):null;
   let entity=ordinal?resolveEntity(message,displayed):named.length===1?named[0]!:resolveEntity(message,focus.success?[focus.data]:displayed);
-  if(!entity&&focus.success&&['series','episode'].includes(focus.data.type)&&/^(?:who (?:directed|wrote)|tell me about) (?:season \d+ )?episode \d+[?. ]*$/i.test(message))entity=focus.data;
-  if(refersBack(message)&&!entity)return text('Which one do you mean? Tell me the title or its position in the last set of cards.');
+  if(subject?.query&&(!entity||normalizeSearch(entity.title)!==normalizeSearch(subject.query)))entity=null;
+  if(!entity&&focus.success&&focusedEpisode)entity=focus.data;
+  if(refersBack(message)&&!entity&&!subject?.query){
+   const resolved=await chatReference(this.ai,message,displayed,await this.users.recentConversationMessages(userId,sessionId));entity=resolved.entity;
+   if(!entity)return [...text('Which one do you mean? Choose a title or tell me its position in the cards.'),...(resolved.choices.length?[{type:'quick_actions' as const,actions:resolved.choices.map(t=>`Tell me about ${t}`)}]:[])];
+  }
   const {profile}=await this.users.getSettings(userId);
   let season:number|null=null,episode:number|null=null;
   if(!entity){
-   const subject=await this.ai.knowledgeSubject(message);
    if(!subject?.query)return text('Which movie, series or person would you like to know about?');
    season=subject.season;episode=subject.episode;
    if(subject.type==='person'){

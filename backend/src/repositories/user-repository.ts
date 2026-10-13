@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import { and, desc, eq, gt, lt, sql, inArray } from "drizzle-orm";
+import { and, or, desc, eq, gt, lt, sql, inArray } from "drizzle-orm";
 import type { NexDatabase } from "../db/client.js";
 import { getDatabase } from "../db/client.js";
 import {
@@ -14,6 +14,8 @@ import { aggregateEvidence, evidenceWeight, signalStrength, titleDimensions, typ
 import type { RankedContent } from "../domain/types.js";
 import { RecommendationStore } from './recommendation-store.js';
 import {cleanChatBlocks,cleanChatCopy} from '../domain/chat-copy.js';
+import {createHash} from 'node:crypto';
+import type {TasteEditPlan} from '../services/chat-taste-edit.js';
 
 export interface SettingsInput {
   country?: string | undefined;
@@ -212,6 +214,36 @@ export class UserRepository {
   async recordRecommendations(userId: string, ranked: RankedContent[], context: string): Promise<void> {
     if (ranked.length) await this.db.insert(userEvents).values(ranked.map((r,index)=>({ id: randomUUID(), userId, eventType: "shown", mediaType: r.item.mediaType, tmdbId: r.item.id, strength: 0, metadataJson: JSON.stringify({ context, rank: index+1, evidence: r.evidence, score: r.score }) })));
     await this.db.delete(userEvents).where(and(eq(userEvents.userId,userId),lt(userEvents.createdAt,new Date(Date.now()-90*86_400_000))));
+  }
+
+  async recommendationEvidence(userId:string,mediaType:string,tmdbId:number,context:string){
+    if(!await this.assertConversation(userId,context))throw new Error('CONVERSATION_NOT_FOUND');
+    const rows=await this.db.select({metadata:userEvents.metadataJson}).from(userEvents).where(and(eq(userEvents.userId,userId),eq(userEvents.eventType,'shown'),eq(userEvents.mediaType,mediaType),eq(userEvents.tmdbId,tmdbId))).orderBy(desc(userEvents.createdAt)).limit(20);
+    const data=rows.map(r=>{try{return JSON.parse(r.metadata??'{}') as {context?:string;evidence?:import('../domain/types.js').RecommendationEvidence[]};}catch{return {};}});
+    return (data.find(r=>r.context===context)??data[0])?.evidence??null;
+  }
+
+  async tasteSnapshot(userId:string){
+    const rows=await this.db.select().from(userTastePreferences).where(eq(userTastePreferences.userId,userId)).orderBy(userTastePreferences.id);
+    return createHash('sha256').update(JSON.stringify(rows)).digest('hex');
+  }
+
+  async commitTasteEdit(userId:string,sessionId:string,id:string,cancel=false):Promise<ChatBlock[]>{
+    return this.db.transaction(async tx=>{
+      const repo=new UserRepository(tx),context=await repo.getSessionContext(userId,sessionId);
+      const receipt=context.tasteEditReceipt as {id:string;blocks:ChatBlock[]}|undefined;
+      if(receipt?.id===id)return receipt.blocks;
+      const plan=context.tasteEditPlan as TasteEditPlan|undefined;
+      if(!plan||plan.id!==id||plan.expiresAt<Date.now())throw new Error('TASTE_EDIT_EXPIRED');
+      const blocks:ChatBlock[]=cancel?[{type:'text',content:'Cancelled. Your Taste has not changed.'}]:[{type:'confirmation',content:'Your Taste correction is saved. Your library and ratings are unchanged. Refresh Home to get new recommendations.'}];
+      if(!cancel){
+        if(await repo.tasteSnapshot(userId)!==plan.snapshot)throw new Error('TASTE_EDIT_STALE');
+        await repo.recommendationStore().clearPrivate(userId);
+        if(plan.targets.length)await tx.delete(userTastePreferences).where(and(eq(userTastePreferences.userId,userId),or(...plan.targets.map(target=>and(eq(userTastePreferences.dimension,target.dimension),eq(userTastePreferences.key,target.key))))));
+        if(plan.replacements.length)await repo.upsertTaste(userId,plan.replacements,'chat_edit:'+id);
+      }
+      await repo.setSessionContext(userId,sessionId,{...context,tasteEditPlan:undefined,tasteEditReceipt:{id,blocks}});return blocks;
+    });
   }
 
   async sessionRecommendationKeys(userId:string,conversationSessionId:string):Promise<Set<string>>{

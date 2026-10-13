@@ -35,12 +35,12 @@ void showChatHelp(BuildContext context) => showModalBottomSheet<void>(
         const _HelpItem(
           Icons.movie_outlined,
           'Find your next watch',
-          'Describe a story, mood, genre or time limit. Mention the services you want.',
+          'Describe a story, mood or time limit. Ask for more choices or why a title was recommended. Your current request stays in context.',
         ),
         const _HelpItem(
           Icons.tune_rounded,
           'Update your taste',
-          'Tell me lasting likes and dislikes: “I like mysteries, but dislike graphic violence.” Wishes just for tonight stay temporary.',
+          'Ask what Nex has learned, share lasting likes and dislikes, or request a correction. Review corrections before confirming. Wishes just for tonight stay temporary.',
         ),
         const _HelpItem(
           Icons.bookmark_border_rounded,
@@ -50,7 +50,12 @@ void showChatHelp(BuildContext context) => showModalBottomSheet<void>(
         const _HelpItem(
           Icons.live_tv_rounded,
           'Check TV listings',
-          'Ask “What’s on ProTV today at 8pm?” I use your selected country unless you name another.',
+          'Ask what is on, what comes next, or what a channel usually shows. I use your selected country unless you name another.',
+        ),
+        const _HelpItem(
+          Icons.calendar_month_outlined,
+          'Look ahead',
+          'Ask about upcoming cinema releases, new seasons or announced dates. Dates can change; missing dates are not treated as cancellations.',
         ),
         const _HelpItem(
           Icons.notifications_none_rounded,
@@ -59,7 +64,7 @@ void showChatHelp(BuildContext context) => showModalBottomSheet<void>(
         ),
         const SizedBox(height: 8),
         Text(
-          'Be specific when titles share a name—include the year. If a title or TV listing is unclear, I’ll ask rather than guess. Library actions and reminders require sign-in.',
+          'Include the year when titles share a name. If a title or TV listing is unclear, I’ll ask rather than guess. Library actions and reminders require sign-in.',
           style: Theme.of(context).textTheme.bodySmall,
         ),
       ],

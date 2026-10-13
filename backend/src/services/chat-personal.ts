@@ -45,12 +45,21 @@ export class ChatPersonal {
     if(wanted('reminders')){
       const {profile}=await this.users.getSettings(userId);
       const clock=new Intl.DateTimeFormat('en-GB',{timeZone:profile.timezone,dateStyle:'medium',timeStyle:'short'});
-      facts.reminders=page((await this.users.listReminders(userId)).filter(r=>r.active&&r.startsAt>new Date()&&match(r.title)).map(r=>({title:r.title,channel:r.channelName,localStart:clock.format(r.startsAt),timezone:profile.timezone,minutesBefore:r.offsetMinutes})));
+      const upcoming=(await this.users.listReminders(userId)).filter(r=>r.startsAt>new Date());
+      facts.reminders={...page(upcoming.filter(r=>match(r.title)).map(r=>({title:r.title,channel:r.channelName,localStart:clock.format(r.startsAt),timezone:profile.timezone,minutesBefore:r.offsetMinutes,enabled:r.active}))),totalSaved:upcoming.length,query:plan.query,delivery:'These are saved reminder records. The server cannot verify phone notification permissions or local scheduling. Disabled records do not deliver notifications.'};
+      if(plan.scope==='reminders'){
+        // The model chooses the task; exact stored reminder facts do not need
+        // another generative pass that could contradict the count or channel.
+        await this.users.setSessionContext(userId,sessionId,{...context,personalRead:plan});
+        const matching=upcoming.filter(r=>match(r.title)),shown=matching.slice(plan.offset,plan.offset+40);
+        if(!shown.length)return plan.offset>0?'That is the end of the matching upcoming reminders.':upcoming.length&&plan.query?'You have saved upcoming reminders, but none matches that title. Ask to show all reminders.':'You have no saved upcoming TV reminders.';
+        return `Your saved TV reminder${matching.length===1?'':'s'}:\n${shown.map(r=>`${r.title} on ${r.channelName??'channel unavailable'} · ${clock.format(r.startsAt)} · ${r.offsetMinutes} minutes before${!r.active?' (disabled)':r.notifyAt<=new Date()?' (alert time has passed)':''}`).join('\n')}${matching.length>plan.offset+40?'\nAsk for more to see the next reminders.':''}\nPhone alerts also depend on notification permissions and scheduling on your device.`;
+      }
     }
     if(wanted('settings')){
       const {profile,services,languages}=await this.users.getSettings(userId);
       const favorites=[];for(let offset=0;;offset+=50){const chunk=await this.epg.listChannels(userId,profile.country,'',offset,true);favorites.push(...chunk);if(chunk.length<50)break;}
-      facts.settings={country:profile.country,timezone:profile.timezone,services:services.map(s=>s.providerName),languages:languages.map(l=>({kind:l.kind,language:l.languageCode})),remindersEnabled:profile.remindersEnabled,behaviorPersonalization:profile.behaviorPersonalization,favouriteChannels:favorites.map(c=>({name:c.name,listingsAvailable:c.available}))};
+      facts.settings={country:profile.country,countryName:new Intl.DisplayNames(['en'],{type:'region'}).of(profile.country),timezone:profile.timezone,services:services.map(s=>s.providerName),languages:languages.map(l=>({kind:l.kind,language:l.languageCode})),remindersEnabled:profile.remindersEnabled,behaviorPersonalization:profile.behaviorPersonalization,favouriteChannels:favorites.map(c=>({name:c.name,listingsAvailable:c.available}))};
     }
     await this.users.setSessionContext(userId,sessionId,{...context,personalRead:plan});
     return this.ai.explainPersonal(message,facts);

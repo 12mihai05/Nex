@@ -25,7 +25,7 @@ export class ChatActions {
     if(!requested&&!looksLikeAction(message))return null;
     const context=await this.users.getSessionContext(userId,sessionId);
     // Never leave an old action armed after a new action request.
-    if(context.chatPlan){delete context.chatPlan;await this.users.setSessionContext(userId,sessionId,context);}
+    if(context.chatPlan||context.tasteEditPlan){delete context.chatPlan;delete context.tasteEditPlan;await this.users.setSessionContext(userId,sessionId,context);}
     const {profile}=await this.users.getSettings(userId);
     let displayed=(await this.users.recentDisplayedItems(userId,sessionId)).map(r=>({position:r.position,contentType:r.contentType,externalId:r.externalId,metadataJson:r.metadataJson}));
     const focus=entitySchema.safeParse(context.focus);
