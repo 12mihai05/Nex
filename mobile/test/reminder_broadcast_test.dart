@@ -9,6 +9,7 @@ import 'stable_discovery_test.dart' show MutableApi;
 import 'package:nex/src/models/tv_program.dart';
 import 'package:nex/src/widgets/reminder_sheet.dart';
 import 'package:nex/src/widgets/title_broadcasts.dart';
+import 'package:nex/src/core/theme.dart';
 
 class BroadcastApi extends MutableApi {
   bool failBroadcast = true;
@@ -35,6 +36,43 @@ class BroadcastApi extends MutableApi {
 }
 
 void main() {
+  testWidgets(
+    'reminder preview has a distinct light surface and preserves dark styling',
+    (tester) async {
+      for (final theme in [NexTheme.light, NexTheme.dark]) {
+        final start = DateTime.now().add(const Duration(hours: 2));
+        await tester.pumpWidget(
+          MaterialApp(
+            theme: theme,
+            home: Scaffold(
+              body: ReminderSheet(
+                program: TvProgram(
+                  id: 'preview',
+                  title: 'Film',
+                  channel: 'Antena 1',
+                  startsAt: start,
+                  endsAt: start.add(const Duration(hours: 2)),
+                ),
+              ),
+            ),
+          ),
+        );
+        await tester.pumpAndSettle();
+        final container = tester.widget<Container>(
+          find.byKey(const ValueKey('reminder-time-preview')),
+        );
+        final decoration = container.decoration! as BoxDecoration;
+        if (theme.brightness == Brightness.light) {
+          expect(decoration.color, theme.cardTheme.color);
+          expect(decoration.color, isNot(theme.scaffoldBackgroundColor));
+          expect(decoration.border, isNotNull);
+        } else {
+          expect(decoration.color, theme.colorScheme.surfaceContainerHighest);
+          expect(decoration.border, isNull);
+        }
+      }
+    },
+  );
   testWidgets(
     'title broadcast failures are retryable, live non-favorites are plain information',
     (tester) async {

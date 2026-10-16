@@ -111,9 +111,17 @@ class _ReminderSheetState extends State<ReminderSheet> {
           const SizedBox(height: 20),
           if (notificationTime case final DateTime time)
             Container(
+              key: const ValueKey('reminder-time-preview'),
               padding: const EdgeInsets.all(16),
               decoration: BoxDecoration(
-                color: Theme.of(context).colorScheme.surfaceContainerHighest,
+                color: Theme.of(context).brightness == Brightness.light
+                    ? Theme.of(context).cardTheme.color
+                    : Theme.of(context).colorScheme.surfaceContainerHighest,
+                border: Theme.of(context).brightness == Brightness.light
+                    ? Border.all(
+                        color: Theme.of(context).colorScheme.outlineVariant,
+                      )
+                    : null,
                 borderRadius: BorderRadius.circular(16),
               ),
               child: Row(
