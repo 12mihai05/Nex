@@ -1,7 +1,4 @@
-import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:nex/src/state/light_palette.dart';
 import 'package:flutter/material.dart';
 import 'package:nex/src/core/theme.dart';
 
@@ -11,8 +8,23 @@ double contrast(Color a, Color b) {
 }
 
 void main() {
-  test('warm light surfaces separate cards and retain readable text', () {
-    for (final theme in [NexTheme.light, NexTheme.paper]) {
+  test(
+    'selected icon buttons have readable themed foreground and background',
+    () {
+      final theme = NexTheme.light;
+      final style = theme.iconButtonTheme.style!;
+      final states = <WidgetState>{WidgetState.selected};
+      expect(
+        contrast(
+          style.foregroundColor!.resolve(states)!,
+          style.backgroundColor!.resolve(states)!,
+        ),
+        greaterThan(4.5),
+      );
+    },
+  );
+  test('cool light surfaces separate cards and retain readable text', () {
+    for (final theme in [NexTheme.light]) {
       final scheme = theme.colorScheme;
       expect(theme.scaffoldBackgroundColor.computeLuminance(), lessThan(.65));
       expect(
@@ -42,21 +54,4 @@ void main() {
     expect(theme.colorScheme.onSurface, const Color(0xFFF5F1F2));
     expect(theme.colorScheme.surfaceContainerHighest, const Color(0xFF292329));
   });
-  TestWidgetsFlutterBinding.ensureInitialized();
-  test(
-    'warm paper is a persisted device preference, independent of account Taste',
-    () async {
-      FlutterSecureStorage.setMockInitialValues({});
-      final first = ProviderContainer();
-      expect(first.read(lightPaletteProvider), isFalse);
-      await first.read(lightPaletteProvider.notifier).setPaper(true);
-      expect(first.read(lightPaletteProvider), isTrue);
-      first.dispose();
-      final second = ProviderContainer();
-      addTearDown(second.dispose);
-      second.read(lightPaletteProvider);
-      await Future<void>.delayed(const Duration(milliseconds: 10));
-      expect(second.read(lightPaletteProvider), isTrue);
-    },
-  );
 }

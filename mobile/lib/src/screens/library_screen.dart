@@ -105,6 +105,9 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
             final full = await api.title(item.mediaType.name, item.id);
             if (!mounted || ticket != generation) return;
             details[item.key] = full;
+            ref
+                .read(appControllerProvider.notifier)
+                .rememberLibraryDetails(full);
             failed.remove(item.key);
           } catch (_) {
             if (!mounted || ticket != generation) return;

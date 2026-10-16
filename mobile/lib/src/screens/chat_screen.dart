@@ -347,7 +347,12 @@ class _Message extends StatelessWidget {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                        const Icon(Icons.check_circle_outline),
+                        Icon(
+                          Icons.check_circle_outline,
+                          color: Theme.of(context)
+                              .colorScheme
+                              .onPrimaryContainer,
+                        ),
                         const SizedBox(width: 9),
                         Flexible(
                           child: SelectableText(

@@ -13,6 +13,16 @@ import {FixtureTmdbRepository} from "../src/repositories/tmdb-repository.js";
 import {filterQuerySchema} from "../src/domain/types.js";
 
 describe("user ownership isolation", () => {
+  it('legacy history gets cached artwork in one read without leaking other histories',async()=>{
+    const db=drizzle(client,{schema});
+    const item={...fixtureCatalog[0]!,posterUrl:null};
+    await repository.markWatched('alice',item);
+    await db.insert(schema.tmdbCache).values({cacheKey:`title:${item.mediaType}:${item.id}:RO`,kind:'title',payloadJson:JSON.stringify({...item,posterUrl:'https://image.tmdb.org/t/p/w500/legacy.jpg'}),expiresAt:new Date(0)});
+    expect((await repository.listHistory('alice'))[0]!.posterPath).toBe('https://image.tmdb.org/t/p/w500/legacy.jpg');
+    expect(await repository.listHistory('bob')).toEqual([]);
+    await repository.markWatched('alice',{...item,posterUrl:'https://image.tmdb.org/t/p/w500/saved.jpg'});
+    expect((await repository.listHistory('alice'))[0]!.posterPath).toContain('saved.jpg');
+  });
   it('summary reads are free, generations are daily and isolated, and deletion cascades',async()=>{
     const db=drizzle(client,{schema});
     const ai=new AiService('');

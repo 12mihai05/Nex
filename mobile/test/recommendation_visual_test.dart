@@ -15,7 +15,7 @@ import 'visual_review_test.dart' show VisualBinding;
 
 void main() {
   VisualBinding();
-  for (final variant in ['dark', 'light', 'paper', 'large']) {
+  for (final variant in ['dark', 'light', 'large']) {
     testWidgets('recommendation settings render $variant', (tester) async {
       final size = Size(variant == 'large' ? 360 : 430, 932);
       tester.view.physicalSize = size;
@@ -50,11 +50,7 @@ void main() {
             key: boundary,
             child: MaterialApp(
               debugShowCheckedModeBanner: false,
-              theme: variant == 'paper'
-                  ? NexTheme.paper
-                  : variant == 'light'
-                  ? NexTheme.light
-                  : NexTheme.dark,
+              theme: variant == 'light' ? NexTheme.light : NexTheme.dark,
               home: const TasteScreen(),
               builder: (context, child) => MediaQuery(
                 data: MediaQuery.of(context).copyWith(
@@ -69,6 +65,14 @@ void main() {
       await tester.pumpAndSettle();
       await tester.tap(find.text('Recommendation settings'));
       await tester.pumpAndSettle();
+      await Scrollable.ensureVisible(
+        tester.element(find.byTooltip('Sort by recently learned')),
+        alignment: .5,
+      );
+      await tester.pumpAndSettle();
+      await tester.tap(find.byTooltip('Sort by recently learned'));
+      await tester.pumpAndSettle();
+      expect(find.byTooltip('Sort by strongest preference'), findsOneWidget);
       expect(tester.takeException(), isNull);
       final image =
           await (boundary.currentContext!.findRenderObject()!

@@ -54,6 +54,8 @@ void main() {
         ),
       );
       await tester.pumpAndSettle();
+      await tester.tap(find.byType(DropdownButtonFormField<String>));
+      await tester.pumpAndSettle();
       final image =
           await (key.currentContext!.findRenderObject()
                   as RenderRepaintBoundary)

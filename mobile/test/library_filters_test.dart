@@ -58,6 +58,33 @@ class LibraryApi extends OfflineCatalogApi {
 }
 
 void main() {
+  testWidgets('Seen artwork hydration is retained on re-entry', (tester) async {
+    final api = LibraryApi();
+    final container = ProviderContainer(
+      overrides: [nexApiClientProvider.overrideWithValue(api)],
+    );
+    addTearDown(container.dispose);
+    await container.read(appControllerProvider.notifier).restoreSession();
+    Widget screen() => UncontrolledProviderScope(
+      container: container,
+      child: const MaterialApp(home: LibraryScreen(watched: true)),
+    );
+    await tester.pumpWidget(screen());
+    await tester.pumpAndSettle();
+    expect(api.requests.where((id) => id == 1).length, 1);
+    expect(
+      container
+          .read(appControllerProvider.notifier)
+          .catalog
+          .firstWhere((i) => i.id == 1)
+          .posterUrl,
+      isNotNull,
+    );
+    await tester.pumpWidget(const SizedBox());
+    await tester.pumpWidget(screen());
+    await tester.pumpAndSettle();
+    expect(api.requests.where((id) => id == 1).length, 1);
+  });
   test('library filters combine type, genre, runtime, title and included services without guessing unknowns', () {
     final movie = title(1);
     expect(

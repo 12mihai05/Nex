@@ -923,6 +923,14 @@ class _Hero extends StatelessWidget {
                       const SizedBox(width: 10),
                       IconButton.filledTonal(
                         tooltip: 'Pick for me',
+                        style: IconButton.styleFrom(
+                          backgroundColor: Theme.of(context)
+                              .colorScheme
+                              .primaryContainer,
+                          foregroundColor: Theme.of(context)
+                              .colorScheme
+                              .onPrimaryContainer,
+                        ),
                         onPressed: onPick,
                         icon: const Icon(Icons.shuffle_rounded),
                       ),

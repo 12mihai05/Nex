@@ -646,6 +646,16 @@ class _TvGuideScreenState extends ConsumerState<TvGuideScreen> {
               child: Row(
                 children: [
                   IconButton.filledTonal(
+                    style: IconButton.styleFrom(
+                      backgroundColor: favorites
+                          ? Theme.of(context).colorScheme.primaryContainer
+                          : Theme.of(context)
+                                .colorScheme
+                                .surfaceContainerHighest,
+                      foregroundColor: favorites
+                          ? Theme.of(context).colorScheme.onPrimaryContainer
+                          : Theme.of(context).colorScheme.onSurface,
+                    ),
                     tooltip: favorites
                         ? 'Show all channels'
                         : 'Show favourite channels only',

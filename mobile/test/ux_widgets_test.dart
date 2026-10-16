@@ -102,7 +102,7 @@ void main() {
         return (x > y ? x + .05 : y + .05) / (x > y ? y + .05 : x + .05);
       }
 
-      for (final theme in [NexTheme.light, NexTheme.paper, NexTheme.dark]) {
+      for (final theme in [NexTheme.light, NexTheme.dark]) {
         final s = theme.colorScheme;
         expect(contrast(s.primary, s.surface), greaterThanOrEqualTo(4.5));
         expect(contrast(s.primary, s.onPrimary), greaterThanOrEqualTo(4.5));

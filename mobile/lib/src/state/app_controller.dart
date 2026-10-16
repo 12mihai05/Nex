@@ -971,6 +971,9 @@ class AppController extends Notifier<AppState> {
     }.values.toList();
   }
 
+  // Retain lazy library hydration when the user leaves and returns.
+  void rememberLibraryDetails(ContentItem item) => _rememberTitle(item);
+
   Future<void> react(ContentItem item, String? reaction) {
     _rememberTitle(item);
     return _saveTitleChange(

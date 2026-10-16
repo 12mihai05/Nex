@@ -119,14 +119,46 @@ class _CatalogFilterSheetState extends State<CatalogFilterSheet> {
               const SizedBox(height: 24),
             ],
             DropdownButtonFormField<String>(
+              borderRadius: BorderRadius.circular(22),
+              dropdownColor: Theme.of(context).cardTheme.color,
+              menuMaxHeight: MediaQuery.sizeOf(context).height * .55,
+              elevation: 4,
+              icon: const Icon(Icons.expand_more_rounded),
+              style: Theme.of(context).textTheme.bodyLarge,
               initialValue: genre ?? '',
               isExpanded: true,
-              decoration: const InputDecoration(labelText: 'Genre'),
+              decoration: const InputDecoration(
+                labelText: 'Genre',
+                prefixIcon: Icon(Icons.movie_filter_outlined),
+              ),
               items: [
-                const DropdownMenuItem(value: '', child: Text('All genres')),
-                ...genres.map(
-                  (g) => DropdownMenuItem(value: g, child: Text(g)),
-                ),
+                for (final g in ['', ...genres])
+                  DropdownMenuItem(
+                    value: g,
+                    child: Row(
+                      children: [
+                        Expanded(
+                          child: Text(
+                            g.isEmpty ? 'All genres' : g,
+                            style: TextStyle(
+                              fontWeight: (genre ?? '') == g
+                                  ? FontWeight.w600
+                                  : FontWeight.w400,
+                              color: (genre ?? '') == g
+                                  ? Theme.of(context).colorScheme.primary
+                                  : Theme.of(context).colorScheme.onSurface,
+                            ),
+                          ),
+                        ),
+                        if ((genre ?? '') == g)
+                          Icon(
+                            Icons.check_rounded,
+                            size: 20,
+                            color: Theme.of(context).colorScheme.primary,
+                          ),
+                      ],
+                    ),
+                  ),
               ],
               onChanged: (value) =>
                   setState(() => genre = value == '' ? null : value),

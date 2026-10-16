@@ -5,7 +5,7 @@ import { getDatabase } from "../db/client.js";
 import {
   aiUsage, conversationDisplayedItems, conversationMessages, conversationSessions, epgPrograms, profiles, reminders,
   sessionContext, userEvents, userLanguagePreferences, userStreamingServices, userTastePreferences, userTitleFeedback,
-  watchHistory, watchlist, channels, userTasteSummaries,
+  watchHistory, watchlist, channels, userTasteSummaries, tmdbCache,
 } from "../db/schema.js";
 import type { ContentItem, TasteSignal, ChatBlock } from "../domain/types.js";
 import type {ChatActionPlan} from '../services/chat-action-types.js';
@@ -138,7 +138,17 @@ export class UserRepository {
   }
 
   async listHistory(userId: string) {
-    return this.db.select().from(watchHistory).where(eq(watchHistory.userId, userId)).orderBy(desc(watchHistory.watchedAt));
+    // Legacy Seen entries predate saved artwork. Reuse an indexed catalog
+    // snapshot in the same query rather than making a title request per card.
+    const rows = await this.db.select({entry:watchHistory,cached:tmdbCache.payloadJson})
+      .from(watchHistory).leftJoin(profiles,eq(profiles.userId,watchHistory.userId))
+      .leftJoin(tmdbCache,eq(tmdbCache.cacheKey,sql`'title:' || ${watchHistory.mediaType} || ':' || ${watchHistory.tmdbId} || ':' || coalesce(${profiles.country}, 'RO')`))
+      .where(eq(watchHistory.userId,userId)).orderBy(desc(watchHistory.watchedAt));
+    return rows.map(({entry,cached})=>{
+      if(entry.posterPath||!cached)return entry;
+      try {const item=JSON.parse(cached);return {...entry,posterPath:typeof item.posterUrl==='string'?item.posterUrl:null};}
+      catch{return entry;}
+    });
   }
 
   async removeWatched(userId: string, mediaType: "movie" | "series", tmdbId: number): Promise<void> {

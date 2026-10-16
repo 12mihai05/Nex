@@ -5,7 +5,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'core/router.dart';
 import 'core/theme.dart';
 import 'state/app_controller.dart';
-import 'state/light_palette.dart';
 
 class NexApp extends ConsumerWidget {
   const NexApp({super.key});
@@ -18,7 +17,7 @@ class NexApp extends ConsumerWidget {
     return MaterialApp.router(
       title: 'Nex',
       debugShowCheckedModeBanner: false,
-      theme: ref.watch(lightPaletteProvider) ? NexTheme.paper : NexTheme.light,
+      theme: NexTheme.light,
       darkTheme: NexTheme.dark,
       themeMode: appearance,
       routerConfig: router,

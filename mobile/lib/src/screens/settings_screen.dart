@@ -6,7 +6,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../state/app_controller.dart';
-import '../state/light_palette.dart';
 import '../data/countries.dart';
 import '../widgets/delete_account_sheet.dart';
 import '../widgets/release_details.dart';
@@ -102,26 +101,6 @@ class SettingsScreen extends ConsumerWidget {
             selected: {state.appearance},
             onSelectionChanged: (value) =>
                 controller.setAppearance(value.first),
-          ),
-          const SizedBox(height: 12),
-          const Text('Light palette'),
-          const SizedBox(height: 8),
-          SegmentedButton<bool>(
-            segments: const [
-              ButtonSegment(
-                value: false,
-                icon: Icon(Icons.water_drop_outlined),
-                label: Text('Cool blue'),
-              ),
-              ButtonSegment(
-                value: true,
-                icon: Icon(Icons.description_outlined),
-                label: Text('Warm paper'),
-              ),
-            ],
-            selected: {ref.watch(lightPaletteProvider)},
-            onSelectionChanged: (v) =>
-                ref.read(lightPaletteProvider.notifier).setPaper(v.first),
           ),
           const SizedBox(height: 12),
           const _Header('Privacy'),

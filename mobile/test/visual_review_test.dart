@@ -34,7 +34,7 @@ class VisualBinding extends LiveTestWidgetsFlutterBinding {
 void main() {
   VisualBinding();
   final enabled = Platform.environment['NEX_VISUAL_QA'] == '1';
-  for (final variant in ['dark', 'light', 'paper', 'narrow-large']) {
+  for (final variant in ['dark', 'light', 'narrow-large']) {
     testWidgets(
       'major screens render: $variant',
       (tester) async {
@@ -105,11 +105,7 @@ void main() {
               child: MaterialApp.router(
                 debugShowCheckedModeBanner: false,
                 routerConfig: router,
-                theme: variant == 'paper'
-                    ? NexTheme.paper
-                    : variant == 'light'
-                    ? NexTheme.light
-                    : NexTheme.dark,
+                theme: variant == 'light' ? NexTheme.light : NexTheme.dark,
                 builder: (context, child) => MediaQuery(
                   data: MediaQuery.of(context).copyWith(
                     textScaler: TextScaler.linear(

@@ -24,11 +24,10 @@ abstract final class NexTheme {
           );
   static ThemeData get dark => _theme(Brightness.dark);
   static ThemeData get light => _theme(Brightness.light);
-  static ThemeData get paper => _theme(Brightness.light, paper: true);
 
-  static ThemeData _theme(Brightness brightness, {bool paper = false}) {
-    final background = paper ? const Color(0xFFD8CCB6) : NexColors.bone;
-    final card = paper ? const Color(0xFFF0E7D6) : NexColors.lightCard;
+  static ThemeData _theme(Brightness brightness) {
+    const background = NexColors.bone;
+    const card = NexColors.lightCard;
     final dark = brightness == Brightness.dark;
     final scheme =
         ColorScheme.fromSeed(
@@ -40,41 +39,27 @@ abstract final class NexTheme {
           onPrimary: dark ? const Color(0xFF320713) : Colors.white,
           secondary: dark ? null : const Color(0xFF96314D),
           onSecondary: dark ? null : Colors.white,
-          outline: dark
-              ? null
-              : (paper ? const Color(0xFF8C7B62) : const Color(0xFF748397)),
+          outline: dark ? null : const Color(0xFF748397),
           secondaryContainer: dark ? null : const Color(0xFF96314D),
           onSecondaryContainer: dark ? null : Colors.white,
           primaryContainer: dark
               ? const Color(0xFF552033)
               : const Color(0xFF96314D),
           onPrimaryContainer: dark ? const Color(0xFFFFDEE5) : Colors.white,
-          onSurface: dark
-              ? const Color(0xFFF5F1F2)
-              : paper
-              ? const Color(0xFF30291F)
-              : const Color(0xFF202734),
+          onSurface: dark ? const Color(0xFFF5F1F2) : const Color(0xFF202734),
           onSurfaceVariant: dark
               ? const Color(0xFFC4BAC0)
-              : paper
-              ? const Color(0xFF443C31)
               : const Color(0xFF4B5565),
           surfaceContainerLowest: dark ? null : card,
-          surfaceContainerLow: dark
-              ? null
-              : (paper ? const Color(0xFFEAE0CD) : const Color(0xFFEEF1F5)),
-          surfaceContainer: dark
-              ? null
-              : (paper ? const Color(0xFFE2D6C0) : const Color(0xFFE0E5EC)),
-          surfaceContainerHigh: dark
-              ? null
-              : (paper ? const Color(0xFFD5C5A9) : const Color(0xFFD5DDE7)),
+          surfaceContainerLow: dark ? null : const Color(0xFFEEF1F5),
+          surfaceContainer: dark ? null : const Color(0xFFE0E5EC),
+          surfaceContainerHigh: dark ? null : const Color(0xFFD5DDE7),
           surfaceContainerHighest: dark
               ? const Color(0xFF292329)
-              : (paper ? const Color(0xFFC6B493) : const Color(0xFFC7D1DE)),
+              : const Color(0xFFC7D1DE),
           outlineVariant: dark
               ? const Color(0xFF493D43)
-              : (paper ? const Color(0xFF9C8B6D) : const Color(0xFFA4AFBD)),
+              : const Color(0xFFA4AFBD),
         );
     return ThemeData(
       useMaterial3: true,
@@ -83,6 +68,22 @@ abstract final class NexTheme {
       scaffoldBackgroundColor: dark ? NexColors.ink : background,
       fontFamily: 'sans-serif',
       iconTheme: dark ? null : IconThemeData(color: scheme.onSurfaceVariant),
+      iconButtonTheme: IconButtonThemeData(
+        style: ButtonStyle(
+          foregroundColor: WidgetStateProperty.resolveWith(
+            (states) => states.contains(WidgetState.disabled)
+                ? scheme.onSurface.withValues(alpha: .38)
+                : states.contains(WidgetState.selected)
+                ? scheme.onPrimaryContainer
+                : null,
+          ),
+          backgroundColor: WidgetStateProperty.resolveWith(
+            (states) => states.contains(WidgetState.selected)
+                ? scheme.primaryContainer
+                : null,
+          ),
+        ),
+      ),
       dialogTheme: DialogThemeData(
         backgroundColor: dark ? NexColors.charcoal : card,
         surfaceTintColor: Colors.transparent,
