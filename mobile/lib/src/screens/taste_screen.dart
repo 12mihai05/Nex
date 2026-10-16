@@ -290,35 +290,42 @@ class _TasteScreenState extends ConsumerState<TasteScreen> {
                       ),
                     ),
                     const SizedBox(height: 12),
-                    SingleChildScrollView(
-                      scrollDirection: Axis.horizontal,
-                      child: Row(
-                        children: [
-                          for (final value in [
-                            'All',
-                            'More of',
-                            'Less of',
-                            'Neutral',
-                          ])
-                            Padding(
-                              padding: const EdgeInsets.only(right: 6),
-                              child: ChoiceChip(
-                                label: Text(value),
-                                selected: polarity == value,
-                                onSelected: (_) =>
-                                    setState(() => polarity = value),
-                              ),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: SingleChildScrollView(
+                            scrollDirection: Axis.horizontal,
+                            child: Row(
+                              children: [
+                                for (final value in [
+                                  'All',
+                                  'More of',
+                                  'Less of',
+                                  'Neutral',
+                                ])
+                                  Padding(
+                                    padding: const EdgeInsets.only(right: 6),
+                                    child: ChoiceChip(
+                                      label: Text(value),
+                                      selected: polarity == value,
+                                      onSelected: (_) =>
+                                          setState(() => polarity = value),
+                                    ),
+                                  ),
+                              ],
                             ),
-                          IconButton(
-                            tooltip: recent
-                                ? 'Sort by strongest preference'
-                                : 'Sort by recently learned',
-                            isSelected: recent,
-                            icon: const Icon(Icons.history),
-                            onPressed: () => setState(() => recent = !recent),
                           ),
-                        ],
-                      ),
+                        ),
+                        const SizedBox(width: 6),
+                        IconButton(
+                          tooltip: recent
+                              ? 'Sort by strongest preference'
+                              : 'Sort by recently learned',
+                          isSelected: recent,
+                          icon: const Icon(Icons.history),
+                          onPressed: () => setState(() => recent = !recent),
+                        ),
+                      ],
                     ),
                     SwitchListTile.adaptive(
                       contentPadding: EdgeInsets.zero,

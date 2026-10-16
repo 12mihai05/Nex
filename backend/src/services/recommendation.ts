@@ -24,6 +24,21 @@ export const rankingWeights = { taste: 4, negative: 6, session: 5, availability:
 export const titleKey = (item: Pick<ContentItem, "mediaType" | "id">) => `${item.mediaType}:${item.id}`;
 const normalized = (s: string) => s.toLowerCase().trim();
 
+// Describe actual scoring evidence, not invented plot details. No model call.
+export function recommendationReason(evidence: RecommendationEvidence[]): string {
+  const personal=evidence.filter(e=>e.weight>.1&&/^(taste:|session:|semantic:interest)/.test(e.code))
+    .sort((a,b)=>b.weight-a.weight);
+  const labels=[...new Set(personal.map(e=>e.label))].slice(0,2);
+  if(!labels.length)return 'A discovery pick, rather than a strong match to your saved preferences.';
+  const sentences=labels.map(label=>label.charAt(0).toUpperCase()+label.slice(1)+'.');
+  const concern=evidence.filter(e=>e.weight < -1 && /^(negative:|semantic:avoid)/.test(e.code)).sort((a,b)=>a.weight-b.weight)[0];
+  if(concern)sentences.push(`A possible mismatch: ${concern.label}.`);
+  // Availability is useful, but is not a reason to claim a taste match.
+  const available=evidence.find(e=>e.code==='availability:owned');
+  if(available)sentences.push(`Also ${available.label}.`);
+  return sentences.join(' ');
+}
+
 export function scoreCandidate(item: ContentItem, query: FilterQuery, context: RecommendationContext): RankedContent | null {
   if(!context.scoreCache)return scoreUncached(item,query,context);
   const key=JSON.stringify(query),cache=context.scoreCache.get(item)??new Map<string,RankedContent|null>();
@@ -107,8 +122,7 @@ function scoreUncached(item: ContentItem, query: FilterQuery, context: Recommend
     // A second layer can reorder eligible titles, never override hard filters.
     if (Number.isFinite(adjustment.weight)) add(adjustment.code, adjustment.label, adjustment.weight);
   }
-  const reasons = evidence.filter((e) => e.weight > .1 && !e.code.startsWith("quality:") && !e.code.startsWith("tentative:")).sort((a,b)=>b.weight-a.weight).slice(0,2);
-  return { item: { ...item, availability: item.availability.map((a) => ({ ...a, owned: context.ownedProviderIds.includes(a.providerId) })) }, score, evidence, reason: reasons.length ? `Because ${reasons.map((e)=>e.label).join(" and ")}.` : "A catalog discovery pick; there is not enough preference evidence for a personal explanation yet." };
+  return { item: { ...item, availability: item.availability.map((a) => ({ ...a, owned: context.ownedProviderIds.includes(a.providerId) })) }, score, evidence, reason: recommendationReason(evidence) };
 }
 
 export function rankCandidates(items: ContentItem[], query: FilterQuery, context: RecommendationContext, limit = 12): RankedContent[] {

@@ -1,6 +1,7 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:flutter/material.dart';
 import 'package:nex/src/core/theme.dart';
+import 'package:nex/src/widgets/skeleton.dart';
 
 double contrast(Color a, Color b) {
   final x = a.computeLuminance(), y = b.computeLuminance();
@@ -8,6 +9,27 @@ double contrast(Color a, Color b) {
 }
 
 void main() {
+  testWidgets('light skeleton blocks are distinct from the page', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: NexTheme.light,
+        home: const Scaffold(body: SkeletonBlock()),
+      ),
+    );
+    final box = tester.widget<Container>(
+      find.descendant(
+        of: find.byType(SkeletonBlock),
+        matching: find.byType(Container),
+      ),
+    );
+    final color = (box.decoration! as BoxDecoration).color!;
+    expect(
+      contrast(color, NexTheme.light.scaffoldBackgroundColor),
+      greaterThan(1.5),
+    );
+  });
   test(
     'selected icon buttons have readable themed foreground and background',
     () {

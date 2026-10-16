@@ -72,7 +72,9 @@ class SkeletonBlock extends StatelessWidget {
     height: height,
     width: width,
     decoration: BoxDecoration(
-      color: Theme.of(context).colorScheme.surfaceContainerHighest,
+      color: Theme.of(context).brightness == Brightness.light
+          ? const Color(0xFF9CAABD)
+          : Theme.of(context).colorScheme.surfaceContainerHighest,
       borderRadius: BorderRadius.circular(radius),
     ),
   );

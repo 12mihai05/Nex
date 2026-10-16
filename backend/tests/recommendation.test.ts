@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { fixtureCatalog } from "../src/fixtures/catalog.js";
 import { detectSearchIntent } from "../src/services/intent.js";
-import { rankCandidates, signalStrength, updateTasteSignal } from "../src/services/recommendation.js";
+import { rankCandidates, signalStrength, updateTasteSignal, recommendationReason } from "../src/services/recommendation.js";
 
 const context = {
   viewerIds: ["u1"],
@@ -13,6 +13,17 @@ const context = {
 };
 
 describe("recommendation scoring", () => {
+  it('explains personal matches before availability and discloses conflicts',()=>{
+    const reason=recommendationReason([
+      {code:'availability:owned',label:'included with Prime',weight:3},
+      {code:'taste:genre',label:'sports fits your taste',weight:2},
+      {code:'semantic:interest',label:'its premise may appeal to your interest in second chances',weight:1},
+      {code:'negative:mood',label:'less aligned with your preference about violence',weight:-2},
+    ]);
+    expect(reason).toContain('second chances');expect(reason).toContain('possible mismatch');
+    expect(reason.indexOf('second chances')).toBeLessThan(reason.indexOf('Prime'));
+    expect(recommendationReason([{code:'availability:owned',label:'included with Prime',weight:3}])).toContain('rather than a strong match');
+  });
   it('does not substitute unrelated titles when no candidate supports the requested concept',()=>{
     const query={...detectSearchIntent('recommend a movie'),keywords:['nonexistent verified story concept']};
     expect(rankCandidates(fixtureCatalog,query,context)).toEqual([]);

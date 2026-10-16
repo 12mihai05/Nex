@@ -73,6 +73,11 @@ void main() {
       await tester.tap(find.byTooltip('Sort by recently learned'));
       await tester.pumpAndSettle();
       expect(find.byTooltip('Sort by strongest preference'), findsOneWidget);
+      final sortRect = tester.getRect(
+        find.byTooltip('Sort by strongest preference'),
+      );
+      expect(sortRect.right, lessThanOrEqualTo(size.width - 16));
+      expect(sortRect.left, greaterThanOrEqualTo(0));
       expect(tester.takeException(), isNull);
       final image =
           await (boundary.currentContext!.findRenderObject()!

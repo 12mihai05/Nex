@@ -111,7 +111,7 @@ export class PersonalizationService {
       for(const item of items) {
         const vector=vectorFor(item); if(!vector) continue;
         const adjustment=semanticAdjustment(item,vector,interests), evidence: RecommendationEvidence[]=[];
-        if(adjustment.boost>.05) evidence.push({code:'semantic:interest',label:'its premise is related to your interests',weight:adjustment.boost});
+        if(adjustment.boost>.05) evidence.push({code:'semantic:interest',label:adjustment.positive?`its premise may appeal to your interest in ${adjustment.positive.label}`:'its premise is related to your interests',weight:adjustment.boost});
         if(adjustment.penalty>.05) evidence.push({code:'semantic:avoid',label:'its premise may overlap with something you dislike',weight:-adjustment.penalty});
         result.personalAdjustments.set(titleKey(item),evidence); result.covered++;
       }

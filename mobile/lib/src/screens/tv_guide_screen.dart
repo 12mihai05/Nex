@@ -539,6 +539,8 @@ class _TvGuideScreenState extends ConsumerState<TvGuideScreen> {
                 child: Material(
                   color: p.isLive
                       ? scheme.primaryContainer
+                      : Theme.of(context).brightness == Brightness.light
+                      ? Theme.of(context).cardTheme.color
                       : scheme.surfaceContainerHigh,
                   borderRadius: BorderRadius.circular(12),
                   clipBehavior: Clip.antiAlias,
