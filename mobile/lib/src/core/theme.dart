@@ -49,9 +49,15 @@ abstract final class NexTheme {
               ? const Color(0xFF552033)
               : const Color(0xFF96314D),
           onPrimaryContainer: dark ? const Color(0xFFFFDEE5) : Colors.white,
-          onSurface: dark ? const Color(0xFFF5F1F2) : const Color(0xFF202734),
+          onSurface: dark
+              ? const Color(0xFFF5F1F2)
+              : paper
+              ? const Color(0xFF30291F)
+              : const Color(0xFF202734),
           onSurfaceVariant: dark
               ? const Color(0xFFC4BAC0)
+              : paper
+              ? const Color(0xFF443C31)
               : const Color(0xFF4B5565),
           surfaceContainerLowest: dark ? null : card,
           surfaceContainerLow: dark

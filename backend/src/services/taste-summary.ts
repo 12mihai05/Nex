@@ -6,6 +6,7 @@ import {userTasteSummaries} from '../db/schema.js';
 import {UserRepository} from '../repositories/user-repository.js';
 import {AiService} from './ai.js';
 
+export const tastePortraitInstructions='Write a grounded paragraph addressed to the viewer as you about their movie and series taste. Use 20-40 words for sparse evidence, up to 85 only for rich evidence. Plain natural English, no headings, no em dashes, no flattery or personality diagnosis. Connect the SUPPLIED preferences rather than listing tags. Every claimed preference must be directly supported; do not embellish genres with stereotypical themes, pacing, aesthetics or contrasts. Thoughtful does not imply slow-burning or quiet. Science fiction does not imply disliking spectacle or preferring ethical dilemmas. Disliking horror does not mean disliking all violence or thrills. Never add these distinctions without a supplied signal. Include major dislikes gently. Explicit stated preferences take precedence; learned patterns are tentative. Negative scores mean dislike, never like. Preserve conditions and exceptions: a country/genre combination is NOT every title from that country. Never invent favourite titles, ethnicity or identity. Do not append a disclaimer, recommendation, or statement about algorithms or scores. When evidence is sparse, keep it short instead of filling gaps.'+' Describe ordinary dislikes as preferences, not blocking rules. Only say excluded/blocked if exclude=true. For a country condition with match=only, explicitly preserve the exception that co-productions with other countries remain open; do not paraphrase it as all content from those countries.';
 const day=86400000;
 export class TasteSummary {
   constructor(private db=getDatabase(),private users=new UserRepository(db),private ai=new AiService()){}
@@ -27,7 +28,7 @@ export class TasteSummary {
     if(!lease.length)return this.read(userId);
     try {
       const result=await this.ai.structured(z.object({paragraph:z.string().min(20).max(900)}),'taste_portrait',
-        'Write a grounded 50-85 word paragraph addressed to the viewer as you, describing their movie and series taste. Plain natural English, no headings, no em dashes, no flattery or personality diagnosis. Connect their strongest story, mood and genre preferences rather than listing tags. Include major dislikes gently. Explicit stated preferences take precedence; learned patterns are tentative. A negative score means dislike, never like. Respect conditions: disliking a country/genre combination is NOT disliking every title from that country. Never infer unseen preferences, specific favourite titles, ethnicity or identity. This is a representative summary of strongest signals, not an exhaustive profile. Do not mention algorithms or scores.',selected);
+        tastePortraitInstructions,selected);
       await this.db.update(userTasteSummaries).set({paragraph:result.paragraph,fingerprint,updatedAt:now}).where(eq(userTasteSummaries.userId,userId));
       return this.read(userId);
     } catch {

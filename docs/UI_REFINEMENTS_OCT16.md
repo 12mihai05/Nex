@@ -13,9 +13,10 @@
 ## Verification
 
 - Backend regression suite: 309 passing tests, including summary isolation, no-charge reads, concurrent-call suppression, daily limits, unchanged fingerprint reuse and account deletion cascade.
-- Flutter tests cover season switching/lazy requests, full-day boundaries, TV cache restoration, notification/favourite controls, palette persistence and light/dark text contrast. Analyzer and Android debug build checked.
+- Flutter: 109 tests pass; 22 opt-in checks skipped in the ordinary suite. Ten visual scenarios ran separately. Tests cover season switching/lazy requests, full-day boundaries, TV cache restoration, notification/favourite controls, palette persistence and light/dark text contrast. Analyzer and Android debug build pass.
 - Rendered major screens in cool blue, warm paper, dark and large text. Inspected generated screenshots of Home, TV, Taste and season details.
 - Applied additive `user_taste_summaries` migration; no existing ratings/preferences rewritten. No new provider or secrets shipped to Flutter.
-- Production verification is run after deployment using a disposable account; no private user account is queried.
+- Production HTTP verification passed for summary generation/reuse, guide coverage and next-day windows (20 channels / 131 programmes), season counts, artwork and Chat persistence/clear. Disposable account deleted and session revoked. No private user account queried.
+- Live synthetic AI review caught over-specific prose from sparse evidence; instructions were tightened to avoid inferred pacing/themes and preserve conditional exclusions. The paragraph remains a descriptive snapshot, not a recommendation rule.
 
 Implementation reference: [OpenAI Structured Outputs](https://developers.openai.com/api/docs/guides/structured-outputs), using the app's existing validated structured-output wrapper and `store: false`.
