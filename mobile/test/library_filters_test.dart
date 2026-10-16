@@ -5,6 +5,7 @@ import 'package:nex/src/models/content.dart';
 import 'package:nex/src/screens/library_screen.dart';
 import 'package:nex/src/widgets/catalog_filter_sheet.dart';
 import 'package:nex/src/state/app_controller.dart';
+import 'package:nex/src/widgets/content_card.dart';
 
 import 'library_restore_test.dart' show OfflineCatalogApi;
 
@@ -51,6 +52,7 @@ class LibraryApi extends OfflineCatalogApi {
       'title': 'Saved title $id',
       'genres': ['Drama'],
       'runtimeMinutes': 60 + id,
+      'posterUrl': 'https://image.tmdb.org/t/p/w342/test-$id.jpg',
     });
   }
 }
@@ -136,6 +138,14 @@ void main() {
           ),
         );
         await tester.pumpAndSettle();
+        expect(api.requests.length, 12);
+        expect(
+          tester
+              .widgetList<ContentCard>(find.byType(ContentCard))
+              .any((card) => card.item.posterUrl != null),
+          isTrue,
+        );
+        expect(find.byTooltip('Find a title to add'), findsNothing);
         await tester.tap(find.text('Filters'));
         await tester.pumpAndSettle();
         await tester.enterText(

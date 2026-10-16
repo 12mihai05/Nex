@@ -14,7 +14,8 @@ try {
   }
   const r=await fetch(base+'/actions/workflows/epg-sync.yml/runs?per_page=1',{headers});if(!r.ok)throw new Error('RUN_READ_FAILED');
   const run=(await r.json()).workflow_runs[0];
-  if(run.status!=='completed') {console.log(JSON.stringify({runId:run.id,date:run.created_at,status:run.status}));process.exit(0);}
+  if(run.status!=='completed') {console.log(JSON.stringify({runId:run.id,date:run.created_at,status:run.status}));}
+  else {
   const response=await fetch(base+`/actions/runs/${run.id}/logs`,{headers});if(!response.ok)throw new Error('LOG_READ_FAILED');
   const zip=Buffer.from(await response.arrayBuffer());
   const summaries:string[]=[];
@@ -31,4 +32,5 @@ try {
     }
   }
   console.log(JSON.stringify({runId:run.id,date:run.created_at,status:run.conclusion,summaries}));
+  }
 }catch {console.error('SCHEDULER_INSPECTION_UNAVAILABLE: details withheld');process.exitCode=1;}

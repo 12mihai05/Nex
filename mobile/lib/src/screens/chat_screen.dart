@@ -27,13 +27,19 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
   @override
   void initState() {
     super.initState();
-    WidgetsBinding.instance.addPostFrameCallback((_) async {
-      if (!mounted || !widget.active) return;
-      final shouldScroll =
-          !ref.read(appControllerProvider).demoMode &&
-          ref.read(appControllerProvider).chatMessages.isEmpty;
-      await ref.read(appControllerProvider.notifier).restoreChat();
-      if (shouldScroll && mounted && scroll.hasClients) {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted && widget.active) restore();
+    });
+  }
+
+  Future<void> restore() async {
+    final shouldScroll =
+        !ref.read(appControllerProvider).demoMode &&
+        ref.read(appControllerProvider).chatMessages.isEmpty;
+    await ref.read(appControllerProvider.notifier).restoreChat();
+    if (!mounted || !shouldScroll) return;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted && scroll.hasClients) {
         scroll.jumpTo(scroll.position.maxScrollExtent);
       }
     });
@@ -44,7 +50,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     super.didUpdateWidget(oldWidget);
     if (widget.active && !oldWidget.active) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (mounted) ref.read(appControllerProvider.notifier).restoreChat();
+        if (mounted) restore();
       });
     }
   }
