@@ -2,8 +2,6 @@ import 'package:flutter/material.dart';
 
 import '../widgets/release_details.dart';
 
-import '../widgets/nex_dialog.dart';
-
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../models/content.dart';
@@ -101,23 +99,6 @@ class DetailScreen extends ConsumerWidget {
                   SelectableText(
                     item.overview,
                     style: Theme.of(context).textTheme.bodyLarge,
-                  ),
-                  TextButton(
-                    onPressed: () => showDialog<void>(
-                      context: context,
-                      builder: (_) => NexDialog(
-                        title: 'Source synopsis',
-                        icon: Icons.notes_rounded,
-                        content: SelectableText(item.overview),
-                        actions: [
-                          TextButton(
-                            onPressed: () => Navigator.pop(context),
-                            child: const Text('Close'),
-                          ),
-                        ],
-                      ),
-                    ),
-                    child: const Text('Read source synopsis'),
                   ),
                   if (item.director != null || item.cast.isNotEmpty) ...[
                     const SizedBox(height: 20),

@@ -18,11 +18,14 @@ class _TasteScreenState extends ConsumerState<TasteScreen> {
   bool learned = false, recent = false, loading = false;
   bool changingEngine = false;
   final pending = <String>{};
+  final expandedGroups = <String>{};
+  final groupLimits = <String, int>{};
   String? error;
   static const groups = {
     'genre': 'Genres',
     'keyword': 'Stories & themes',
     'story': 'Stories & themes',
+    'theme': 'Stories & themes',
     'mood': 'Mood & pace',
     'combination': 'Specific combinations',
     'actor': 'People',
@@ -141,6 +144,21 @@ class _TasteScreenState extends ConsumerState<TasteScreen> {
       final bv = (b['score'] as num).abs() * (b['confidence'] as num);
       return bv.compareTo(av);
     });
+    final display = <Map<String, dynamic>>[];
+    final grouped = <String, List<Map<String, dynamic>>>{};
+    for (final e in filtered) {
+      (grouped[groups[e['dimension']] ?? 'Other interests'] ??= []).add(e);
+    }
+    for (final section in grouped.entries) {
+      display.add({'section': section.key, 'count': section.value.length});
+      if (expandedGroups.contains(section.key) ||
+          query.isNotEmpty ||
+          group != 'All topics') {
+        final limit = groupLimits[section.key] ?? 20;
+        display.addAll(section.value.take(limit));
+        if (section.value.length > limit) display.add({'more': section.key});
+      }
+    }
     final favorites = all
         .where((e) => direct(e) && (e['score'] as num) > 0)
         .take(3)
@@ -164,7 +182,7 @@ class _TasteScreenState extends ConsumerState<TasteScreen> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      'What makes a good watch for you',
+                      'A taste of you',
                       style: Theme.of(context).textTheme.headlineSmall,
                     ),
                     const SizedBox(height: 12),
@@ -176,14 +194,14 @@ class _TasteScreenState extends ConsumerState<TasteScreen> {
                       ),
                     const SizedBox(height: 10),
                     const Text(
-                      'Your choices guide Nex, not limit you. Preferences you tell us come first. You can change or forget any of them.',
+                      'What you tell Nex comes first. Open a topic below to fine-tune it. Your ratings add tentative patterns, which you can review separately.',
                     ),
                     const SizedBox(height: 18),
                     if (!state.demoMode)
                       ExpansionTile(
                         tilePadding: EdgeInsets.zero,
-                        title: const Text('Recommendation test'),
-                        subtitle: const Text('Compare how Nex chooses for you'),
+                        title: const Text('Recommendation settings'),
+                        subtitle: const Text('Advanced · how picks are ranked'),
                         children: [
                           const Text(
                             'Your saved Taste stays the same. Change the method, then refresh Home to compare. Pick for me uses your choice immediately. Extra AI work may take longer on the first load.',
@@ -308,7 +326,9 @@ class _TasteScreenState extends ConsumerState<TasteScreen> {
                     SwitchListTile.adaptive(
                       contentPadding: EdgeInsets.zero,
                       value: learned,
-                      title: const Text('Include learned patterns'),
+                      title: Text(
+                        'Include learned patterns (${all.where((e) => !direct(e)).length})',
+                      ),
                       subtitle: const Text(
                         'Tentative ideas from your ratings, not things you told us directly.',
                       ),
@@ -318,6 +338,13 @@ class _TasteScreenState extends ConsumerState<TasteScreen> {
                       '${filtered.length} preferences · ${recent ? 'recent first' : 'strongest first'}',
                       style: Theme.of(context).textTheme.labelMedium,
                     ),
+                    if (polarity == 'Neutral')
+                      const Padding(
+                        padding: EdgeInsets.only(top: 8),
+                        child: Text(
+                          '“No preference” tells Nex not to favour or avoid this topic. A Meh rating applies only to that title; it does not make all its topics neutral.',
+                        ),
+                      ),
                     if (error != null)
                       TextButton(onPressed: refresh, child: Text(error!)),
                   ],
@@ -327,10 +354,46 @@ class _TasteScreenState extends ConsumerState<TasteScreen> {
             SliverPadding(
               padding: const EdgeInsets.symmetric(horizontal: 20),
               sliver: SliverList.builder(
-                itemCount: filtered.length,
+                itemCount: display.length,
                 itemBuilder: (context, index) {
-                  final e = filtered[index],
-                      key = "${e['dimension']}:${e['key']}";
+                  final e = display[index];
+                  if (e['section'] case final String section) {
+                    final open =
+                        expandedGroups.contains(section) ||
+                        query.isNotEmpty ||
+                        group != 'All topics';
+                    return Card(
+                      child: ListTile(
+                        title: Text(
+                          section,
+                          style: Theme.of(context).textTheme.titleMedium,
+                        ),
+                        subtitle: Text('${e['count']} preferences'),
+                        trailing: Icon(
+                          open ? Icons.expand_less : Icons.expand_more,
+                        ),
+                        onTap: () => setState(() {
+                          if (open) {
+                            expandedGroups.remove(section);
+                            search.clear();
+                            group = 'All topics';
+                          } else {
+                            expandedGroups.add(section);
+                          }
+                        }),
+                      ),
+                    );
+                  }
+                  if (e['more'] case final String section) {
+                    return TextButton(
+                      onPressed: () => setState(
+                        () => groupLimits[section] =
+                            (groupLimits[section] ?? 20) + 20,
+                      ),
+                      child: Text('More in $section'),
+                    );
+                  }
+                  final key = "${e['dimension']}:${e['key']}";
                   final score = e['score'] as num;
                   return Card(
                     key: ValueKey(key),
@@ -365,23 +428,52 @@ class _TasteScreenState extends ConsumerState<TasteScreen> {
                           ? null
                           : PopupMenuButton<String>(
                               tooltip: 'Change preference',
+                              color: Theme.of(context)
+                                  .colorScheme
+                                  .surfaceContainerLow,
+                              surfaceTintColor: Colors.transparent,
+                              elevation: 8,
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(20),
+                                side: BorderSide(
+                                  color: Theme.of(context)
+                                      .colorScheme
+                                      .outlineVariant,
+                                ),
+                              ),
                               onSelected: (v) => change(e, v),
                               itemBuilder: (_) => const [
                                 PopupMenuItem(
                                   value: 'like',
-                                  child: Text('More of this'),
+                                  child: ListTile(
+                                    dense: true,
+                                    leading: Icon(Icons.thumb_up_outlined),
+                                    title: Text('More of this'),
+                                  ),
                                 ),
                                 PopupMenuItem(
                                   value: 'dislike',
-                                  child: Text('Less of this'),
+                                  child: ListTile(
+                                    dense: true,
+                                    leading: Icon(Icons.thumb_down_outlined),
+                                    title: Text('Less of this'),
+                                  ),
                                 ),
                                 PopupMenuItem(
                                   value: 'neutral',
-                                  child: Text('No preference'),
+                                  child: ListTile(
+                                    dense: true,
+                                    leading: Icon(Icons.remove_circle_outline),
+                                    title: Text('No preference'),
+                                  ),
                                 ),
                                 PopupMenuItem(
                                   value: 'remove',
-                                  child: Text('Forget this preference'),
+                                  child: ListTile(
+                                    dense: true,
+                                    leading: Icon(Icons.delete_outline),
+                                    title: Text('Forget this preference'),
+                                  ),
                                 ),
                               ],
                             ),

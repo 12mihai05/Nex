@@ -256,6 +256,13 @@ void main() {
         },
       ]);
       await tester.pumpAndSettle();
+      await tester.enterText(find.byType(TextField), 'Korean');
+      await tester.pumpAndSettle();
+      await tester.scrollUntilVisible(
+        find.text('Korean-language titles'),
+        150,
+        scrollable: find.byType(Scrollable).first,
+      );
       expect(find.text('Korean-language titles'), findsOneWidget);
       expect(find.byType(NexSkeleton), findsNothing);
     },
@@ -366,9 +373,11 @@ void main() {
       await tester.enterText(find.byType(TextField), '');
       await tester.pumpAndSettle();
       expect(controller.tasteEntries, hasLength(43));
-      await tester.tap(find.text('Include learned patterns'));
+      await tester.tap(find.textContaining('Include learned patterns'));
       await tester.pumpAndSettle();
       final reads = api.tasteReads;
+      await tester.enterText(find.byType(TextField), 'inferred 39');
+      await tester.pumpAndSettle();
       await tester.scrollUntilVisible(
         find.text('inferred 39'),
         500,

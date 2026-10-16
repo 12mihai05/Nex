@@ -267,7 +267,7 @@ export class LiveTmdbRepository implements TmdbRepository {
     if (cached) {
       const item = contentItemSchema.parse(cached);
       const availability = await this.readCache(`availability:${mediaType}:${id}:${region}`);
-      if (availability && (item.releaseDate!==undefined || (item.year??9999)<new Date().getUTCFullYear())) return this.markOwned({ ...item, availability: contentItemSchema.shape.availability.parse(availability) },ownedProviderIds);
+      if (availability && (mediaType !== 'series' || item.seasonCount !== undefined) && (item.releaseDate!==undefined || (item.year??9999)<new Date().getUTCFullYear())) return this.markOwned({ ...item, availability: contentItemSchema.shape.availability.parse(availability) },ownedProviderIds);
     }
     try {
       const path = `/${mediaType === "series" ? "tv" : "movie"}/${id}`;
@@ -342,7 +342,7 @@ export class LiveTmdbRepository implements TmdbRepository {
       id: Number(value.id), mediaType, title: String(value.title ?? value.name), originalTitle: String(value.original_title ?? value.original_name ?? value.title ?? value.name),
       overview: String(value.overview ?? ""), year: this.year(value.release_date ?? value.first_air_date),
       releaseDate:releaseDate(value.release_date ?? value.first_air_date),
-      runtimeMinutes: Number(value.runtime ?? value.episode_run_time?.[0]) || null, rating: Number(value.vote_average) || null, popularity: Number(value.popularity ?? 0),
+      runtimeMinutes: Number(value.runtime ?? value.episode_run_time?.[0]) || null, seasonCount: mediaType === 'series' && Number.isInteger(value.number_of_seasons) ? value.number_of_seasons : null, rating: Number(value.vote_average) || null, popularity: Number(value.popularity ?? 0),
       voteCount: Number(value.vote_count ?? 0), countries: (value.production_countries ?? []).map((c: any)=>String(c.iso_3166_1)), collection: value.belongs_to_collection?.name ?? null,
       posterUrl: this.image(value.poster_path, "w500"), backdropUrl: this.image(value.backdrop_path, "w1280"),
       genres: (value.genres ?? []).map((g: any) => String(g.name)), genreIds: (value.genres ?? []).map((g: any) => Number(g.id)), moods: [],

@@ -260,6 +260,10 @@ app.post("/api/onboarding/analyze", async (c) => {
   return c.json({ data: { ...analysis, signals } });
 });
 
+app.get('/api/chat',async c=>{
+  const before=z.coerce.number().int().positive().optional().parse(c.req.query('before'));
+  return c.json({data:await users.conversationHistory(c.get('authSession').user.id,before)});
+});
 app.delete('/api/chat',async(c)=>{
   await users.clearConversations(c.get('authSession').user.id);
   return c.json({data:{cleared:true}});
@@ -281,6 +285,11 @@ app.get("/api/tv/channels",async c=>{
 app.get('/api/tv/guide',async c=>{
   const input=z.object({start:z.iso.datetime(),q:z.string().max(100).default(''),offset:z.coerce.number().int().min(0).max(10000).default(0),favorites:z.enum(['true','false']).default('false')}).parse(c.req.query());
   const start=new Date(input.start);
+  let channelIds:string[]|undefined;
+  if(c.req.query('channelIds')) {
+    try {channelIds=z.array(z.string().min(1).max(500)).min(1).max(20).parse(JSON.parse(z.string().max(11000).parse(c.req.query('channelIds'))));}
+    catch {throw new HTTPException(400,{message:'Invalid channel selection.'});}
+  }
   const rawOrder=c.req.query('orderOverrides');
   let parsedOrder:unknown={};
   if(rawOrder){try{parsedOrder=JSON.parse(z.string().max(16000).parse(rawOrder));}catch{throw new HTTPException(400,{message:'Invalid guide ordering.'});}}
@@ -288,7 +297,7 @@ app.get('/api/tv/guide',async c=>{
   if(+start<Date.now()-86400000||+start>Date.now()+14*86400000)throw new HTTPException(400,{message:'Choose a day within the available TV guide.'});
   const userId=c.get('authSession').user.id,{profile}=await users.getSettings(userId);
   c.header('Cache-Control','private, no-store');
-  const [guide,preparation]=await Promise.all([epg.guide(userId,profile.country,start,new Date(+start+6*3600000),input.q,input.offset,input.favorites==='true',orderOverrides),new EpgDemand().status(profile.country)]);
+  const [guide,preparation]=await Promise.all([epg.guide(userId,profile.country,start,new Date(+start+6*3600000),input.q,input.offset,input.favorites==='true',orderOverrides,channelIds),new EpgDemand().status(profile.country)]);
   return c.json({data:{...guide,preparation}});
 });
 app.post('/api/tv/prepare',async c=>{

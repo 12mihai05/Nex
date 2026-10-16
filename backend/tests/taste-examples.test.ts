@@ -48,14 +48,14 @@ it('preserves canonical examples in evidence aggregation and uses positive examp
  expect(c.related).toHaveBeenCalledTimes(1);expect(results.flat()).toHaveLength(1);
 });
 it('saves verified examples in Chat, persists card references and never writes ratings/Seen',async()=>{
- const users={createConversation:async()=>'s',addConversationMessage:async()=>'m',getSettings:async()=>({profile:{country:'RO'}}),upsertTaste:vi.fn(async()=>{}),saveDisplayedReferences:vi.fn(async()=>{})};
+ const users={latestConversation:async()=>undefined,createConversation:async()=>'s',addConversationMessage:async()=>'m',getSettings:async()=>({profile:{country:'RO'}}),upsertTaste:vi.fn(async()=>{}),saveDisplayedReferences:vi.fn(async()=>{})};
  const ai={extractTaste:async()=>({signals:[],examples:[request]})};
  const result=await new ChatService(users as unknown as UserRepository,catalog(),ai as unknown as AiService).respond('u',message);
  expect(result.blocks.map(b=>b.type)).toEqual(['confirmation','movie_carousel']);
  expect(users.upsertTaste).toHaveBeenCalledOnce();expect(users.saveDisplayedReferences).toHaveBeenCalledWith('u','s','m',[expect.objectContaining({externalId:'329865'})]);
 });
 it('does not partially save other extracted preferences when a named example is unresolved',async()=>{
- const users={createConversation:async()=>'s',addConversationMessage:async()=>'m',getSettings:async()=>({profile:{country:'RO'}}),upsertTaste:vi.fn()};
+ const users={latestConversation:async()=>undefined,createConversation:async()=>'s',addConversationMessage:async()=>'m',getSettings:async()=>({profile:{country:'RO'}}),upsertTaste:vi.fn()};
  const ai={extractTaste:async()=>({signals:[{dimension:'keyword',key:'space',score:.9,confidence:.9}],examples:[request]})};
  const c=catalog();c.search=async()=>[];
  const result=await new ChatService(users as unknown as UserRepository,c,ai as unknown as AiService).respond('u',message);

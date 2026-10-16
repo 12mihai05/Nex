@@ -7,6 +7,19 @@ import 'package:nex/src/models/chat_message.dart';
 import 'library_restore_test.dart' show OfflineCatalogApi;
 
 class MutableApi extends OfflineCatalogApi {
+  @override
+  Future<Map<String, dynamic>> object(String path) async {
+    if (path.startsWith('/api/chat')) {
+      return {
+        'sessionId': null,
+        'messages': [],
+        'hasMore': false,
+        'before': null,
+      };
+    }
+    return super.object(path);
+  }
+
   int recommendations = 0;
   bool fail = false;
   bool failPersonalRead = false;

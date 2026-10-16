@@ -147,7 +147,10 @@ void main() {
         await tester.ensureVisible(find.text('Show titles'));
         await tester.tap(find.text('Show titles'));
         await tester.pumpAndSettle();
-        expect(api.requests.length, 12);
+        expect(
+          api.requests.length,
+          24,
+        ); // 12 artwork repairs, then 12 filtered titles.
         expect(
           find.textContaining('more saved titles to check'),
           findsOneWidget,

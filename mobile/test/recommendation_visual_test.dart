@@ -63,7 +63,7 @@ void main() {
         ),
       );
       await tester.pumpAndSettle();
-      await tester.tap(find.text('Recommendation test'));
+      await tester.tap(find.text('Recommendation settings'));
       await tester.pumpAndSettle();
       expect(tester.takeException(), isNull);
       final image =

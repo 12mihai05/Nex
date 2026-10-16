@@ -26,16 +26,18 @@ export class EpgService {
   }
   constructor(private readonly db: NexDatabase = getDatabase(), private readonly provider: EpgProvider = createEpgProvider(), private readonly catalog: TmdbRepository = createTmdbRepository()) {}
 
-  async guide(userId:string,country:string,start:Date,end:Date,search='',offset=0,favoritesOnly=false,orderOverrides:Record<string,boolean>={}){
+  async guide(userId:string,country:string,start:Date,end:Date,search='',offset=0,favoritesOnly=false,orderOverrides:Record<string,boolean>={},channelIds?:string[]){
     const favorite=sql<boolean>`exists(select 1 from channel_favorites f where f.channel_id=${channels.id} and f.user_id=${userId})`.mapWith(Boolean);
     // A browsing session keeps its old order while favorite mutations persist.
     // This affects only public channel ordering, never ownership or country scope.
     const entries=Object.entries(orderOverrides);
     const orderingFavorite=entries.length?sql`case ${sql.join(entries.map(([id,value])=>sql`when ${channels.id}=${id} then ${value?1:0}`),sql` `)} else ${favorite} end`:favorite;
-    const available=sql<boolean>`exists(select 1 from epg_programs p where p.channel_id=${channels.id} and p.start_at < ${+end} and p.end_at > ${+start})`.mapWith(Boolean);
+    // Keep the channel roster stable across time windows. An empty six-hour
+    // window must not reorder pagination or hide a channel with later listings.
+    const retained=sql<boolean>`exists(select 1 from epg_programs p where p.channel_id=${channels.id} and p.end_at > ${Date.now()})`;
     const page=await this.db.select({id:channels.id,name:channels.displayName,logoUrl:channels.logoUrl,favorite}).from(channels)
-      .where(and(eq(channels.country,country),eq(channels.active,true),available,sql`instr(lower(${channels.displayName}),lower(${search}))>0`,favoritesOnly?orderingFavorite:undefined))
-      .orderBy(desc(orderingFavorite),desc(available),channels.displayName,channels.id).limit(21).offset(offset);
+      .where(and(eq(channels.country,country),eq(channels.active,true),channelIds?inArray(channels.id,channelIds):retained,sql`instr(lower(${channels.displayName}),lower(${search}))>0`,favoritesOnly?orderingFavorite:undefined))
+      .orderBy(desc(orderingFavorite),channels.displayName,channels.id).limit(21).offset(channelIds?0:offset);
     const selected=page.slice(0,20);
     const programs=selected.length?await this.db.select({id:epgPrograms.id,channelId:epgPrograms.channelId,title:epgPrograms.title,startAt:epgPrograms.startAt,endAt:epgPrograms.endAt,description:epgPrograms.description})
       .from(epgPrograms).where(and(inArray(epgPrograms.channelId,selected.map(c=>c.id)),lt(epgPrograms.startAt,end),gt(epgPrograms.endAt,start)))

@@ -24,11 +24,12 @@ class _HomeShellState extends ConsumerState<HomeShell> {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted && !ref.read(appControllerProvider).demoMode) {
-        ReleaseNotificationService.instance.start(ref.read(nexApiClientProvider), (
-          path,
-        ) {
-          if (mounted) context.push(path);
-        });
+        ReleaseNotificationService.instance.start(
+          ref.read(nexApiClientProvider),
+          (path) {
+            if (mounted) context.push(path);
+          },
+        );
       }
     });
   }
@@ -54,7 +55,7 @@ class _HomeShellState extends ConsumerState<HomeShell> {
         children: [
           const BrowseScreen(),
           TvScreen(active: index == 1),
-          const ChatScreen(),
+          ChatScreen(active: index == 2),
         ],
       ),
       bottomNavigationBar: NavigationBar(

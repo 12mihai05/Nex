@@ -23,6 +23,7 @@ export const contentItemSchema = z.object({
   releaseCountry: z.string().optional(),
   year: z.number().int().nullable(),
   runtimeMinutes: z.number().int().positive().nullable(),
+  seasonCount: z.number().int().nonnegative().nullable().optional(),
   rating: z.number().min(0).max(10).nullable(),
   voteCount: z.number().int().nonnegative().optional(),
   countries: z.array(z.string()).optional(),

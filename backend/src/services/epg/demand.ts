@@ -4,6 +4,10 @@ import {channels,epgPrograms,epgCountryDemand,epgSyncRuns,epgTmdbMatches} from '
 import {getConfig} from '../../config.js';
 
 const DAY=86_400_000;
+export function syncCountrySelection(active:string[],requested?:string):string[]{
+  const selected=(requested??'').split(',').map(c=>c.trim().toUpperCase()).filter(Boolean);
+  return active.filter(c=>!selected.length||selected.includes(c));
+}
 export class EpgDemand {
   constructor(private readonly db:NexDatabase=getDatabase()){}
   async countries(now=new Date()):Promise<string[]>{

@@ -997,11 +997,60 @@ class AppController extends Notifier<AppState> {
     );
   }
 
+  bool chatRestoring = false, chatRestored = false, chatHasOlder = false;
+  int? _chatBefore;
+  String? chatRestoreError;
+  int _chatHistoryGeneration = 0;
+  Future<void> restoreChat({bool older = false}) async {
+    if (!older && state.chatMessages.isNotEmpty) {
+      chatRestored = true;
+      return;
+    }
+    if (state.demoMode || chatRestoring || (!older && chatRestored)) return;
+    final ticket = ++_chatHistoryGeneration;
+    chatRestoring = true;
+    chatRestoreError = null;
+    state = state.copyWith();
+    try {
+      final data = await _api.object(
+        '/api/chat${older && _chatBefore != null ? '?before=$_chatBefore' : ''}',
+      );
+      if (!ref.mounted || ticket != _chatHistoryGeneration) return;
+      final messages = (data['messages'] as List)
+          .map(
+            (m) => ChatMessage.fromHistory((m as Map).cast<String, dynamic>()),
+          )
+          .toList();
+      _chatBefore = data['before'] as int?;
+      chatHasOlder = data['hasMore'] == true;
+      chatRestored = true;
+      state = state.copyWith(
+        chatSessionId: data['sessionId'] as String?,
+        chatMessages: older ? [...messages, ...state.chatMessages] : messages,
+      );
+    } catch (_) {
+      if (ref.mounted && ticket == _chatHistoryGeneration) {
+        chatRestoreError = 'Could not restore your conversation. Tap to retry.';
+      }
+    } finally {
+      if (ref.mounted && ticket == _chatHistoryGeneration) {
+        chatRestoring = false;
+        state = state.copyWith();
+      }
+    }
+  }
+
   Future<bool> clearChat() async {
     if (state.busy) return false;
     state = state.copyWith(busy: true, clearError: true);
     try {
       if (!state.demoMode) await _api.clearChat();
+      _chatHistoryGeneration++;
+      chatRestored = true;
+      chatRestoring = false;
+      chatHasOlder = false;
+      chatRestoreError = null;
+      _chatBefore = null;
       state = state.copyWith(
         busy: false,
         chatMessages: [],
@@ -1560,6 +1609,12 @@ class AppController extends Notifier<AppState> {
   }
 
   void _clearViewerCache() {
+    _chatHistoryGeneration++;
+    chatRestoring = false;
+    chatRestored = false;
+    chatHasOlder = false;
+    chatRestoreError = null;
+    _chatBefore = null;
     _pendingAuth = null;
     _mutationEpoch++;
     _titleWrites.clear();

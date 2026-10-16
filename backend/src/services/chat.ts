@@ -45,7 +45,7 @@ export class ChatService {
   }
 
   private async respondInternal(userId: string, message: string, requestedSessionId?: string,forcedRoute?:ChatRoute['route']): Promise<{ sessionId: string; blocks: ChatBlock[]; readVerified?:boolean }> {
-    const sessionId = requestedSessionId ?? await this.users.createConversation(userId);
+    const sessionId = requestedSessionId ?? await this.users.latestConversation(userId) ?? await this.users.createConversation(userId);
     if(!forcedRoute)await this.users.addConversationMessage(userId, sessionId, "user", message);
     // These are application-generated confirmation commands, not natural-
     // language intent. They are quota-exempt and must never trigger an LLM call.

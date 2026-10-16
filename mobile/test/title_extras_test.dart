@@ -97,6 +97,8 @@ void main() {
       expect(find.text('Official trailer'), findsOneWidget);
       expect(find.text('1 season'), findsOneWidget);
       expect(api.requests.length, 1);
+      await tester.tap(find.text('1 season'));
+      await tester.pumpAndSettle();
       await tester.tap(find.byType(DropdownButtonFormField<int>));
       await tester.pumpAndSettle();
       await tester.tap(find.text('Season 1 · 2 episodes').last);
@@ -126,6 +128,12 @@ void main() {
       expect(find.text('Pilot'), findsOneWidget);
       expect(find.textContaining('42 min · 8.3/10'), findsOneWidget);
       expect(find.textContaining('null'), findsNothing);
+      await tester.tap(find.text('1 season'));
+      await tester.pumpAndSettle();
+      expect(find.text('Pilot'), findsNothing);
+      await tester.tap(find.text('1 season'));
+      await tester.pumpAndSettle();
+      expect(find.text('Pilot'), findsOneWidget);
       expect(tester.takeException(), isNull);
     },
   );

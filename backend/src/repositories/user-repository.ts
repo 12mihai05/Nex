@@ -180,8 +180,8 @@ export class UserRepository {
   async markWatched(userId: string, item: Pick<ContentItem, "id" | "mediaType" | "title"> & Partial<ContentItem>, watchedAt = new Date()): Promise<void> {
     const traits=[...(item.genres??[]).map(key=>({dimension:"genre",key:key.toLowerCase()})),...(item.keywords??[]).slice(0,12).map(key=>({dimension:"keyword",key:key.toLowerCase()}))];
     const traitsJson=JSON.stringify(traits);
-    await this.db.insert(watchHistory).values({ id: randomUUID(), userId, mediaType: item.mediaType, tmdbId: item.id, titleSnapshot: item.title, traitsJson, watchedAt })
-      .onConflictDoUpdate({ target: [watchHistory.userId, watchHistory.mediaType, watchHistory.tmdbId], set: { watchedAt, titleSnapshot: item.title,traitsJson } });
+    await this.db.insert(watchHistory).values({ id: randomUUID(), userId, mediaType: item.mediaType, tmdbId: item.id, titleSnapshot: item.title, posterPath:item.posterUrl, traitsJson, watchedAt })
+      .onConflictDoUpdate({ target: [watchHistory.userId, watchHistory.mediaType, watchHistory.tmdbId], set: { watchedAt, titleSnapshot: item.title,posterPath:item.posterUrl,traitsJson } });
     await this.addEvent(userId, "watched", item.mediaType, item.id, 0);
   }
 
@@ -365,6 +365,20 @@ export class UserRepository {
     const id = randomUUID();
     await this.db.insert(conversationSessions).values({ id, userId });
     return id;
+  }
+
+  async latestConversation(userId:string):Promise<string|undefined>{
+    return (await this.db.select({id:conversationSessions.id}).from(conversationSessions).where(eq(conversationSessions.userId,userId)).orderBy(desc(conversationSessions.updatedAt),desc(conversationSessions.id)).limit(1))[0]?.id;
+  }
+
+  async conversationHistory(userId:string,before?:number){
+    const cursor=sql<number>`conversation_messages.rowid`.mapWith(Number);
+    const rows=await this.db.select({id:conversationMessages.id,cursor,role:conversationMessages.role,content:conversationMessages.content,blocksJson:conversationMessages.blocksJson})
+      .from(conversationMessages).innerJoin(conversationSessions,eq(conversationSessions.id,conversationMessages.sessionId))
+      .where(and(eq(conversationSessions.userId,userId),before===undefined?undefined:lt(cursor,before)))
+      .orderBy(desc(cursor)).limit(31);
+    const page=rows.slice(0,30);
+    return {sessionId:await this.latestConversation(userId)??null,messages:page.reverse().map(({blocksJson,...r})=>({...r,blocks:blocksJson?JSON.parse(blocksJson):[]})),before:page[0]?.cursor??null,hasMore:rows.length>30};
   }
 
   async clearConversations(userId:string):Promise<void>{

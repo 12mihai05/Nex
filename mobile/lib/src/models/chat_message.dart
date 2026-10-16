@@ -68,4 +68,76 @@ class ChatMessage {
   const ChatMessage({required this.fromUser, required this.blocks});
   final bool fromUser;
   final List<NexChatBlock> blocks;
+
+  // Rendering saved history must never replay a reminder or library mutation.
+  factory ChatMessage.fromHistory(Map<String, dynamic> row) {
+    final fromUser = row['role'] == 'user';
+    final blocks = <NexChatBlock>[];
+    for (final raw in row['blocks'] as List? ?? []) {
+      final b = raw as Map;
+      switch (b['type']) {
+        case 'text':
+          blocks.add(TextChatBlock(b['content'] as String));
+        case 'knowledge':
+          blocks.add(
+            KnowledgeChatBlock(
+              b['content'] as String,
+              (b['citations'] as List? ?? [])
+                  .map((c) => (c as Map).cast<String, dynamic>())
+                  .toList(),
+            ),
+          );
+        case 'confirmation':
+          blocks.add(ConfirmationChatBlock(b['content'] as String));
+        case 'movie_carousel':
+          blocks.add(
+            CarouselChatBlock(
+              (b['items'] as List)
+                  .map(
+                    (i) => ContentItem.fromJson(
+                      (i as Map).cast<String, dynamic>(),
+                    ),
+                  )
+                  .toList(),
+            ),
+          );
+        case 'tv_carousel':
+          blocks.add(
+            TvCarouselChatBlock(
+              (b['items'] as List)
+                  .map(
+                    (i) =>
+                        TvProgram.fromJson((i as Map).cast<String, dynamic>()),
+                  )
+                  .toList(),
+            ),
+          );
+        case 'library_changes':
+          blocks.add(
+            LibraryChangesChatBlock(
+              saved: b['status'] == 'saved',
+              items: (b['items'] as List)
+                  .map(
+                    (i) => LibraryChangeItem.fromJson(
+                      (i as Map).cast<String, dynamic>(),
+                    ),
+                  )
+                  .toList(),
+            ),
+          );
+        // Saved action buttons may have expired. Preserve the result, not an
+        // invitation to replay an old confirmation after reopening the app.
+      }
+    }
+    if (blocks.isEmpty) {
+      blocks.add(
+        TextChatBlock(
+          fromUser
+              ? chatActionLabel(row['content'] as String)
+              : row['content'] as String,
+        ),
+      );
+    }
+    return ChatMessage(fromUser: fromUser, blocks: blocks);
+  }
 }

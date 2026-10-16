@@ -169,6 +169,7 @@ export const watchHistory = sqliteTable("watch_history", {
   tmdbId: integer("tmdb_id").notNull(),
   watchedAt: integer("watched_at", { mode: "timestamp_ms" }).notNull(),
   titleSnapshot: text("title_snapshot").notNull(),
+  posterPath: text("poster_path"),
   traitsJson: text("traits_json").notNull().default("[]"),
   createdAt: createdAt(),
 }, (table) => [index("history_user_watched_idx").on(table.userId, table.watchedAt), uniqueIndex("history_user_title_unique").on(table.userId, table.mediaType, table.tmdbId)]);

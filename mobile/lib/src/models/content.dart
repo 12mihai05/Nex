@@ -35,6 +35,7 @@ class ContentItem {
     this.originalTitle,
     this.year,
     this.runtimeMinutes,
+    this.seasonCount,
     this.rating,
     this.posterUrl,
     this.backdropUrl,
@@ -51,6 +52,7 @@ class ContentItem {
   final String overview;
   final int? year;
   final int? runtimeMinutes;
+  final int? seasonCount;
   final double? rating;
   final String? posterUrl;
   final String? backdropUrl;
@@ -65,7 +67,12 @@ class ContentItem {
   String get key => '${mediaType.name}:$id';
   String get metadata => [
     if (year != null) '$year',
-    if (runtimeMinutes != null) '${runtimeMinutes}m',
+    if (mediaType == MediaType.series)
+      seasonCount == null
+          ? 'Series'
+          : '$seasonCount ${seasonCount == 1 ? 'season' : 'seasons'}'
+    else if (runtimeMinutes != null)
+      '${runtimeMinutes}m',
     if (rating != null) '${rating!.toStringAsFixed(1)}/10',
   ].join('  ·  ');
   Availability? get bestAvailability =>
@@ -87,6 +94,7 @@ class ContentItem {
     overview: json['overview'] as String? ?? '',
     year: json['year'] as int?,
     runtimeMinutes: json['runtimeMinutes'] as int?,
+    seasonCount: json['seasonCount'] as int?,
     rating: (json['rating'] as num?)?.toDouble(),
     posterUrl: json['posterUrl'] as String?,
     backdropUrl: json['backdropUrl'] as String?,

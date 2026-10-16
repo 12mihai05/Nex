@@ -31,6 +31,24 @@ describe("user ownership isolation", () => {
   });
 
   afterEach(() => client.close());
+  it('restores paged chat including cards across sessions, isolates users and clears only on request',async()=>{
+    const session=await repository.createConversation('alice');
+    for(let i=0;i<35;i++)await repository.addConversationMessage('alice',session,'assistant',`message ${i}`,[{type:'text',content:`message ${i}`}]);
+    const bob=await repository.createConversation('bob');await repository.addConversationMessage('bob',bob,'user','private');
+    const first=await repository.conversationHistory('alice');expect(first.messages).toHaveLength(30);expect(first.hasMore).toBe(true);expect(first.sessionId).toBe(session);
+    expect(first.messages[0]!.blocks).toEqual([{type:'text',content:'message 5'}]);
+    const older=await repository.conversationHistory('alice',first.before!);expect(older.messages).toHaveLength(5);expect(older.hasMore).toBe(false);
+    expect(older.messages[0]!.content).toBe('message 0');
+    await repository.clearConversations('alice');expect((await repository.conversationHistory('alice')).messages).toEqual([]);expect((await repository.conversationHistory('bob')).messages).toHaveLength(1);
+  });
+  it('Seen persists artwork and explicit neutral cancels a preference without manufacturing traits from Meh',async()=>{
+    const item={...fixtureCatalog[0]!,posterUrl:'https://image.tmdb.org/t/p/w500/test.jpg'};
+    await repository.markWatched('alice',item);expect((await repository.listHistory('alice'))[0]!.posterPath).toBe(item.posterUrl);
+    await repository.applyFeedback('alice',item,'like');expect((await repository.getTaste('alice')).length).toBeGreaterThan(0);
+    await repository.applyFeedback('alice',item,'meh');expect(await repository.getTaste('alice')).toEqual([]);
+    await repository.upsertTaste('alice',[{dimension:'genre',key:'drama',score:0,confidence:1,evidenceCount:1,source:'explicit_edit'}]);
+    expect((await repository.getTaste('alice'))[0]).toMatchObject({score:0,source:'explicit_edit'});
+  });
   it('scoped taste survives corrections, deletion is isolated, and displayed batches are complete',async()=>{
     const signal={dimension:'combination',key:'Chinese romance',score:-1,confidence:1,evidenceCount:1,source:'chat_explicit',conditions:[{dimension:'genre' as const,values:['romance']},{dimension:'country' as const,values:['CN']}]};
     await repository.upsertTaste('alice',[signal]);

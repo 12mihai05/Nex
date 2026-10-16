@@ -74,7 +74,7 @@ void main() {
         ),
       );
       await tester.pumpAndSettle();
-      await tester.tap(find.text('Recommendation test'));
+      await tester.tap(find.text('Recommendation settings'));
       await tester.pumpAndSettle();
       final option = find.text('Story matching · experimental');
       await tester.ensureVisible(option);

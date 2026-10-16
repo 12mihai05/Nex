@@ -62,14 +62,21 @@ it('guide batches align programmes to one window, put favourites first and isola
  const favorites=await epg.guide('alice','RO',now,new Date(+now+6*3600000),'',0,true);
  expect(favorites.channels.map(c=>c.id)).toContain('c20');
 });
-it('hides channels with no programmes in the requested window, including empty favorites, without deleting favorites',async()=>{
+it('hides channels without retained coverage but keeps the roster stable across time windows',async()=>{
  await epg.setChannelFavorite('alice','RO','c20',true);
  const guide=await epg.guide('alice','RO',now,new Date(+now+6*3600000));
  expect(guide.channels.map(c=>c.id).sort()).toEqual(['c0','c1','c2']);
  expect(guide.channels.every(c=>c.programs.length>0)).toBe(true);
  expect(guide.hasMore).toBe(false);
  expect((await epg.listChannels('alice','RO','',0,true)).map(c=>c.id)).toEqual(['c20']);
- expect((await epg.guide('alice','RO',new Date(+now+86400000),new Date(+now+90000000))).channels).toEqual([]);
+ const later=await epg.guide('alice','RO',new Date(+now+86400000),new Date(+now+90000000));
+ expect(later.channels.map(c=>c.id)).toEqual(guide.channels.map(c=>c.id));
+ expect(later.channels.every(c=>c.programs.length===0)).toBe(true);
+});
+it('selected channel windows include broadcasts beyond eight hours and reject foreign channels',async()=>{
+ await drizzle(client,{schema}).insert(schema.epgPrograms).values({id:'tomorrow',sourceId:'fixture',sourceProgramId:'tomorrow',channelId:'c0',title:'Tomorrow film',startAt:new Date(+now+24*3600000),endAt:new Date(+now+26*3600000)});
+ const result=await epg.guide('alice','RO',new Date(+now+24*3600000),new Date(+now+30*3600000),'',0,false,{},['c0','c22']);
+ expect(result.channels.map(c=>c.id)).toEqual(['c0']);expect(result.channels[0]!.programs.map(p=>p.id)).toEqual(['tomorrow']);
 });
 it("title broadcasts include non-favorites, translated titles and live shows, but not remakes, expired or foreign entries",async()=>{
   const db=drizzle(client,{schema});

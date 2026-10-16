@@ -106,6 +106,8 @@ class ReleaseNotificationService with WidgetsBindingObserver {
     notifications.onReleaseTap = null;
     try {
       await notifications.cancelReleaseUpdate();
-    } catch (_) { /* A missing OS plugin must not block logout/navigation. */ }
+    } catch (_) {
+      /* A missing OS plugin must not block logout/navigation. */
+    }
   }
 }

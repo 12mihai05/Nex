@@ -14,6 +14,7 @@ import '../state/channel_favorites.dart';
 import '../widgets/programme_sheet.dart';
 import '../widgets/nex_notice.dart';
 import '../widgets/skeleton.dart';
+import '../widgets/top_bar.dart';
 
 class TvGuideScreen extends ConsumerStatefulWidget {
   const TvGuideScreen({super.key, this.active = true});
@@ -23,9 +24,10 @@ class TvGuideScreen extends ConsumerStatefulWidget {
 }
 
 class _TvGuideScreenState extends ConsumerState<TvGuideScreen> {
-  static const channelWidth = 112.0,
-      pixelsPerMinute = 3.0,
-      timelineWidth = 1080.0;
+  static const channelWidth = 112.0, pixelsPerMinute = 3.0;
+  final loadedWindows = <String, Set<int>>{};
+  bool windowLoading = false;
+  Timer? windowDebounce;
   double get rowHeight =>
       100 * (MediaQuery.textScalerOf(context).scale(14) / 14).clamp(1, 2);
   final search = TextEditingController(),
@@ -60,11 +62,15 @@ class _TvGuideScreenState extends ConsumerState<TvGuideScreen> {
   @override
   void initState() {
     super.initState();
-    horizontal.addListener(() => offset.value = horizontal.offset);
+    horizontal.addListener(() {
+      offset.value = horizontal.offset;
+      scheduleWindow();
+    });
     vertical.addListener(() {
       if (vertical.position.extentAfter < 500 && !loading && hasMore) {
         load(next: true);
       }
+      scheduleWindow();
     });
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted && widget.active) load();
@@ -83,6 +89,7 @@ class _TvGuideScreenState extends ConsumerState<TvGuideScreen> {
   @override
   void dispose() {
     generation++;
+    windowDebounce?.cancel();
     debounce?.cancel();
     clock?.cancel();
     preparationPoll?.cancel();
@@ -111,6 +118,7 @@ class _TvGuideScreenState extends ConsumerState<TvGuideScreen> {
     }
     final page = next ? channels.length : 0;
     if (!next) orderOverrides.clear();
+    if (!next) loadedWindows.clear();
     final viewKey =
         '$scope:${start.toUtc().toIso8601String()}:$query:$favorites';
     setState(() {
@@ -209,13 +217,110 @@ class _TvGuideScreenState extends ConsumerState<TvGuideScreen> {
       setState(() {
         channels = next ? [...channels, ...incoming] : incoming;
         hasMore = data['hasMore'] == true;
+        for (final c in incoming) {
+          loadedWindows[c['id'] as String] = {0};
+        }
       });
+      scheduleWindow();
     } catch (e) {
       if (mounted && ticket == generation) {
         setState(() => error = readableApiError(e));
       }
     } finally {
       if (mounted && ticket == generation) setState(() => loading = false);
+    }
+  }
+
+  void scheduleWindow() {
+    windowDebounce?.cancel();
+    windowDebounce = Timer(
+      const Duration(milliseconds: 120),
+      loadVisibleWindow,
+    );
+  }
+
+  Future<void> loadVisibleWindow() async {
+    if (!mounted ||
+        !widget.active ||
+        loading ||
+        windowLoading ||
+        channels.isEmpty ||
+        ref.read(appControllerProvider).demoMode) {
+      return;
+    }
+    final ticket = generation;
+    final first = (vertical.hasClients ? vertical.offset / rowHeight : 0)
+        .floor()
+        .clamp(0, channels.length);
+    final visible = channels.skip(first).take(12).toList();
+    final window = (offset.value / 1080).floor();
+    // Include the adjoining window before its boundary reaches the viewport.
+    final lastWindow =
+        ((offset.value + MediaQuery.sizeOf(context).width + 360) / 1080)
+            .floor()
+            .clamp(window, 55);
+    setState(() => windowLoading = true);
+    try {
+      for (var w = window; w <= lastWindow; w++) {
+        final ids = visible
+            .where((c) => !(loadedWindows[c['id']]?.contains(w) ?? false))
+            .map((c) => c['id'] as String)
+            .toList();
+        if (ids.isEmpty) continue;
+        final data = await ref
+            .read(nexApiClientProvider)
+            .object(
+              Uri(
+                path: '/api/tv/guide',
+                queryParameters: {
+                  'start': start
+                      .add(Duration(hours: w * 6))
+                      .toUtc()
+                      .toIso8601String(),
+                  'channelIds': jsonEncode(ids),
+                },
+              ).toString(),
+            );
+        if (!mounted || ticket != generation) return;
+        final incoming = {for (final c in data['channels'] as List) c['id']: c};
+        setState(() {
+          for (final c in channels.where((c) => ids.contains(c['id']))) {
+            final id = c['id'] as String;
+            final windows = loadedWindows[id] ??= {};
+            windows.add(w);
+            // Bound memory to five nearby windows per encountered channel.
+            windows.removeWhere((n) => (n - w).abs() > 2);
+            final merged = <String, dynamic>{};
+            for (final p in [
+              ...(c['programs'] as List? ?? []),
+              ...(incoming[id]?['programs'] as List? ?? []),
+            ]) {
+              if (DateTime.parse(p['endAt'] as String)
+                      .isAfter(start.add(Duration(hours: (w - 2) * 6))) &&
+                  DateTime.parse(p['startAt'] as String)
+                      .isBefore(start.add(Duration(hours: (w + 3) * 6)))) {
+                merged[p['id'] as String] = p;
+              }
+            }
+            c['programs'] = merged.values.toList();
+          }
+        });
+      }
+    } catch (_) {
+      if (mounted && ticket == generation) {
+        setState(() => error = 'Could not load this time. Tap to retry.');
+      }
+    } finally {
+      if (mounted) {
+        setState(() => windowLoading = false);
+        final currentFirst =
+            (vertical.hasClients ? vertical.offset / rowHeight : 0).floor();
+        if (ticket != generation ||
+            window != (offset.value / 1080).floor() ||
+            currentFirst != first) {
+          scheduleWindow();
+        }
+      }
     }
   }
 
@@ -287,12 +392,6 @@ class _TvGuideScreenState extends ConsumerState<TvGuideScreen> {
     }
   }
 
-  void shift(int hours) {
-    setState(() => start = start.add(Duration(hours: hours)));
-    if (horizontal.hasClients) horizontal.jumpTo(0);
-    load();
-  }
-
   Widget timeline(Map<String, dynamic> c, double x, double width) {
     final programs =
         (c['demoPrograms'] as List<TvProgram>?) ??
@@ -305,7 +404,7 @@ class _TvGuideScreenState extends ConsumerState<TvGuideScreen> {
     return ClipRect(
       child: Stack(
         children: [
-          for (var i = 0; i <= 12; i++)
+          for (var i = (x / 90).floor(); i <= ((x + width) / 90).ceil(); i++)
             if (i * 90 - x >= 0 && i * 90 - x < width)
               Positioned(
                 left: i * 90 - x,
@@ -316,11 +415,22 @@ class _TvGuideScreenState extends ConsumerState<TvGuideScreen> {
                   color: scheme.outlineVariant.withValues(alpha: .4),
                 ),
               ),
-          if (programs.isEmpty)
+          if (!programs.any(
+                (p) =>
+                    p.endsAt.difference(start).inSeconds /
+                            60 *
+                            pixelsPerMinute >
+                        x &&
+                    p.startsAt.difference(start).inSeconds /
+                            60 *
+                            pixelsPerMinute <
+                        x + width,
+              ) &&
+              !windowLoading)
             const Positioned(
               left: 12,
               top: 32,
-              child: Text('No listing available'),
+              child: Text('No published listing'),
             ),
           for (final p in programs)
             if (p.endsAt.difference(start).inSeconds / 60 * pixelsPerMinute >
@@ -425,27 +535,10 @@ class _TvGuideScreenState extends ConsumerState<TvGuideScreen> {
       });
     }
     return Scaffold(
+      appBar: const NexTopBar(title: 'TV guide', showSearch: false),
       body: SafeArea(
         child: Column(
           children: [
-            Padding(
-              padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
-              child: Row(
-                children: [
-                  Expanded(
-                    child: Text(
-                      'TV guide',
-                      style: Theme.of(context).textTheme.headlineMedium,
-                    ),
-                  ),
-                  IconButton(
-                    tooltip: 'Refresh guide',
-                    onPressed: loading ? null : () => load(force: true),
-                    icon: const Icon(Icons.refresh),
-                  ),
-                ],
-              ),
-            ),
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 16),
               child: TextField(
@@ -496,26 +589,6 @@ class _TvGuideScreenState extends ConsumerState<TvGuideScreen> {
                     },
                     child: const Text('Now'),
                   ),
-                  IconButton(
-                    tooltip: 'Previous 6 hours',
-                    onPressed:
-                        start.isAfter(
-                          DateTime.now().subtract(const Duration(hours: 17)),
-                        )
-                        ? () => shift(-6)
-                        : null,
-                    icon: const Icon(Icons.chevron_left),
-                  ),
-                  IconButton(
-                    tooltip: 'Next 6 hours',
-                    onPressed:
-                        start.isBefore(
-                          DateTime.now().add(const Duration(days: 13)),
-                        )
-                        ? () => shift(6)
-                        : null,
-                    icon: const Icon(Icons.chevron_right),
-                  ),
                 ],
               ),
             ),
@@ -523,15 +596,25 @@ class _TvGuideScreenState extends ConsumerState<TvGuideScreen> {
               alignment: Alignment.centerLeft,
               child: Padding(
                 padding: const EdgeInsets.only(left: 16, bottom: 8),
-                child: Text(
-                  '${DateFormat.MMMEd().format(start)} · device time',
-                  style: Theme.of(context).textTheme.labelSmall,
+                child: ValueListenableBuilder<double>(
+                  valueListenable: offset,
+                  builder: (_, x, _) => Text(
+                    '${DateFormat.MMMEd().format(start.add(Duration(minutes: (x / pixelsPerMinute).floor())))} · device time',
+                    style: Theme.of(context).textTheme.labelSmall,
+                  ),
                 ),
               ),
             ),
             if (error != null)
               TextButton(
-                onPressed: () => load(force: true),
+                onPressed: () {
+                  setState(() => error = null);
+                  if (channels.isEmpty) {
+                    load(force: true);
+                  } else {
+                    loadVisibleWindow();
+                  }
+                },
                 child: Text(error!),
               ),
             SizedBox(
@@ -540,23 +623,17 @@ class _TvGuideScreenState extends ConsumerState<TvGuideScreen> {
                 children: [
                   const SizedBox(width: channelWidth),
                   Expanded(
-                    child: SingleChildScrollView(
+                    child: ListView.builder(
                       controller: horizontal,
                       scrollDirection: Axis.horizontal,
-                      child: SizedBox(
-                        width: timelineWidth,
-                        child: Row(
-                          children: [
-                            for (var i = 0; i < 12; i++)
-                              SizedBox(
-                                width: 90,
-                                child: Text(
-                                  DateFormat.Hm().format(
-                                    start.add(Duration(minutes: i * 30)),
-                                  ),
-                                ),
-                              ),
-                          ],
+                      itemCount: 14 * 48,
+                      itemExtent: 90,
+                      itemBuilder: (_, i) => SizedBox(
+                        width: 90,
+                        child: Text(
+                          DateFormat.Hm().format(
+                            start.add(Duration(minutes: i * 30)),
+                          ),
                         ),
                       ),
                     ),
@@ -564,6 +641,7 @@ class _TvGuideScreenState extends ConsumerState<TvGuideScreen> {
                 ],
               ),
             ),
+            if (windowLoading) const LinearProgressIndicator(minHeight: 2),
             Expanded(
               child: LayoutBuilder(
                 builder: (context, constraints) => GestureDetector(

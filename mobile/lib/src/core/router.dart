@@ -29,7 +29,10 @@ final router = GoRouter(
       builder: (_, _) => const TvScreen(initialGuide: true),
     ),
     GoRoute(path: '/profile', builder: (_, _) => const ProfileScreen()),
-    GoRoute(path: '/notifications', builder: (_, _) => const NotificationsScreen()),
+    GoRoute(
+      path: '/notifications',
+      builder: (_, _) => const NotificationsScreen(),
+    ),
     GoRoute(path: '/settings', builder: (_, _) => const SettingsScreen()),
     GoRoute(path: '/taste', builder: (_, _) => const TasteScreen()),
     GoRoute(

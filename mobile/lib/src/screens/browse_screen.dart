@@ -487,16 +487,6 @@ class _BrowseScreenState extends ConsumerState<BrowseScreen> {
                   ),
                 ),
 
-              if (controller.recommendationsPending)
-                SliverToBoxAdapter(
-                  child: TextButton.icon(
-                    onPressed: state.busy
-                        ? null
-                        : () => _confirmRefresh(context, ref),
-                    icon: const Icon(Icons.refresh),
-                    label: const Text('Taste updated · Refresh picks'),
-                  ),
-                ),
               SliverList.builder(
                 itemCount: rows.length,
                 itemBuilder: (_, index) => ContentShelf(row: rows[index]),

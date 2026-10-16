@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:go_router/go_router.dart';
 
 import '../state/app_controller.dart';
 import '../models/content.dart';
@@ -86,13 +85,12 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
       .where(
         (i) =>
             !checked.contains(i.key) &&
+            (metadataFilter || i.posterUrl == null || i.posterUrl!.isEmpty) &&
             (type == 'any' || i.mediaType.name == type),
       )
       .toList();
   Future<void> loadDetails() async {
-    if (loading ||
-        !metadataFilter ||
-        ref.read(appControllerProvider).demoMode) {
+    if (loading || ref.read(appControllerProvider).demoMode) {
       return;
     }
     final batch = pending.take(12).toList();
@@ -175,11 +173,9 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
       checked.clear();
       failed.clear();
       loading = false;
-      if (metadataFilter) {
-        WidgetsBinding.instance.addPostFrameCallback((_) {
-          if (mounted) loadDetails();
-        });
-      }
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) loadDetails();
+      });
     }
     final source = saved;
     final matches = source
@@ -200,17 +196,10 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
           ),
         )
         .toList();
-    final remaining = metadataFilter && !state.demoMode ? pending.length : 0;
+    final remaining = !state.demoMode ? pending.length : 0;
     return Scaffold(
       appBar: AppBar(
         title: Text(widget.watched ? 'Seen library' : 'Want to see'),
-        actions: [
-          IconButton(
-            tooltip: 'Find a title to add',
-            icon: const Icon(Icons.add),
-            onPressed: () => context.push('/search'),
-          ),
-        ],
       ),
       body: NotificationListener<ScrollNotification>(
         onNotification: (n) {

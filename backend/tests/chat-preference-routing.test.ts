@@ -18,7 +18,7 @@ const declarations=[
 it('routes ordinary dislike wording and explicit Taste corrections to persistence, never recommendation cards',async()=>{
  for(const message of declarations){
   expect(isPersistentPreference(message)).toBe(true);
-  const users={createConversation:vi.fn(async()=>'session'),addConversationMessage:vi.fn(async()=>'message'),upsertTaste:vi.fn(async()=>{})};
+  const users={latestConversation:async()=>undefined,createConversation:vi.fn(async()=>'session'),addConversationMessage:vi.fn(async()=>'message'),upsertTaste:vi.fn(async()=>{})};
   const ai={extractTaste:vi.fn(async()=>({signals:[{dimension:'keyword',key:'anime',score:-.9,confidence:.95,evidenceCount:1,source:'onboarding_text',statement:message}]}))};
   const chat=new ChatService(users as unknown as UserRepository,undefined,ai as unknown as AiService);
   const response=await chat.respond('u',message);
@@ -32,7 +32,7 @@ it('keeps assistant punctuation clean without shifting citation offsets or modif
  expect(cleanChatBlocks([block])[0]).toEqual({...block,content:'A, B [1]',citations:[{...block.citations[0]!,start:5,end:8}]});
 });
 it('does not silently turn an extraction failure into discovery or a saved claim',async()=>{
- const users={createConversation:async()=>'s',addConversationMessage:async()=>'m',upsertTaste:vi.fn()};
+ const users={latestConversation:async()=>undefined,createConversation:async()=>'s',addConversationMessage:async()=>'m',upsertTaste:vi.fn()};
  const ai={extractTaste:vi.fn(async()=>{throw Error('Unavailable');})};
  const response=await new ChatService(users as unknown as UserRepository,undefined,ai as unknown as AiService).respond('u',declarations[0]!);
  expect(users.upsertTaste).not.toHaveBeenCalled();expect(response.blocks.map(b=>b.type)).toEqual(['text']);

@@ -15,7 +15,8 @@ import '../widgets/chat_help.dart';
 import '../widgets/knowledge_answer.dart';
 
 class ChatScreen extends ConsumerStatefulWidget {
-  const ChatScreen({super.key});
+  const ChatScreen({super.key, this.active = true});
+  final bool active;
   @override
   ConsumerState<ChatScreen> createState() => _ChatScreenState();
 }
@@ -24,6 +25,31 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
   final input = TextEditingController();
   final scroll = ScrollController();
   @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      if (!mounted || !widget.active) return;
+      final shouldScroll =
+          !ref.read(appControllerProvider).demoMode &&
+          ref.read(appControllerProvider).chatMessages.isEmpty;
+      await ref.read(appControllerProvider.notifier).restoreChat();
+      if (shouldScroll && mounted && scroll.hasClients) {
+        scroll.jumpTo(scroll.position.maxScrollExtent);
+      }
+    });
+  }
+
+  @override
+  void didUpdateWidget(ChatScreen oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.active && !oldWidget.active) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) ref.read(appControllerProvider.notifier).restoreChat();
+      });
+    }
+  }
+
+  @override
   void dispose() {
     input.dispose();
     scroll.dispose();
@@ -31,6 +57,8 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
   }
 
   Future<void> send([String? prompt]) async {
+    final controller = ref.read(appControllerProvider.notifier);
+    if (controller.chatRestoring || controller.chatRestoreError != null) return;
     if (ref.read(appControllerProvider).busy) return;
     final text = prompt ?? input.text;
     if (text.trim().isEmpty) return;
@@ -87,6 +115,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
   @override
   Widget build(BuildContext context) {
     final state = ref.watch(appControllerProvider);
+    final controller = ref.read(appControllerProvider.notifier);
     final latestAssistant = state.chatMessages.lastIndexWhere(
       (m) => !m.fromUser,
     );
@@ -109,6 +138,34 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
       ),
       body: Column(
         children: [
+          if (controller.chatRestoring)
+            const LinearProgressIndicator(minHeight: 2),
+          if (controller.chatRestoreError != null)
+            TextButton(
+              onPressed: () =>
+                  controller.restoreChat(older: controller.chatRestored),
+              child: Text(controller.chatRestoreError!),
+            )
+          else if (controller.chatHasOlder)
+            TextButton(
+              onPressed: controller.chatRestoring
+                  ? null
+                  : () async {
+                      final before = scroll.hasClients
+                          ? scroll.position.maxScrollExtent
+                          : 0.0;
+                      final position = scroll.hasClients ? scroll.offset : 0.0;
+                      await controller.restoreChat(older: true);
+                      WidgetsBinding.instance.addPostFrameCallback((_) {
+                        if (mounted && scroll.hasClients) {
+                          scroll.jumpTo(
+                            position + scroll.position.maxScrollExtent - before,
+                          );
+                        }
+                      });
+                    },
+              child: const Text('Earlier messages'),
+            ),
           Expanded(
             child: state.chatMessages.isEmpty
                 ? _EmptyChat(onPrompt: send)
@@ -161,7 +218,12 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                   const SizedBox(width: 8),
                   IconButton.filled(
                     tooltip: 'Send',
-                    onPressed: state.busy ? null : send,
+                    onPressed:
+                        state.busy ||
+                            controller.chatRestoring ||
+                            controller.chatRestoreError != null
+                        ? null
+                        : send,
                     icon: const Icon(Icons.arrow_upward_rounded),
                   ),
                 ],

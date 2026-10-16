@@ -178,7 +178,7 @@ void main() {
           if (path == '/tv') {
             await tester.tap(find.text('Interstellar').hitTestable().first);
             await capture('reminder-controls');
-            Navigator.of(tester.element(find.text('At start'))).pop();
+            Navigator.of(tester.element(find.byType(BottomSheet))).pop();
             await tester.pump(const Duration(milliseconds: 400));
             await tester.pump(const Duration(milliseconds: 500));
             await tester.tap(

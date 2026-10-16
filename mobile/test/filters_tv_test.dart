@@ -130,6 +130,61 @@ class BusyTvApi extends ChannelApi {
 }
 
 void main() {
+  testWidgets(
+    'continuous timeline fetches beyond eight hours and reuses loaded windows',
+    (tester) async {
+      final api = ChannelApi();
+      final container = ProviderContainer(
+        overrides: [nexApiClientProvider.overrideWithValue(api)],
+      );
+      addTearDown(container.dispose);
+      await container.read(appControllerProvider.notifier).restoreSession();
+      await tester.pumpWidget(
+        UncontrolledProviderScope(
+          container: container,
+          child: const MaterialApp(home: TvScreen()),
+        ),
+      );
+      await tester.pumpAndSettle();
+      final horizontal = find.descendant(
+        of: find.byWidgetPredicate(
+          (w) => w is ListView && w.scrollDirection == Axis.horizontal,
+        ),
+        matching: find.byType(Scrollable),
+      );
+      final scroll = tester.state<ScrollableState>(horizontal);
+      scroll.position.jumpTo(1800); // Ten hours, not a separate page.
+      await tester.pump(const Duration(milliseconds: 200));
+      await tester.pumpAndSettle();
+      final windows = api.queries
+          .where((q) => q.contains('channelIds'))
+          .toList();
+      expect(windows, isNotEmpty);
+      final first = DateTime.parse(
+        Uri.parse(api.queries.first).queryParameters['start']!,
+      );
+      expect(
+        windows.any(
+          (q) =>
+              DateTime.parse(Uri.parse(q).queryParameters['start']!)
+                  .difference(first)
+                  .inHours >=
+              6,
+        ),
+        isTrue,
+      );
+      final count = api.queries.length;
+      scroll.position.jumpTo(0);
+      await tester.pump(const Duration(milliseconds: 200));
+      scroll.position.jumpTo(1800);
+      await tester.pump(const Duration(milliseconds: 200));
+      await tester.pumpAndSettle();
+      expect(api.queries.length, count);
+      expect(find.byTooltip('Refresh guide'), findsNothing);
+      expect(tester.takeException(), isNull);
+      await tester.pumpWidget(const SizedBox());
+    },
+  );
   testWidgets('cold country prepares once and guide appears after polling', (
     tester,
   ) async {
@@ -178,7 +233,9 @@ void main() {
         find.text('Channel 31'),
         500,
         scrollable: find.descendant(
-          of: find.byType(ListView),
+          of: find.byWidgetPredicate(
+            (w) => w is ListView && w.scrollDirection == Axis.vertical,
+          ),
           matching: find.byType(Scrollable),
         ),
         maxScrolls: 40,
@@ -186,16 +243,23 @@ void main() {
       expect(find.text('Channel 31'), findsOneWidget);
       final scrolling = tester.state<ScrollableState>(
         find.descendant(
-          of: find.byType(ListView),
+          of: find.byWidgetPredicate(
+            (w) => w is ListView && w.scrollDirection == Axis.vertical,
+          ),
           matching: find.byType(Scrollable),
         ),
       );
       final position = scrolling.position.pixels;
-      final requests = api.queries.length;
+      final requests = api.queries
+          .where((q) => !q.contains('channelIds'))
+          .length;
       await tester.tap(find.byTooltip('Favourite channel').last);
       api.save.complete();
       await tester.pumpAndSettle();
-      expect(api.queries.length, requests);
+      expect(
+        api.queries.where((q) => !q.contains('channelIds')).length,
+        requests,
+      );
       expect(scrolling.position.pixels, position);
       expect(find.text('Channel 31'), findsOneWidget);
       expect(tester.takeException(), isNull);

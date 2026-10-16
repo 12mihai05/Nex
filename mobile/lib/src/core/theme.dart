@@ -6,8 +6,8 @@ abstract final class NexColors {
   static const ember = Color(0xFFB73550);
   static const ink = Color(0xFF090A0C);
   static const charcoal = Color(0xFF14161A);
-  static const bone = Color(0xFFD2CAC3);
-  static const lightCard = Color(0xFFEAE3DC);
+  static const bone = Color(0xFFCBD3DE);
+  static const lightCard = Color(0xFFE6EBF2);
   static const moss = Color(0xFF98AE92);
 }
 
@@ -33,28 +33,28 @@ abstract final class NexTheme {
           brightness: brightness,
           surface: dark ? NexColors.ink : NexColors.bone,
         ).copyWith(
-          primary: dark ? const Color(0xFFF0788F) : const Color(0xFF9D2340),
+          primary: dark ? const Color(0xFFF0788F) : const Color(0xFFA22444),
           onPrimary: dark ? const Color(0xFF320713) : Colors.white,
-          secondaryContainer: dark ? null : const Color(0xFFAC2945),
+          secondaryContainer: dark ? null : const Color(0xFF96314D),
           onSecondaryContainer: dark ? null : Colors.white,
           primaryContainer: dark
               ? const Color(0xFF552033)
-              : const Color(0xFFAC2945),
+              : const Color(0xFF96314D),
           onPrimaryContainer: dark ? const Color(0xFFFFDEE5) : Colors.white,
-          onSurface: dark ? const Color(0xFFF5F1F2) : const Color(0xFF242126),
+          onSurface: dark ? const Color(0xFFF5F1F2) : const Color(0xFF202734),
           onSurfaceVariant: dark
               ? const Color(0xFFC4BAC0)
-              : const Color(0xFF50444A),
+              : const Color(0xFF4B5565),
           surfaceContainerLowest: dark ? null : NexColors.lightCard,
-          surfaceContainerLow: dark ? null : const Color(0xFFE2D9D1),
-          surfaceContainer: dark ? null : const Color(0xFFDDD3CA),
-          surfaceContainerHigh: dark ? null : const Color(0xFFD5C9C1),
+          surfaceContainerLow: dark ? null : const Color(0xFFEEF1F5),
+          surfaceContainer: dark ? null : const Color(0xFFE0E5EC),
+          surfaceContainerHigh: dark ? null : const Color(0xFFD5DDE7),
           surfaceContainerHighest: dark
               ? const Color(0xFF292329)
-              : const Color(0xFFC8BAB3),
+              : const Color(0xFFC7D1DE),
           outlineVariant: dark
               ? const Color(0xFF493D43)
-              : const Color(0xFFA99A94),
+              : const Color(0xFFA4AFBD),
         );
     return ThemeData(
       useMaterial3: true,
