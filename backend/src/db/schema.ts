@@ -143,6 +143,14 @@ export const userRecommendationCache = sqliteTable("user_recommendation_cache", 
   expiresAt: integer("expires_at", { mode: "timestamp_ms" }).notNull(),
 }, table => [primaryKey({ columns: [table.userId, table.key] }), index("recommendation_cache_expiry_idx").on(table.expiresAt)]);
 
+export const userTasteSummaries = sqliteTable('user_taste_summaries', {
+  userId: text('user_id').primaryKey().references(() => user.id, {onDelete:'cascade'}),
+  paragraph: text('paragraph'),
+  fingerprint: text('fingerprint'),
+  updatedAt: integer('updated_at', {mode:'timestamp_ms'}),
+  attemptedAt: integer('attempted_at', {mode:'timestamp_ms'}).notNull(),
+});
+
 export const userTitleFeedback = sqliteTable("user_title_feedback", {
   userId: text("user_id").notNull().references(() => user.id, { onDelete: "cascade" }),
   mediaType: text("media_type", { enum: ["movie", "series"] }).notNull(),

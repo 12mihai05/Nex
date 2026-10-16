@@ -5,6 +5,7 @@ import '../state/app_controller.dart';
 import '../models/taste_label.dart';
 import '../widgets/skeleton.dart';
 import '../widgets/nex_notice.dart';
+import '../widgets/taste_portrait.dart';
 
 class TasteScreen extends ConsumerStatefulWidget {
   const TasteScreen({super.key});
@@ -14,7 +15,7 @@ class TasteScreen extends ConsumerStatefulWidget {
 
 class _TasteScreenState extends ConsumerState<TasteScreen> {
   final search = TextEditingController();
-  String polarity = 'All', group = 'All topics';
+  String polarity = 'All';
   bool learned = false, recent = false, loading = false;
   bool changingEngine = false;
   final pending = <String>{};
@@ -131,7 +132,6 @@ class _TasteScreenState extends ConsumerState<TasteScreen> {
                   : polarity == 'Less of'
                   ? score < 0
                   : score == 0)) &&
-          (group == 'All topics' || groups[e['dimension']] == group) &&
           (query.isEmpty || tasteLabel(e).toLowerCase().contains(query));
     }).toList();
     filtered.sort((a, b) {
@@ -151,9 +151,7 @@ class _TasteScreenState extends ConsumerState<TasteScreen> {
     }
     for (final section in grouped.entries) {
       display.add({'section': section.key, 'count': section.value.length});
-      if (expandedGroups.contains(section.key) ||
-          query.isNotEmpty ||
-          group != 'All topics') {
+      if (expandedGroups.contains(section.key) || query.isNotEmpty) {
         final limit = groupLimits[section.key] ?? 20;
         display.addAll(section.value.take(limit));
         if (section.value.length > limit) display.add({'more': section.key});
@@ -181,25 +179,40 @@ class _TasteScreenState extends ConsumerState<TasteScreen> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(
-                      'A taste of you',
-                      style: Theme.of(context).textTheme.headlineSmall,
-                    ),
-                    const SizedBox(height: 12),
-                    if (favorites.isNotEmpty) Text('More of: $favorites.'),
-                    if (avoided.isNotEmpty)
-                      Padding(
-                        padding: const EdgeInsets.only(top: 6),
-                        child: Text('Less of: $avoided.'),
-                      ),
-                    const SizedBox(height: 10),
-                    const Text(
-                      'What you tell Nex comes first. Open a topic below to fine-tune it. Your ratings add tentative patterns, which you can review separately.',
+                    TastePortrait(
+                      hasTaste: all.isNotEmpty,
+                      fallback: [
+                        if (favorites.isNotEmpty)
+                          'You tend to enjoy ${favorites.toLowerCase()}.',
+                        if (avoided.isNotEmpty)
+                          'You prefer less of ${avoided.toLowerCase()}.',
+                        'Open a topic below to shape what Nex looks for.',
+                      ].join(' '),
                     ),
                     const SizedBox(height: 18),
                     if (!state.demoMode)
                       ExpansionTile(
-                        tilePadding: EdgeInsets.zero,
+                        backgroundColor: Theme.of(context)
+                            .colorScheme
+                            .surfaceContainerLow,
+                        collapsedBackgroundColor: Theme.of(context)
+                            .colorScheme
+                            .surfaceContainerLow,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(20),
+                        ),
+                        collapsedShape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(20),
+                        ),
+                        leading: Icon(
+                          Icons.tune,
+                          color: Theme.of(context).colorScheme.primary,
+                        ),
+                        childrenPadding: const EdgeInsets.all(16),
+                        tilePadding: const EdgeInsets.symmetric(
+                          horizontal: 16,
+                          vertical: 4,
+                        ),
                         title: const Text('Recommendation settings'),
                         subtitle: const Text('Advanced · how picks are ranked'),
                         children: [
@@ -295,24 +308,7 @@ class _TasteScreenState extends ConsumerState<TasteScreen> {
                     ),
                     Row(
                       children: [
-                        Expanded(
-                          child: DropdownButton<String>(
-                            value: group,
-                            isExpanded: true,
-                            items: [
-                              for (final value in [
-                                'All topics',
-                                ...groups.values.toSet(),
-                              ])
-                                DropdownMenuItem(
-                                  value: value,
-                                  child: Text(value),
-                                ),
-                            ],
-                            onChanged: (v) => setState(() => group = v!),
-                          ),
-                        ),
-                        const SizedBox(width: 12),
+                        const Spacer(),
                         IconButton(
                           tooltip: recent
                               ? 'Sort by strongest preference'
@@ -359,9 +355,7 @@ class _TasteScreenState extends ConsumerState<TasteScreen> {
                   final e = display[index];
                   if (e['section'] case final String section) {
                     final open =
-                        expandedGroups.contains(section) ||
-                        query.isNotEmpty ||
-                        group != 'All topics';
+                        expandedGroups.contains(section) || query.isNotEmpty;
                     return Card(
                       child: ListTile(
                         title: Text(
@@ -376,7 +370,6 @@ class _TasteScreenState extends ConsumerState<TasteScreen> {
                           if (open) {
                             expandedGroups.remove(section);
                             search.clear();
-                            group = 'All topics';
                           } else {
                             expandedGroups.add(section);
                           }
@@ -397,11 +390,12 @@ class _TasteScreenState extends ConsumerState<TasteScreen> {
                   final score = e['score'] as num;
                   return Card(
                     key: ValueKey(key),
-                    margin: const EdgeInsets.only(bottom: 10),
+                    margin: const EdgeInsets.fromLTRB(14, 2, 8, 6),
                     child: ListTile(
+                      dense: true,
                       contentPadding: const EdgeInsets.symmetric(
                         horizontal: 16,
-                        vertical: 8,
+                        vertical: 2,
                       ),
                       leading: Icon(
                         score > 0

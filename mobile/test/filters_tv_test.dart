@@ -6,6 +6,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:nex/src/core/theme.dart';
 import 'package:nex/src/widgets/catalog_filter_sheet.dart';
 import 'package:nex/src/screens/tv_screen.dart';
+import 'package:nex/src/screens/tv_guide_screen.dart' show publishedGuideDays;
 import 'package:nex/src/state/app_controller.dart';
 
 import 'library_restore_test.dart' show OfflineCatalogApi;
@@ -73,6 +74,38 @@ class PreparingTvApi extends ChannelApi {
   }
 }
 
+class WindowTvApi extends ChannelApi {
+  DateTime? origin;
+  @override
+  Future<Map<String, dynamic>> object(String path) async {
+    if (!path.startsWith('/api/tv/guide')) return super.object(path);
+    queries.add(path);
+    final begin = DateTime.parse(Uri.parse(path).queryParameters['start']!);
+    origin ??= begin;
+    final window = begin.difference(origin!).inHours ~/ 6;
+    return {
+      'hasMore': false,
+      'coverageEnd': origin!.add(const Duration(days: 5)).toIso8601String(),
+      'channels': [
+        {
+          'id': 'ro:test',
+          'name': 'Test channel',
+          'favorite': false,
+          'programs': [
+            {
+              'id': 'p$window',
+              'title': 'Window $window',
+              'channel': {'id': 'ro:test', 'name': 'Test channel'},
+              'startAt': begin.toIso8601String(),
+              'endAt': begin.add(const Duration(hours: 6)).toIso8601String(),
+            },
+          ],
+        },
+      ],
+    };
+  }
+}
+
 class BusyTvApi extends ChannelApi {
   @override
   Future<Map<String, dynamic>> object(String path) async {
@@ -130,6 +163,64 @@ class BusyTvApi extends ChannelApi {
 }
 
 void main() {
+  test(
+    'day choices omit a final partial day and preserve the previous full day',
+    () {
+      final monday = DateTime(2026, 10, 19, 12);
+      expect(publishedGuideDays(monday, DateTime(2026, 10, 21, 2)), [
+        DateTime(2026, 10, 19),
+        DateTime(2026, 10, 20),
+      ]);
+      expect(publishedGuideDays(monday, DateTime(2026, 10, 21)), [
+        DateTime(2026, 10, 19),
+        DateTime(2026, 10, 20),
+      ]);
+      expect(publishedGuideDays(monday, null), [DateTime(2026, 10, 19)]);
+    },
+  );
+  testWidgets(
+    'evicted programmes return on backward scrolling and cached Now',
+    (tester) async {
+      final api = WindowTvApi();
+      final container = ProviderContainer(
+        overrides: [nexApiClientProvider.overrideWithValue(api)],
+      );
+      addTearDown(container.dispose);
+      await container.read(appControllerProvider.notifier).restoreSession();
+      await tester.pumpWidget(
+        UncontrolledProviderScope(
+          container: container,
+          child: const MaterialApp(home: TvScreen()),
+        ),
+      );
+      await tester.pumpAndSettle();
+      expect(find.text('Window 0'), findsOneWidget);
+      final scroll = tester.state<ScrollableState>(
+        find.descendant(
+          of: find.byKey(const ValueKey('guide-timeline')),
+          matching: find.byType(Scrollable),
+        ),
+      );
+      scroll.position.jumpTo(5400);
+      await tester.pump(const Duration(milliseconds: 200));
+      await tester.pumpAndSettle();
+      expect(find.text('Window 5'), findsOneWidget);
+      scroll.position.jumpTo(0);
+      await tester.pump(const Duration(milliseconds: 200));
+      await tester.pumpAndSettle();
+      expect(find.text('Window 0'), findsOneWidget);
+      scroll.position.jumpTo(5400);
+      await tester.pump(const Duration(milliseconds: 200));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Now'));
+      await tester.pumpAndSettle();
+      expect(find.text('Window 0'), findsOneWidget);
+      expect(find.byTooltip('Notifications'), findsOneWidget);
+      expect(find.text('Favourites'), findsNothing);
+      expect(tester.takeException(), isNull);
+      await tester.pumpWidget(const SizedBox());
+    },
+  );
   testWidgets(
     'continuous timeline fetches beyond eight hours and reuses loaded windows',
     (tester) async {
@@ -147,9 +238,7 @@ void main() {
       );
       await tester.pumpAndSettle();
       final horizontal = find.descendant(
-        of: find.byWidgetPredicate(
-          (w) => w is ListView && w.scrollDirection == Axis.horizontal,
-        ),
+        of: find.byKey(const ValueKey('guide-timeline')),
         matching: find.byType(Scrollable),
       );
       final scroll = tester.state<ScrollableState>(horizontal);

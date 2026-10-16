@@ -16,6 +16,26 @@ import '../widgets/nex_notice.dart';
 import '../widgets/skeleton.dart';
 import '../widgets/top_bar.dart';
 
+List<DateTime> publishedGuideDays(DateTime now, DateTime? coverageEnd) {
+  final today = DateTime(now.year, now.month, now.day);
+  final end = coverageEnd ?? DateTime(now.year, now.month, now.day + 1);
+  final completeThrough = DateTime(
+    end.year,
+    end.month,
+    end.day,
+  ).subtract(const Duration(microseconds: 1));
+  return [
+    for (var i = 0; i < 14; i++)
+      if (i == 0 ||
+          !DateTime(
+            today.year,
+            today.month,
+            today.day + i,
+          ).isAfter(completeThrough))
+        DateTime(today.year, today.month, today.day + i),
+  ];
+}
+
 class TvGuideScreen extends ConsumerStatefulWidget {
   const TvGuideScreen({super.key, this.active = true});
   final bool active;
@@ -40,6 +60,7 @@ class _TvGuideScreenState extends ConsumerState<TvGuideScreen> {
   final orderOverrides = <String, bool>{};
   List<Map<String, dynamic>> channels = [];
   DateTime start = _currentStart();
+  DateTime? coverageEnd;
   String query = '', scope = '';
   String visibleKey = '';
   String? error;
@@ -203,8 +224,13 @@ class _TvGuideScreenState extends ConsumerState<TvGuideScreen> {
         preparationPoll?.cancel();
         if (preparation == 'ready') preparationStarted = null;
       }
+      if (data['coverageEnd'] is String) {
+        coverageEnd = DateTime.tryParse(data['coverageEnd'] as String)
+            ?.toLocal();
+      }
+      // Never mutate the cached initial window while merging/evicting later ones.
       final incoming = (data['channels'] as List)
-          .map((c) => (c as Map).cast<String, dynamic>())
+          .map((c) => Map<String, dynamic>.from(c as Map))
           .where((c) => !state.demoMode || !favorites || c['favorite'] == true)
           .toList();
       if (state.demoMode) {
@@ -354,6 +380,49 @@ class _TvGuideScreenState extends ConsumerState<TvGuideScreen> {
       if (mounted) setState(() => saving.remove(id));
     }
   }
+
+  Widget dayStrip() => ValueListenableBuilder<double>(
+    valueListenable: offset,
+    builder: (context, x, _) {
+      final now = DateTime.now();
+      final current = start.add(
+        Duration(minutes: (x / pixelsPerMinute).floor()),
+      );
+      final days = publishedGuideDays(now, coverageEnd);
+      return SizedBox(
+        height: 48,
+        child: ListView.separated(
+          scrollDirection: Axis.horizontal,
+          itemCount: days.length,
+          separatorBuilder: (_, _) => const SizedBox(width: 6),
+          itemBuilder: (context, i) {
+            final d = days[i];
+            return ChoiceChip(
+              label: Text(
+                i == 0
+                    ? 'Today'
+                    : i == 1
+                    ? 'Tomorrow'
+                    : DateFormat('EEE d').format(d),
+              ),
+              selected: DateUtils.isSameDay(d, current),
+              onSelected: (_) {
+                final target = i == 0 ? _currentStart() : d;
+                final position =
+                    target.difference(start).inMinutes * pixelsPerMinute;
+                if (horizontal.hasClients) {
+                  horizontal.jumpTo(
+                    position.clamp(0, horizontal.position.maxScrollExtent),
+                  );
+                }
+                scheduleWindow();
+              },
+            );
+          },
+        ),
+      );
+    },
+  );
 
   Future<void> openProgram(TvProgram p) async {
     final saved = ref
@@ -535,7 +604,11 @@ class _TvGuideScreenState extends ConsumerState<TvGuideScreen> {
       });
     }
     return Scaffold(
-      appBar: const NexTopBar(title: 'TV guide', showSearch: false),
+      appBar: const NexTopBar(
+        title: 'TV guide',
+        showSearch: false,
+        showNotifications: true,
+      ),
       body: SafeArea(
         child: Column(
           children: [
@@ -572,15 +645,23 @@ class _TvGuideScreenState extends ConsumerState<TvGuideScreen> {
               padding: const EdgeInsets.symmetric(horizontal: 12),
               child: Row(
                 children: [
-                  FilterChip(
-                    label: const Text('Favourites'),
-                    selected: favorites,
-                    onSelected: (v) {
-                      setState(() => favorites = v);
+                  IconButton.filledTonal(
+                    tooltip: favorites
+                        ? 'Show all channels'
+                        : 'Show favourite channels only',
+                    icon: Icon(
+                      favorites
+                          ? Icons.star_rounded
+                          : Icons.star_outline_rounded,
+                    ),
+                    isSelected: favorites,
+                    onPressed: () {
+                      setState(() => favorites = !favorites);
                       load();
                     },
                   ),
                   const Spacer(),
+                  Expanded(flex: 12, child: dayStrip()),
                   TextButton(
                     onPressed: () {
                       setState(() => start = _currentStart());
@@ -624,9 +705,19 @@ class _TvGuideScreenState extends ConsumerState<TvGuideScreen> {
                   const SizedBox(width: channelWidth),
                   Expanded(
                     child: ListView.builder(
+                      key: const ValueKey('guide-timeline'),
                       controller: horizontal,
                       scrollDirection: Axis.horizontal,
-                      itemCount: 14 * 48,
+                      itemCount: coverageEnd == null
+                          ? 14 * 48
+                          : (DateTime(
+                                      coverageEnd!.year,
+                                      coverageEnd!.month,
+                                      coverageEnd!.day,
+                                    ).difference(start).inMinutes /
+                                    30)
+                                .ceil()
+                                .clamp(1, 14 * 48),
                       itemExtent: 90,
                       itemBuilder: (_, i) => SizedBox(
                         width: 90,

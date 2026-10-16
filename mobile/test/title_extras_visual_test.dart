@@ -99,11 +99,7 @@ void main() {
         ),
       );
       await tester.pumpAndSettle();
-      await tester.tap(find.text('2 seasons'));
-      await tester.pumpAndSettle();
-      await tester.tap(find.byType(DropdownButtonFormField<int>));
-      await tester.pumpAndSettle();
-      await tester.tap(find.text('Season 1 · 7 episodes').last);
+      await tester.tap(find.text('Season 1'));
       await tester.pumpAndSettle();
       final boundary =
           key.currentContext!.findRenderObject() as RenderRepaintBoundary;

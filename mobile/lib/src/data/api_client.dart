@@ -256,6 +256,11 @@ class NexApiClient {
   Future<Map<String, dynamic>> object(String path) async =>
       ((await _dio.get<Map<String, dynamic>>(path)).data!['data'] as Map)
           .cast<String, dynamic>();
+  Future<Map<String, dynamic>> generateTasteSummary() async =>
+      ((await _dio.post<Map<String, dynamic>>('/api/me/taste-summary'))
+                  .data!['data']
+              as Map)
+          .cast<String, dynamic>();
   Future<List<Map<String, dynamic>>> list(String path) async {
     final epoch = _planEpoch;
     var uri = Uri.parse(path);

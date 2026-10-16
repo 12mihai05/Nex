@@ -10,6 +10,7 @@ import { getConfig } from "./config.js";
 import { createTmdbRepository } from "./repositories/tmdb-repository.js";
 import { UserRepository } from "./repositories/user-repository.js";
 import { AiService } from "./services/ai.js";
+import {TasteSummary} from './services/taste-summary.js';
 import { ChatService } from "./services/chat.js";
 import { EpgService } from "./services/epg/service.js";
 import {EpgDemand} from './services/epg/demand.js';
@@ -263,6 +264,11 @@ app.post("/api/onboarding/analyze", async (c) => {
 app.get('/api/chat',async c=>{
   const before=z.coerce.number().int().positive().optional().parse(c.req.query('before'));
   return c.json({data:await users.conversationHistory(c.get('authSession').user.id,before)});
+});
+app.get('/api/me/taste-summary',async c=>c.json({data:await new TasteSummary().read(c.get('authSession').user.id)}));
+app.post('/api/me/taste-summary',async c=>{
+  try {return c.json({data:await new TasteSummary().generate(c.get('authSession').user.id)});}
+  catch {throw new HTTPException(503,{message:'Your taste summary could not be updated. Your preferences are unchanged.'});}
 });
 app.delete('/api/chat',async(c)=>{
   await users.clearConversations(c.get('authSession').user.id);

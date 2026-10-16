@@ -9,10 +9,12 @@ class NexTopBar extends StatelessWidget implements PreferredSizeWidget {
     this.title = 'Nex',
     this.extraActions = const [],
     this.showSearch = true,
+    this.showNotifications = false,
   });
   final String title;
   final List<Widget> extraActions;
   final bool showSearch;
+  final bool showNotifications;
   @override
   Size get preferredSize => const Size.fromHeight(64);
   @override
@@ -41,7 +43,7 @@ class NexTopBar extends StatelessWidget implements PreferredSizeWidget {
     ),
     actions: [
       ...extraActions,
-      if (showSearch)
+      if (showSearch || showNotifications)
         IconButton(
           tooltip: 'Notifications',
           onPressed: () => context.push('/notifications'),

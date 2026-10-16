@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'core/router.dart';
 import 'core/theme.dart';
 import 'state/app_controller.dart';
+import 'state/light_palette.dart';
 
 class NexApp extends ConsumerWidget {
   const NexApp({super.key});
@@ -17,12 +18,14 @@ class NexApp extends ConsumerWidget {
     return MaterialApp.router(
       title: 'Nex',
       debugShowCheckedModeBanner: false,
-      theme: NexTheme.light,
+      theme: ref.watch(lightPaletteProvider) ? NexTheme.paper : NexTheme.light,
       darkTheme: NexTheme.dark,
       themeMode: appearance,
       routerConfig: router,
       builder: (context, child) => AnnotatedRegion<SystemUiOverlayStyle>(
-        value: NexTheme.systemBars(Theme.of(context).brightness),
+        value: NexTheme.systemBars(Theme.of(context).brightness).copyWith(
+          systemNavigationBarColor: Theme.of(context).scaffoldBackgroundColor,
+        ),
         child: child!,
       ),
     );

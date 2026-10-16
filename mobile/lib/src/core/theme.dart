@@ -24,17 +24,25 @@ abstract final class NexTheme {
           );
   static ThemeData get dark => _theme(Brightness.dark);
   static ThemeData get light => _theme(Brightness.light);
+  static ThemeData get paper => _theme(Brightness.light, paper: true);
 
-  static ThemeData _theme(Brightness brightness) {
+  static ThemeData _theme(Brightness brightness, {bool paper = false}) {
+    final background = paper ? const Color(0xFFD8CCB6) : NexColors.bone;
+    final card = paper ? const Color(0xFFF0E7D6) : NexColors.lightCard;
     final dark = brightness == Brightness.dark;
     final scheme =
         ColorScheme.fromSeed(
           seedColor: NexColors.ember,
           brightness: brightness,
-          surface: dark ? NexColors.ink : NexColors.bone,
+          surface: dark ? NexColors.ink : background,
         ).copyWith(
           primary: dark ? const Color(0xFFF0788F) : const Color(0xFFA22444),
           onPrimary: dark ? const Color(0xFF320713) : Colors.white,
+          secondary: dark ? null : const Color(0xFF96314D),
+          onSecondary: dark ? null : Colors.white,
+          outline: dark
+              ? null
+              : (paper ? const Color(0xFF8C7B62) : const Color(0xFF748397)),
           secondaryContainer: dark ? null : const Color(0xFF96314D),
           onSecondaryContainer: dark ? null : Colors.white,
           primaryContainer: dark
@@ -45,25 +53,32 @@ abstract final class NexTheme {
           onSurfaceVariant: dark
               ? const Color(0xFFC4BAC0)
               : const Color(0xFF4B5565),
-          surfaceContainerLowest: dark ? null : NexColors.lightCard,
-          surfaceContainerLow: dark ? null : const Color(0xFFEEF1F5),
-          surfaceContainer: dark ? null : const Color(0xFFE0E5EC),
-          surfaceContainerHigh: dark ? null : const Color(0xFFD5DDE7),
+          surfaceContainerLowest: dark ? null : card,
+          surfaceContainerLow: dark
+              ? null
+              : (paper ? const Color(0xFFEAE0CD) : const Color(0xFFEEF1F5)),
+          surfaceContainer: dark
+              ? null
+              : (paper ? const Color(0xFFE2D6C0) : const Color(0xFFE0E5EC)),
+          surfaceContainerHigh: dark
+              ? null
+              : (paper ? const Color(0xFFD5C5A9) : const Color(0xFFD5DDE7)),
           surfaceContainerHighest: dark
               ? const Color(0xFF292329)
-              : const Color(0xFFC7D1DE),
+              : (paper ? const Color(0xFFC6B493) : const Color(0xFFC7D1DE)),
           outlineVariant: dark
               ? const Color(0xFF493D43)
-              : const Color(0xFFA4AFBD),
+              : (paper ? const Color(0xFF9C8B6D) : const Color(0xFFA4AFBD)),
         );
     return ThemeData(
       useMaterial3: true,
       brightness: brightness,
       colorScheme: scheme,
-      scaffoldBackgroundColor: dark ? NexColors.ink : NexColors.bone,
+      scaffoldBackgroundColor: dark ? NexColors.ink : background,
       fontFamily: 'sans-serif',
+      iconTheme: dark ? null : IconThemeData(color: scheme.onSurfaceVariant),
       dialogTheme: DialogThemeData(
-        backgroundColor: dark ? NexColors.charcoal : NexColors.lightCard,
+        backgroundColor: dark ? NexColors.charcoal : card,
         surfaceTintColor: Colors.transparent,
         barrierColor: Colors.black.withValues(alpha: .64),
         elevation: 12,
@@ -109,7 +124,9 @@ abstract final class NexTheme {
         backgroundColor: scheme.surface,
         foregroundColor: scheme.onSurface,
         surfaceTintColor: Colors.transparent,
-        systemOverlayStyle: systemBars(brightness),
+        systemOverlayStyle: systemBars(
+          brightness,
+        ).copyWith(systemNavigationBarColor: dark ? NexColors.ink : background),
       ),
       bottomSheetTheme: BottomSheetThemeData(
         backgroundColor: scheme.surface,
@@ -161,13 +178,18 @@ abstract final class NexTheme {
       ),
       cardTheme: CardThemeData(
         elevation: 0,
-        color: dark ? NexColors.charcoal : NexColors.lightCard,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        color: dark ? NexColors.charcoal : card,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(20),
+          side: dark
+              ? BorderSide.none
+              : BorderSide(color: scheme.outlineVariant.withValues(alpha: .65)),
+        ),
       ),
       navigationBarTheme: NavigationBarThemeData(
         height: 68,
         elevation: 0,
-        backgroundColor: (dark ? NexColors.ink : NexColors.bone).withValues(
+        backgroundColor: (dark ? NexColors.ink : background).withValues(
           alpha: .96,
         ),
         indicatorColor: dark
@@ -210,7 +232,7 @@ abstract final class NexTheme {
       ),
       inputDecorationTheme: InputDecorationTheme(
         filled: true,
-        fillColor: dark ? NexColors.charcoal : NexColors.lightCard,
+        fillColor: dark ? NexColors.charcoal : card,
         border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(18),
           borderSide: BorderSide.none,
@@ -229,7 +251,7 @@ abstract final class NexTheme {
         ),
       ),
       chipTheme: ChipThemeData(
-        backgroundColor: dark ? const Color(0xFF202329) : NexColors.lightCard,
+        backgroundColor: dark ? const Color(0xFF202329) : card,
         selectedColor: scheme.primaryContainer,
         labelStyle: TextStyle(
           fontFamily: 'sans-serif',

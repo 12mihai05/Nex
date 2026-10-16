@@ -92,6 +92,13 @@
       "when": 1792175272798,
       "tag": "0012_lyrical_lord_hawal",
       "breakpoints": true
+    },
+    {
+      "idx": 13,
+      "version": "6",
+      "when": 1792178960235,
+      "tag": "0013_white_kid_colt",
+      "breakpoints": true
     }
   ]
 }

@@ -15,7 +15,7 @@ import 'visual_review_test.dart' show VisualBinding;
 
 void main() {
   VisualBinding();
-  for (final variant in ['dark', 'light', 'large']) {
+  for (final variant in ['dark', 'light', 'paper', 'large']) {
     testWidgets('recommendation settings render $variant', (tester) async {
       final size = Size(variant == 'large' ? 360 : 430, 932);
       tester.view.physicalSize = size;
@@ -50,7 +50,11 @@ void main() {
             key: boundary,
             child: MaterialApp(
               debugShowCheckedModeBanner: false,
-              theme: variant == 'light' ? NexTheme.light : NexTheme.dark,
+              theme: variant == 'paper'
+                  ? NexTheme.paper
+                  : variant == 'light'
+                  ? NexTheme.light
+                  : NexTheme.dark,
               home: const TasteScreen(),
               builder: (context, child) => MediaQuery(
                 data: MediaQuery.of(context).copyWith(

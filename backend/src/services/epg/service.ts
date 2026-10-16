@@ -44,7 +44,8 @@ export class EpgService {
       .orderBy(epgPrograms.channelId,epgPrograms.startAt,epgPrograms.id):[];
     const grouped=new Map<string,typeof programs>();
     for(const p of programs){const group=grouped.get(p.channelId)??[];group.push(p);grouped.set(p.channelId,group);}
-    return {channels:selected.map(c=>({...c,programs:(grouped.get(c.id)??[]).map(p=>({...p,channel:{id:c.id,name:c.name},favorite:c.favorite}))})),hasMore:page.length>20,start:start.toISOString(),end:end.toISOString()};
+    const coverage=channelIds?[]:await this.db.select({end:sql<number|null>`max(${epgPrograms.endAt})`.mapWith(Number)}).from(epgPrograms).innerJoin(channels,eq(channels.id,epgPrograms.channelId)).where(and(eq(channels.country,country),eq(channels.active,true)));
+    return {channels:selected.map(c=>({...c,programs:(grouped.get(c.id)??[]).map(p=>({...p,channel:{id:c.id,name:c.name},favorite:c.favorite}))})),hasMore:page.length>20,start:start.toISOString(),end:end.toISOString(),...(!channelIds?{coverageEnd:coverage[0]?.end?new Date(coverage[0].end).toISOString():null}:{})};
   }
 
   async chatChannels(country:string){

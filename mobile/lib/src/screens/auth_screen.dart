@@ -67,10 +67,10 @@ class _AuthScreenState extends ConsumerState<AuthScreen> {
                         NexColors.ink,
                         Color(0xFF111820),
                       ]
-                    : const [
-                        Color(0xFFE4D4D5),
-                        NexColors.bone,
-                        Color(0xFFDAD7D3),
+                    : [
+                        Theme.of(context).colorScheme.surfaceContainerLow,
+                        Theme.of(context).colorScheme.surface,
+                        Theme.of(context).colorScheme.surfaceContainerHigh,
                       ],
               ),
             ),

@@ -78,6 +78,7 @@ void main() {
       await tester.pumpAndSettle();
       final option = find.text('Story matching · experimental');
       await tester.ensureVisible(option);
+      await tester.pumpAndSettle();
       api.pending = Completer<void>();
       await tester.tap(option);
       await tester.pump();

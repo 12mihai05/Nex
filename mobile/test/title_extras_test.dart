@@ -17,6 +17,14 @@ class ExtrasApi extends MutableApi {
   @override
   Future<Map<String, dynamic>> object(String path) {
     requests.add(path);
+    if (path.endsWith('/seasons/2')) {
+      return Future.value({
+        'videos': [],
+        'episodes': [
+          {'number': 1, 'name': 'Season two opening'},
+        ],
+      });
+    }
     return path.endsWith('/extras') ? details.future : episodes.future;
   }
 }
@@ -91,17 +99,14 @@ void main() {
         ],
         'seasons': [
           {'number': 1, 'name': 'Season 1', 'episodeCount': 2},
+          {'number': 2, 'name': 'Season 2', 'episodeCount': 1},
         ],
       });
       await tester.pumpAndSettle();
       expect(find.text('Official trailer'), findsOneWidget);
-      expect(find.text('1 season'), findsOneWidget);
+      expect(find.text('Season 1'), findsOneWidget);
       expect(api.requests.length, 1);
-      await tester.tap(find.text('1 season'));
-      await tester.pumpAndSettle();
-      await tester.tap(find.byType(DropdownButtonFormField<int>));
-      await tester.pumpAndSettle();
-      await tester.tap(find.text('Season 1 · 2 episodes').last);
+      await tester.tap(find.text('Season 1'));
       await tester.pump();
       expect(api.requests.last, contains('/seasons/1'));
       expect(find.byType(NexSkeleton), findsOneWidget);
@@ -126,12 +131,22 @@ void main() {
       });
       await tester.pumpAndSettle();
       expect(find.text('Pilot'), findsOneWidget);
-      expect(find.textContaining('42 min · 8.3/10'), findsOneWidget);
-      expect(find.textContaining('null'), findsNothing);
-      await tester.tap(find.text('1 season'));
+      await tester.ensureVisible(find.text('Season 2'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Season 2'));
       await tester.pumpAndSettle();
       expect(find.text('Pilot'), findsNothing);
-      await tester.tap(find.text('1 season'));
+      expect(find.text('Season two opening'), findsOneWidget);
+      expect(api.requests.where((p) => p.endsWith('/seasons/1')), hasLength(1));
+      await tester.ensureVisible(find.text('Season 1'));
+      await tester.tap(find.text('Season 1'));
+      await tester.pumpAndSettle();
+      expect(find.textContaining('42 min · 8.3/10'), findsOneWidget);
+      expect(find.textContaining('null'), findsNothing);
+      await tester.tap(find.text('Season 1'));
+      await tester.pumpAndSettle();
+      expect(find.text('Pilot'), findsNothing);
+      await tester.tap(find.text('Season 1'));
       await tester.pumpAndSettle();
       expect(find.text('Pilot'), findsOneWidget);
       expect(tester.takeException(), isNull);

@@ -111,11 +111,25 @@ class ContentCard extends ConsumerWidget {
               ),
               if (item.metadata.isNotEmpty) ...[
                 const SizedBox(height: 3),
-                Text(
-                  item.metadata,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: Theme.of(context).textTheme.bodySmall,
+                FittedBox(
+                  fit: BoxFit.scaleDown,
+                  alignment: Alignment.centerLeft,
+                  child: Text(
+                    item.metadata
+                        .replaceAllMapped(
+                          RegExp(r'(\d+) seasons?'),
+                          (m) => '${m[1]} seas.',
+                        )
+                        .replaceAll('  ·  ', ' · ')
+                        .replaceAllMapped(
+                          RegExp(r'(\d+\.\d+)/10'),
+                          (m) => '★ ${m[1]}',
+                        ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: Theme.of(context).textTheme.bodySmall
+                        ?.copyWith(fontSize: 11),
+                  ),
                 ),
               ],
               if (DateTime.tryParse(item.releaseDate ?? '')

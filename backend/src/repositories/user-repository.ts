@@ -5,7 +5,7 @@ import { getDatabase } from "../db/client.js";
 import {
   aiUsage, conversationDisplayedItems, conversationMessages, conversationSessions, epgPrograms, profiles, reminders,
   sessionContext, userEvents, userLanguagePreferences, userStreamingServices, userTastePreferences, userTitleFeedback,
-  watchHistory, watchlist, channels,
+  watchHistory, watchlist, channels, userTasteSummaries,
 } from "../db/schema.js";
 import type { ContentItem, TasteSignal, ChatBlock } from "../domain/types.js";
 import type {ChatActionPlan} from '../services/chat-action-types.js';
@@ -113,6 +113,7 @@ export class UserRepository {
   }
 
   async clearTaste(userId: string): Promise<void> {
+    await this.db.delete(userTasteSummaries).where(eq(userTasteSummaries.userId,userId));
     await this.recommendationStore().clearPrivate(userId);
     await this.db.delete(userTastePreferences).where(eq(userTastePreferences.userId, userId));
   }

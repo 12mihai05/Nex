@@ -22,7 +22,35 @@ class _TitleExtrasState extends ConsumerState<TitleExtras> {
   late Future<Map<String, dynamic>> request;
   final seasons = <int, Future<Map<String, dynamic>>>{};
   int? selected;
-  int visibleEpisodes = 20;
+  final seasonAnchors = <int, GlobalKey>{};
+  void toggleSeason(int number) {
+    final anchor = seasonAnchors[number]?.currentContext;
+    final box = anchor?.findRenderObject() as RenderBox?;
+    final y = box?.localToGlobal(Offset.zero).dy;
+    final position = anchor == null
+        ? null
+        : Scrollable.maybeOf(anchor)?.position;
+    setState(() {
+      selected = selected == number ? null : number;
+    });
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted || y == null || position == null || !position.hasPixels) {
+        return;
+      }
+      final current =
+          seasonAnchors[number]?.currentContext?.findRenderObject()
+              as RenderBox?;
+      if (current != null && current.attached) {
+        position.jumpTo(
+          (position.pixels + current.localToGlobal(Offset.zero).dy - y).clamp(
+            position.minScrollExtent,
+            position.maxScrollExtent,
+          ),
+        );
+      }
+    });
+  }
+
   String? openingTrailer;
   final launcher = TrailerLauncher();
   String dateLabel(dynamic value) {
@@ -192,131 +220,104 @@ class _TitleExtrasState extends ConsumerState<TitleExtras> {
             Text('Trailers', style: Theme.of(context).textTheme.titleLarge),
             videos(trailers),
           ],
-          if (summaries.isNotEmpty)
-            Padding(
-              padding: const EdgeInsets.only(top: 20),
-              child: Card(
-                child: ExpansionTile(
-                  tilePadding: const EdgeInsets.symmetric(
-                    horizontal: 16,
-                    vertical: 6,
-                  ),
-                  childrenPadding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
-                  shape: const Border(),
-                  collapsedShape: const Border(),
-                  title: Text(
-                    '${summaries.where((s) => s['number'] != 0).length} ${summaries.where((s) => s['number'] != 0).length == 1 ? "season" : "seasons"}',
-                    style: Theme.of(context).textTheme.titleLarge,
-                  ),
-                  subtitle: const Text('Explore seasons and episodes'),
-                  children: [
-                    const SizedBox(height: 12),
-                    DropdownButtonFormField<int>(
-                      initialValue: selected,
-                      isExpanded: true,
-                      borderRadius: BorderRadius.circular(18),
-                      dropdownColor: Theme.of(context)
-                          .colorScheme
-                          .surfaceContainerLow,
-                      decoration: const InputDecoration(
-                        labelText: 'Explore a season',
+          if (summaries.isNotEmpty) ...[
+            const SizedBox(height: 20),
+            Text('Seasons', style: Theme.of(context).textTheme.titleLarge),
+            const SizedBox(height: 8),
+            for (final s in summaries)
+              Card(
+                key: ValueKey('season-card-${s['number']}'),
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 16),
+                  child: Column(
+                    children: [
+                      ListTile(
+                        key: seasonAnchors.putIfAbsent(
+                          s['number'] as int,
+                          () => GlobalKey(),
+                        ),
+                        contentPadding: EdgeInsets.zero,
+                        title: Text(s['name'] as String),
+                        subtitle: Text('${s['episodeCount']} episodes'),
+                        trailing: Icon(
+                          selected == s['number']
+                              ? Icons.expand_less
+                              : Icons.expand_more,
+                        ),
+                        onTap: () => toggleSeason(s['number'] as int),
                       ),
-                      items: summaries
-                          .map(
-                            (s) => DropdownMenuItem<int>(
-                              value: s['number'] as int,
-                              child: Text(
-                                '${s['name']} · ${s['episodeCount']} episodes',
-                                overflow: TextOverflow.ellipsis,
-                              ),
-                            ),
-                          )
-                          .toList(),
-                      onChanged: (value) => setState(() {
-                        selected = value;
-                        visibleEpisodes = 20;
-                      }),
-                    ),
-                    if (selected != null)
-                      FutureBuilder<Map<String, dynamic>>(
-                        key: ValueKey(selected),
-                        future: season(selected!),
-                        builder: (context, details) {
-                          if (details.connectionState != ConnectionState.done) {
-                            return Padding(
-                              padding: const EdgeInsets.only(top: 16),
-                              child: loading(),
-                            );
-                          }
-                          if (details.hasError) {
-                            return TextButton(
-                              onPressed: () =>
-                                  setState(() => seasons.remove(selected)),
-                              child: const Text('Retry season'),
-                            );
-                          }
-                          final episodes =
-                              details.data!['episodes'] as List? ?? [];
-                          final seasonVideos =
-                              details.data!['videos'] as List? ?? [];
-                          return Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              if (seasonVideos.isNotEmpty) ...[
-                                const SizedBox(height: 16),
-                                Text(
-                                  'Season trailers',
-                                  style: Theme.of(context)
-                                      .textTheme
-                                      .titleMedium,
-                                ),
-                                videos(seasonVideos),
-                              ],
-                              if (episodes.isEmpty)
-                                const Padding(
-                                  padding: EdgeInsets.all(16),
-                                  child: Text('No episodes reported yet.'),
-                                ),
-                              ...episodes
-                                  .take(visibleEpisodes)
-                                  .map(
-                                    (e) => ListTile(
-                                      contentPadding: EdgeInsets.zero,
-                                      leading: Text(
-                                        '${e['number']}',
-                                        style: Theme.of(context)
-                                            .textTheme
-                                            .titleLarge,
-                                      ),
-                                      title: Text(e['name'] as String),
-                                      subtitle: Text(
-                                        [
-                                          if (e['runtimeMinutes'] != null)
-                                            '${e['runtimeMinutes']} min',
-                                          if (e['rating'] != null)
-                                            '${(e['rating'] as num).toStringAsFixed(1)}/10',
-                                          if (e['airDate'] != null)
-                                            dateLabel(e['airDate']),
-                                        ].join(' · '),
-                                      ),
+                      if (selected == s['number'])
+                        FutureBuilder<Map<String, dynamic>>(
+                          key: ValueKey(selected),
+                          future: season(selected!),
+                          builder: (context, details) {
+                            if (details.connectionState !=
+                                ConnectionState.done) {
+                              return Padding(
+                                padding: const EdgeInsets.only(top: 16),
+                                child: loading(),
+                              );
+                            }
+                            if (details.hasError) {
+                              return TextButton(
+                                onPressed: () =>
+                                    setState(() => seasons.remove(selected)),
+                                child: const Text('Retry season'),
+                              );
+                            }
+                            final episodes =
+                                details.data!['episodes'] as List? ?? [];
+                            final seasonVideos =
+                                details.data!['videos'] as List? ?? [];
+                            return Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                if (seasonVideos.isNotEmpty) ...[
+                                  const SizedBox(height: 16),
+                                  Text(
+                                    'Season trailers',
+                                    style: Theme.of(context)
+                                        .textTheme
+                                        .titleMedium,
+                                  ),
+                                  videos(seasonVideos),
+                                ],
+                                if (episodes.isEmpty)
+                                  const Padding(
+                                    padding: EdgeInsets.all(16),
+                                    child: Text('No episodes reported yet.'),
+                                  ),
+                                ...episodes.map(
+                                  (e) => ListTile(
+                                    contentPadding: EdgeInsets.zero,
+                                    leading: Text(
+                                      '${e['number']}',
+                                      style: Theme.of(context)
+                                          .textTheme
+                                          .titleLarge,
+                                    ),
+                                    title: Text(e['name'] as String),
+                                    subtitle: Text(
+                                      [
+                                        if (e['runtimeMinutes'] != null)
+                                          '${e['runtimeMinutes']} min',
+                                        if (e['rating'] != null)
+                                          '${(e['rating'] as num).toStringAsFixed(1)}/10',
+                                        if (e['airDate'] != null)
+                                          dateLabel(e['airDate']),
+                                      ].join(' · '),
                                     ),
                                   ),
-                              if (episodes.length > visibleEpisodes)
-                                TextButton(
-                                  onPressed: () =>
-                                      setState(() => visibleEpisodes += 20),
-                                  child: Text(
-                                    'More episodes (${episodes.length - visibleEpisodes} remaining)',
-                                  ),
                                 ),
-                            ],
-                          );
-                        },
-                      ),
-                  ],
+                              ],
+                            );
+                          },
+                        ),
+                    ],
+                  ),
                 ),
               ),
-            ),
+          ],
         ],
       );
     },

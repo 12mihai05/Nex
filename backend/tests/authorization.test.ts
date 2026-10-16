@@ -8,10 +8,27 @@ import { UserRepository } from "../src/repositories/user-repository.js";
 import { fixtureCatalog } from "../src/fixtures/catalog.js";
 import {ChatService} from "../src/services/chat.js";
 import {AiService} from "../src/services/ai.js";
+import {TasteSummary} from '../src/services/taste-summary.js';
 import {FixtureTmdbRepository} from "../src/repositories/tmdb-repository.js";
 import {filterQuerySchema} from "../src/domain/types.js";
 
 describe("user ownership isolation", () => {
+  it('summary reads are free, generations are daily and isolated, and deletion cascades',async()=>{
+    const db=drizzle(client,{schema});
+    const ai=new AiService('');
+    const generate=vi.spyOn(ai,'structured').mockResolvedValue({paragraph:'You enjoy thoughtful science fiction and character-led stories, while preferring less horror.'});
+    const summary=new TasteSummary(db,repository,ai);
+    await repository.upsertTaste('alice',[{dimension:'genre',key:'science fiction',score:.9,confidence:1,evidenceCount:1,source:'chat_explicit'}]);
+    expect((await summary.read('alice')).paragraph).toBeNull();expect(generate).not.toHaveBeenCalled();
+    const now=new Date();await Promise.all([summary.generate('alice',now),summary.generate('alice',now)]);expect(generate).toHaveBeenCalledTimes(1);
+    expect((await summary.read('bob')).paragraph).toBeNull();
+    await repository.upsertTaste('alice',[{dimension:'genre',key:'horror',score:-.9,confidence:1,evidenceCount:1,source:'chat_explicit'}]);
+    await summary.generate('alice',new Date(+now+1000));expect(generate).toHaveBeenCalledTimes(1);
+    await summary.generate('alice',new Date(+now+86400001));expect(generate).toHaveBeenCalledTimes(2);
+    await summary.generate('alice',new Date(+now+2*86400000));expect(generate).toHaveBeenCalledTimes(2);
+    await client.execute("DELETE FROM user WHERE id='alice'");
+    expect((await summary.read('alice')).paragraph).toBeNull();
+  });
   let client: ReturnType<typeof createClient>;
   let repository: UserRepository;
 

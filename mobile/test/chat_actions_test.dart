@@ -359,7 +359,7 @@ void main() {
         ),
       );
       await tester.pumpAndSettle();
-      expect(find.textContaining('Korean-language titles'), findsWidgets);
+      expect(find.textContaining('korean-language titles'), findsWidgets);
       await tester.enterText(find.byType(TextField), 'Korean');
       await tester.pumpAndSettle();
       await tester.scrollUntilVisible(
