@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'dart:async';
 import 'dart:ui' as ui;
 
 import 'package:flutter/material.dart';
@@ -19,6 +20,7 @@ class NaturalChatApi extends ChatActionsApi {
   Future<Map<String, dynamic>> chat(
     String message, {
     String? sessionId,
+    void Function(String)? onProgress,
   }) async => {
     'sessionId': 'natural-visual',
     'blocks': [
@@ -28,6 +30,25 @@ class NaturalChatApi extends ChatActionsApi {
       },
     ],
   };
+}
+
+class ProgressChatApi extends ChatActionsApi {
+  final pending = Completer<void>();
+  @override
+  Future<Map<String, dynamic>> chat(
+    String message, {
+    String? sessionId,
+    void Function(String)? onProgress,
+  }) async {
+    onProgress?.call('Checking your requested changes');
+    await pending.future;
+    return {
+      'sessionId': 'progress',
+      'blocks': [
+        {'type': 'text', 'content': 'Ready to review.'},
+      ],
+    };
+  }
 }
 
 void main() {
@@ -146,6 +167,34 @@ void main() {
       );
       await tester.pumpAndSettle();
       await capture('suggestions');
+      final progressApi = ProgressChatApi();
+      final progressContainer = ProviderContainer(
+        overrides: [nexApiClientProvider.overrideWithValue(progressApi)],
+      );
+      addTearDown(progressContainer.dispose);
+      final progressController = progressContainer.read(
+        appControllerProvider.notifier,
+      );
+      await progressController.restoreSession();
+      final pendingReply = progressController.sendChat(
+        'Add these to my watchlist.',
+      );
+      await tester.pumpWidget(
+        RepaintBoundary(
+          key: key,
+          child: UncontrolledProviderScope(
+            container: progressContainer,
+            child: MaterialApp(
+              theme: dark ? NexTheme.dark : NexTheme.light,
+              home: const ChatScreen(),
+            ),
+          ),
+        ),
+      );
+      await tester.pump(const Duration(milliseconds: 300));
+      await capture('progress');
+      progressApi.pending.complete();
+      await pendingReply;
       final tasteContainer = ProviderContainer(
         overrides: [nexApiClientProvider.overrideWithValue(TasteChatApi())],
       );

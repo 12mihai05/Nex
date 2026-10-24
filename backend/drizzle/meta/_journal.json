@@ -99,6 +99,20 @@
       "when": 1792178960235,
       "tag": "0013_white_kid_colt",
       "breakpoints": true
+    },
+    {
+      "idx": 14,
+      "version": "6",
+      "when": 1792185557335,
+      "tag": "0014_lyrical_swarm",
+      "breakpoints": true
+    },
+    {
+      "idx": 15,
+      "version": "6",
+      "when": 1792799407703,
+      "tag": "0015_glossy_glorian",
+      "breakpoints": true
     }
   ]
 }

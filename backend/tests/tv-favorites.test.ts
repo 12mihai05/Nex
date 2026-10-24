@@ -88,6 +88,7 @@ it("title broadcasts include non-favorites, translated titles and live shows, bu
     {id:"live-match",channelId:"c1",year:2018,startAt:new Date(+now-60000),endAt:new Date(+now+60000)},
     {id:"upcoming-match",channelId:"c0",year:2018,startAt:new Date(+now+86400000),endAt:new Date(+now+90000000)},
     {id:"wrong-year",channelId:"c1",year:2020,startAt:now,endAt:new Date(+now+60000)},
+    {id:"unknown-year",channelId:"c1",startAt:now,endAt:new Date(+now+60000)},
     {id:"wrong-country",channelId:"c22",year:2018,startAt:now,endAt:new Date(+now+60000)},
     {id:"expired-match",channelId:"c1",year:2018,startAt:new Date(+now-120000),endAt:new Date(+now-1)},
   ].map(p=>({...p,title:"Labirintul: Tratament letal",category:"Film",sourceId:"fixture",sourceProgramId:p.id})));

@@ -9,10 +9,11 @@ import {tvWindow,localDayWindow,localClockTime} from './tv-window.js';
 import {normalizeSearch} from './search-ranking.js';
 import {isOffAir,shortlistTv,type TvListing} from './tv-selection.js';
 import {historyForTask} from './chat-capability-plans.js';
+import {tvPlanSchema,type TvPlan} from './tv-plan.js';
 
 export class ChatTvGuide {
   constructor(private users:UserRepository,private catalog:TmdbRepository,private ai:AiService,private epg:EpgService){}
-  async handle(userId:string,sessionId:string,message:string):Promise<ChatBlock[]>{
+  async handle(userId:string,sessionId:string,message:string,persistReply=true,planned?:TvPlan):Promise<ChatBlock[]>{
     const [state,context,history]=await Promise.all([this.users.getRecommendationState(userId),this.users.getSessionContext(userId,sessionId),this.users.recentConversationMessages(userId,sessionId)]);
     let country=explicitCountry(message)??state.country,timezone=country!==state.country?countryTimezones[country]??state.timezone:state.timezone;
     const priorCountry=(context.tv as {country?:string}|undefined)?.country;
@@ -22,11 +23,11 @@ export class ChatTvGuide {
     const localDate=(date:Date)=>new Intl.DateTimeFormat('en-CA',{timeZone:timezone,year:'numeric',month:'2-digit',day:'2-digit'}).format(date);
     const reply=async(content:string,programs:TvListing[]=[]):Promise<ChatBlock[]>=>{
       const blocks:ChatBlock[]=[{type:'text',content},...(programs.length?[{type:'tv_carousel' as const,items:programs}]:[])];
-      const id=await this.users.addConversationMessage(userId,sessionId,'assistant',content,blocks);
-      if(programs.length)await this.users.saveDisplayedReferences(userId,sessionId,id,programs.map(p=>broadcastReference(p,country)));
+      if(persistReply){const id=await this.users.addConversationMessage(userId,sessionId,'assistant',content,blocks);
+      if(programs.length)await this.users.saveDisplayedReferences(userId,sessionId,id,programs.map(p=>broadcastReference(p,country)));}
       return blocks;
     };
-    const plan=await this.ai.planTv(message,historyForTask(history,message),context,channels,{country,profileCountry:state.country,date:localDate(now),timezone,nowResolution:'The server resolves now to the exact current instant. Do not convert now to HH:mm; time must be null unless the user requested a particular clock time.'});
+    const plan=planned?tvPlanSchema.parse(planned):await this.ai.planTv(message,historyForTask(history,message),context,channels,{country,profileCountry:state.country,date:localDate(now),timezone,nowResolution:'The server resolves now to the exact current instant. Do not convert now to HH:mm; time must be null unless the user requested a particular clock time.'});
     if(plan.clarification)return reply(plan.clarification);
     if(plan.country){
       if(!(plan.country in countryTimezones))return reply('Which supported country should I check for TV listings?');
@@ -44,9 +45,10 @@ export class ChatTvGuide {
       const answer=await this.ai.answerKnowledge(message,{channel,country,observedPrograms:entries.length,uniquePrograms:counts.size,examples:[...counts.values()].sort((a,b)=>b.broadcasts-a.broadcasts).slice(0,20),
         limits:'This is a limited retained schedule sample, not an all-time channel profile. Repeats are counts, not quality ratings. No listings means unknown programming. For channel identity use the official broadcaster website and cite it; do not confuse a channel with a programme or an HD/PPV sibling.'},plan.mode==='channel_overview');
       await this.users.setSessionContext(userId,sessionId,{...context,focus:{type:'channel',source:'epg',id:channel.id,title:channel.name,country},tv:{country,timezone,channelIds:[channel.id],goal:plan.goal,programs:[]}});
-      await this.users.addConversationMessage(userId,sessionId,'assistant','content'in answer?answer.content:'',[answer]);return [answer];
+      if(persistReply)await this.users.addConversationMessage(userId,sessionId,'assistant','content'in answer?answer.content:'',[answer]);return [answer];
     }
     const requestedWindow=()=>{
+      if(plan.horizonHours&&!plan.date&&!plan.time)return {start:now,end:new Date(+now+plan.horizonHours*3600000)};
       let window=plan.date?localDayWindow(plan.date,timezone):tvWindow(plan.window,timezone,now);
       if(plan.time){
         if(!/^([01]\d|2[0-3]):[0-5]\d$/.test(plan.time))throw new Error('INVALID_TV_CLOCK');
@@ -64,10 +66,17 @@ export class ChatTvGuide {
     let programs:TvListing[]=[],intro:string;
     if(plan.mode==='title_airings'){
       if(!plan.title)return reply('Which movie or series would you like me to check?');
-      const found=(await this.catalog.search({query:plan.title,region:country,summaryOnly:true})).filter(i=>(!plan.year||i.year===plan.year)&&[i.title,i.originalTitle].some(t=>t&&normalizeSearch(t)===normalizeSearch(plan.title!)));
+      const recent=context.tv as {country?:string;programs?:Array<{title:string;year?:number|null}>}|undefined;
+      const matching=recent?.country===country?recent.programs?.filter(p=>normalizeSearch(p.title)===normalizeSearch(plan.title!))??[]:[];
+      const years=new Set(matching.map(p=>p.year));
+      // A follow-up to a displayed broadcast can reuse its supplied year. Do
+      // not infer from another country, missing years or conflicting remakes.
+      const contextualYear=matching.length&&years.size===1&&typeof matching[0]!.year==='number'?matching[0]!.year:null;
+      const year=plan.year??contextualYear;
+      const found=(await this.catalog.search({query:plan.title,region:country,summaryOnly:true})).filter(i=>(!year||i.year===year)&&[i.title,i.originalTitle].some(t=>t&&normalizeSearch(t)===normalizeSearch(plan.title!)));
       if(found.length!==1)return reply('Which movie or series do you mean? Please include its year so I can check the right one.');
       const item=found[0]!;
-      programs=(await this.epg.broadcastsForTitle(item,country,now)).filter(p=>!delivered.has(p.id)&&(!(plan.date||plan.time||plan.window!=='live')||p.startAt<window.end&&p.endAt>window.start)).slice(0,12).map(p=>({...p,favorite:false,channel:{...p.channel,logoUrl:null}}));
+      programs=(await this.epg.broadcastsForTitle(item,country,now)).filter(p=>!delivered.has(p.id)&&(!(plan.date||plan.time||plan.horizonHours||plan.window!=='live')||p.startAt<window.end&&p.endAt>window.start)).slice(0,12).map(p=>({...p,favorite:false,channel:{...p.channel,logoUrl:null}}));
       intro=programs.length?`These are the scheduled broadcasts of ${item.title}.`:`I couldn’t find a verified upcoming TV broadcast of ${item.title} in the available guide. The guide does not cover every channel or future date, so that isn’t a guarantee it won’t air.`;
     }else if(plan.mode==='next'){
       const saved=context.tv as {country?:string;programs?:Array<{id:string;title:string;startAt:string}>}|undefined;
@@ -101,7 +110,7 @@ export class ChatTvGuide {
         intro=programs.length?programs.length===1&&isOffAir(programs[0]!.title)?`${programs[0]!.channel.name} is listed as off air during this time.`:`Here’s the schedule for ${[...new Set(programs.map(p=>p.channel.name))].join(', ')}.`:'No listing was supplied for that channel at the requested time.';
       }
     }
-    await this.users.setSessionContext(userId,sessionId,{...context,tv:{country,timezone,goal:plan.goal,channelIds:plan.channelIds,window:{start:window.start.toISOString(),end:window.end.toISOString()},delivered:[...delivered,...programs.map(p=>p.id)],deliveredTitles:[...deliveredTitles],programs:programs.map(p=>({id:p.id,title:p.title,startAt:p.startAt.toISOString()}))},filter:undefined});
+    await this.users.setSessionContext(userId,sessionId,{...context,tv:{country,timezone,goal:plan.goal,channelIds:plan.channelIds,window:{start:window.start.toISOString(),end:window.end.toISOString()},delivered:[...delivered,...programs.map(p=>p.id)],deliveredTitles:[...deliveredTitles],programs:programs.map(p=>({id:p.id,title:p.title,year:p.year,startAt:p.startAt.toISOString()}))},filter:undefined});
     return reply(intro,programs);
   }
 }

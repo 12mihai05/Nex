@@ -16,6 +16,8 @@ const envSchema = z.object({
   OPENAI_API_KEY: z.string().optional(),
   OPENAI_MODEL: z.string().default("gpt-4o-mini"),
   OPENAI_CHAT_MODEL: z.string().optional(),
+  OPENAI_ASSISTANT_MODEL: z.string().optional(),
+  CHAT_ASSISTANT_MODE:z.enum(['legacy','tools']).default('legacy'),
   OPENAI_EMBEDDING_MODEL: z.string().default("text-embedding-3-large"),
   OPENAI_EMBEDDING_DIMENSIONS: z.coerce.number().int().min(64).max(1536).default(1024),
   RECOMMENDATION_AI_DAILY_LIMIT: z.coerce.number().int().min(1).max(100).default(15),

@@ -86,7 +86,7 @@ export type TasteSignal = z.infer<typeof tasteSignalSchema>;
 
 export const chatBlockSchema = z.discriminatedUnion("type", [
   z.object({type:z.literal('knowledge'),content:z.string(),citations:z.array(z.object({title:z.string(),url:z.string().url(),start:z.number().int(),end:z.number().int()})).max(30)}),
-  z.object({ type: z.literal("text"), content: z.string() }),
+  z.object({ type: z.literal("text"), content: z.string(), purpose: z.literal('answer').optional() }),
   z.object({type:z.literal('library_changes'),status:z.enum(['preview','saved']),items:z.array(z.object({
     id:z.number().int(),mediaType:z.enum(['movie','series']),title:z.string(),year:z.number().nullable(),posterUrl:z.string().nullable(),changes:z.array(z.string()),
   })).max(50)}),

@@ -6,14 +6,15 @@ import {releasePlanSchema,historyForTask} from './chat-capability-plans.js';
 import {calendarDay,releaseDate} from '../domain/releases.js';
 import {normalizeSearch} from './search-ranking.js';
 import {countryTimezones} from './country-context.js';
+import type {z} from 'zod';
 
 export class ChatReleases {
  constructor(private users:UserRepository,private catalog:TmdbRepository,private ai:AiService){}
- async handle(userId:string,sessionId:string,message:string):Promise<ChatBlock[]>{
+ async handle(userId:string,sessionId:string,message:string,planned?:z.infer<typeof releasePlanSchema>):Promise<ChatBlock[]>{
   const [context,recent,{profile}]=await Promise.all([this.users.getSessionContext(userId,sessionId),this.users.recentConversationMessages(userId,sessionId),this.users.getSettings(userId)]);
   const history=historyForTask(recent,message);
   let today=calendarDay(new Date(),profile.timezone);
-  const plan=await this.ai.structured(releasePlanSchema,'release_request','Interpret release questions. upcoming is a list of future cinema films, title is a named film or series release/renewal/season question. Resolve title and country from recent context; otherwise use profile country. Never interpret next season as a new series premiere. continuation=true only for more/next page of the same upcoming list; retain its dates/country. news=true for announcements, renewal, cancellation, delay or requests for the latest news. Dates are local YYYY-MM-DD. No date does not mean cancelled. Clarify ambiguous references rather than inventing a title.',{message,history,focus:context.focus,previous:context.releaseBrowse,country:profile.country,today});
+  const plan=planned?releasePlanSchema.parse(planned):await this.ai.structured(releasePlanSchema,'release_request','Interpret release questions. upcoming is a list of future cinema films, title is a named film or series release/renewal/season question. Resolve title and country from recent context; otherwise use profile country. Never interpret next season as a new series premiere. continuation=true only for more/next page of the same upcoming list; retain its dates/country. news=true for announcements, renewal, cancellation, delay or requests for the latest news. Dates are local YYYY-MM-DD. No date does not mean cancelled. Clarify ambiguous references rather than inventing a title.',{message,history,focus:context.focus,previous:context.releaseBrowse,country:profile.country,today});
   if(plan.clarification)return [{type:'text',content:plan.clarification}];
   if(!(plan.country in countryTimezones))return [{type:'text',content:'Which supported country should I check for cinema dates?'}];
   today=calendarDay(new Date(),countryTimezones[plan.country]??profile.timezone);

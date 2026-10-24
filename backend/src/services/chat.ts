@@ -15,7 +15,7 @@ import {addSuitabilityCaution} from "./composition-intro.js";
 import {chatCapabilityReply} from './chat-help.js';
 import {requestedTvScope,tvFollowup,tvContextSchema,tvReferenceMatches} from './chat-tv.js';
 import {ChatKnowledge} from './chat-knowledge.js';
-import {broadcastReference} from '../domain/entities.js';
+import {broadcastReference,displayedEntity} from '../domain/entities.js';
 import {personalizationFor} from './personalization.js';
 import {isExplicitExclusion} from './preference-exclusions.js';
 import {resolveTasteExamples} from './taste-examples.js';
@@ -28,6 +28,10 @@ import {ChatExplain} from './chat-explain.js';
 import {ChatTasteEdit} from './chat-taste-edit.js';
 import {taskPlanSchema,chatTaskInstructions,historyForTask} from './chat-capability-plans.js';
 import type {ChatRoute} from './chat-routing.js';
+import {runAssistant,assistantInstructions,type AssistantProgress} from './assistant-loop.js';
+import {AssistantTools} from './assistant-tools.js';
+import {getConfig} from '../config.js';
+import {ConversationMemory} from './conversation-memory.js';
 const tasteReply=(message:string)=>/^(?:yes|no|yep|nope|correct|exactly|do that|please do|keep them|allow them|exclude them|cancel|never mind)\b/i.test(message.trim());
 
 export class ChatService {
@@ -36,20 +40,21 @@ export class ChatService {
     private readonly catalog: TmdbRepository = new FixtureTmdbRepository(),
     private readonly ai = new AiService(),
     private readonly epg = new EpgService(),
-    private readonly experiment:{parallelReads?:boolean;combinedPlanner?:boolean}={},
+    private readonly experiment:{parallelReads?:boolean;combinedPlanner?:boolean;toolAssistant?:boolean;deferMemory?:(work:Promise<unknown>)=>void|Promise<unknown>}={},
   ) {}
 
-  async respond(userId: string, message: string, requestedSessionId?: string): Promise<{ sessionId: string; blocks: ChatBlock[] }> {
-    const result=await this.respondInternal(userId,message,requestedSessionId);
+  async respond(userId: string, message: string, requestedSessionId?: string,progress?:AssistantProgress): Promise<{ sessionId: string; blocks: ChatBlock[] }> {
+    const result=await this.respondInternal(userId,message,requestedSessionId,undefined,progress);
     return {sessionId:result.sessionId,blocks:cleanChatBlocks(result.blocks)};
   }
 
-  private async respondInternal(userId: string, message: string, requestedSessionId?: string,forcedRoute?:ChatRoute['route']): Promise<{ sessionId: string; blocks: ChatBlock[]; readVerified?:boolean }> {
+  private async respondInternal(userId: string, message: string, requestedSessionId?: string,forcedRoute?:ChatRoute['route'],progress?:AssistantProgress): Promise<{ sessionId: string; blocks: ChatBlock[]; readVerified?:boolean }> {
     const sessionId = requestedSessionId ?? await this.users.latestConversation(userId) ?? await this.users.createConversation(userId);
     if(!forcedRoute)await this.users.addConversationMessage(userId, sessionId, "user", message);
     // These are application-generated confirmation commands, not natural-
     // language intent. They are quota-exempt and must never trigger an LLM call.
     const protocolCommand=/^(confirm|cancel) changes(?: [a-f0-9-]{36})?$/i.test(message);
+    if(!protocolCommand&&!forcedRoute&&this.ai.mode==='live'&&(this.experiment.toolAssistant??getConfig().CHAT_ASSISTANT_MODE==='tools'))return this.respondWithTools(userId,sessionId,message,progress);
     let route:Awaited<ReturnType<AiService['routeChat']>>=forcedRoute?{route:forcedRoute,reply:''}:protocolCommand?{route:'action',reply:''}:null;
     let history:Array<{role:string;content:string}>|undefined=forcedRoute?historyForTask(await this.users.recentConversationMessages(userId,sessionId),message):undefined;
     let plannedFilter:ChatIntent|undefined;
@@ -232,6 +237,55 @@ export class ChatService {
     return { sessionId, blocks };
   }
 
+  private async respondWithTools(userId:string,sessionId:string,message:string,progress?:AssistantProgress){
+    const memory=new ConversationMemory(this.users.conversationMemory(),this.ai);
+    const [context,displayed,{profile},conversationMemory]=await Promise.all([this.users.getSessionContext(userId,sessionId),this.users.recentDisplayedItems(userId,sessionId),this.users.getSettings(userId),memory.window(userId,sessionId)]);
+    const adapters=new AssistantTools(this.users,this.catalog,this.ai,this.epg,userId,sessionId,message,profile.country,context.assistantMemory,async kind=>{
+      // Mutations read original recent human evidence, never the lossy summary.
+      if(kind==='taste')return await this.tryPreference(userId,sessionId,message,await this.users.recentConversationMessages(userId,sessionId,24))??[];
+      if(kind==='correction')return new ChatTasteEdit(this.users,this.ai).handle(userId,sessionId,message);
+      return await new ChatActions(this.users,this.catalog,this.ai,this.epg).handle(userId,sessionId,message,true)??[{type:'text',content:'No explicit change was identified. Nothing changed.'}];
+    });
+    await adapters.restoreDisplayed(displayed);
+    let blocks:ChatBlock[];
+    try{
+      const result=await runAssistant(this.ai.assistantStep,[{role:'system',content:assistantInstructions},
+        {role:'user',content:JSON.stringify({conversation:conversationMemory.conversation,conversationMemory:{...conversationMemory,conversation:undefined},context:adapters.context(),displayed:displayed.map(displayedEntity),pendingClarification:context.tastePending,focus:context.focus,tv:context.tv,profile:{country:profile.country,timezone:profile.timezone},now:new Date().toISOString(),currentMessage:message})}],adapters.registry(),progress,undefined,answer=>adapters.cardCorrection(answer.cards));
+      // TV tool cards are already rendered from verified EPG records. A model
+      // may echo their IDs in cards; don't mistake those for fabricated TMDb
+      // titles or duplicate them as movie cards. Unknown IDs still fail closed.
+      const broadcastIds=new Set(adapters.extraBlocks.flatMap(b=>b.type==='tv_carousel'?b.items.map(p=>p.id):[]));
+      const titleKeys=result.answer.cards.filter(key=>!broadcastIds.has(key));
+      const selected=await adapters.finish(titleKeys);
+      const invalid=titleKeys.some(key=>!selected.some(i=>titleKey(i)===key));
+      const answeredRead=result.metrics.traces.some(t=>t.status==='ok'&&!['prepare_change','cancel_pending'].includes(t.tool));
+      const knowledgeOnly=adapters.extraBlocks.some(b=>b.type==='knowledge')&&result.metrics.traces.every(t=>['current_news','release_calendar'].includes(t.tool));
+      blocks=[...(!knowledgeOnly&&(!adapters.authoritative.length||answeredRead)&&result.answer.text?[{type:'text' as const,purpose:'answer' as const,content:invalid?'I couldn’t verify the selected titles. Please try that request again.':result.answer.text}]:[]),
+        ...(!invalid&&selected.length&&!adapters.authoritative.some(b=>b.type==='library_changes')?[{type:'movie_carousel' as const,items:selected}]:[]),...adapters.extraBlocks,...adapters.authoritative,
+        ...(!adapters.authoritative.length&&!invalid&&result.answer.suggestions.length?[{type:'quick_actions' as const,actions:result.answer.suggestions.filter(s=>!/^(confirm|cancel) changes\b/i.test(s))}]:[])];
+      // Operational telemetry deliberately excludes text, IDs, tools' arguments,
+      // personal data and provider exceptions. No secret-bearing request logs.
+      if(getConfig().NODE_ENV!=='test')console.info(JSON.stringify({event:'assistant_turn',...result.metrics}));
+    }catch{
+      // Never replay a mutating tool or hide its authoritative result on failure.
+      blocks=[...adapters.authoritative,...adapters.extraBlocks,{type:'text',purpose:'answer',content:adapters.authoritative.length?'I couldn’t finish the rest of the reply. The result of your change is shown above.':'I couldn’t finish checking that just now. Please try again.'}];
+      await adapters.finish([]).catch(()=>undefined);
+    }
+    blocks=cleanChatBlocks(blocks);
+    const id=await this.users.addConversationMessage(userId,sessionId,'assistant',blocks.flatMap(b=>'content'in b?[b.content]:[]).join('\n'),blocks);
+    // One position sequence across mixed/multiple carousels. Saving each TV
+    // carousel separately used position 1 repeatedly and could fail the reply.
+    const references:Array<Parameters<UserRepository['saveDisplayedReferences']>[3][number]>=[];
+    for(const b of blocks){
+      if(b.type==='movie_carousel'||b.type==='library_changes')references.push(...b.items.map(i=>({contentType:i.mediaType,externalId:String(i.id),metadata:{title:i.title,year:i.year,source:'tmdb',tmdbId:i.id}})));
+      if(b.type==='tv_carousel')references.push(...b.items.map(p=>broadcastReference(p as unknown as Parameters<typeof broadcastReference>[0],typeof p.country==='string'?p.country:profile.country)));
+    }
+    if(references.length)await this.users.saveDisplayedReferences(userId,sessionId,id,references);
+    const work=memory.compact(userId,sessionId).catch(()=>undefined);
+    if(this.experiment.deferMemory)await this.experiment.deferMemory(work);else await work;
+    return {sessionId,blocks};
+  }
+
   private async tryPreference(userId:string,sessionId:string,message:string,conversation?:Array<{role:string;content:string}>):Promise<ChatBlock[]|null> {
     const persistent=isPersistentPreference(message);
     if(!conversation&&!persistent&&!tasteReply(message))return null;
@@ -254,8 +308,9 @@ export class ChatService {
     }
     if(/\b(?:do not|don['’]t|never)\s+(?:(?:ever|automatically|permanently|also)\s+)?(?:save|change|update|remember|add|mark|rate)\b/i.test(message))return [{type:'text',content:'I haven’t changed your saved Taste.'}];
     if(/\b(this|that) (kind|type|sort)\b/i.test(message))return [{type:'text',content:'What part wasn’t for you: the story, tone, pacing, or something else? I won’t assume you dislike the whole genre.'}];
-    const result=await this.ai.extractTaste(description,[],userEvidence,true).catch(()=>null);
+    const result=await this.ai.extractTaste(description,[],userEvidence,true,message).catch(()=>null);
     if(!result)return [{type:'text',content:'I couldn’t save that preference just now. Nothing changed. Please try your reply again.'}];
+    if(result.readOnly)return null;
     if('clarification'in result&&result.clarification){
       context??=await this.users.getSessionContext(userId,sessionId);
       const question=`${result.clarification}\n\nNothing changed yet.`;

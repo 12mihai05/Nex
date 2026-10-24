@@ -5,6 +5,7 @@ import 'package:nex/src/screens/chat_screen.dart';
 import 'package:nex/src/state/app_controller.dart';
 import 'package:nex/src/screens/taste_screen.dart';
 import 'package:nex/src/widgets/skeleton.dart';
+import 'package:nex/src/models/chat_message.dart';
 
 import 'dart:async';
 
@@ -51,7 +52,11 @@ class ChatActionsApi extends MutableApi {
     ],
   };
   @override
-  Future<Map<String, dynamic>> chat(String message, {String? sessionId}) async {
+  Future<Map<String, dynamic>> chat(
+    String message, {
+    String? sessionId,
+    void Function(String)? onProgress,
+  }) async {
     messages.add(message);
     sessions.add(sessionId);
     if (message == command) {
@@ -80,11 +85,35 @@ class ChatActionsApi extends MutableApi {
   }
 }
 
+class MixedChatApi extends ChatActionsApi {
+  @override
+  Future<Map<String, dynamic>> chat(
+    String message, {
+    String? sessionId,
+    void Function(String)? onProgress,
+  }) async => {
+    'sessionId': 'mixed',
+    'blocks': [
+      {
+        'type': 'text',
+        'purpose': 'answer',
+        'content': 'A baseball manager rebuilds a team using statistics.',
+      },
+      {'type': 'text', 'content': 'Review before saving. Nothing changed yet.'},
+      cards(false),
+    ],
+  };
+}
+
 class TasteChatApi extends ChatActionsApi {
   bool learned = false;
   int tasteReads = 0;
   @override
-  Future<Map<String, dynamic>> chat(String message, {String? sessionId}) async {
+  Future<Map<String, dynamic>> chat(
+    String message, {
+    String? sessionId,
+    void Function(String)? onProgress,
+  }) async {
     learned = true;
     return {
       'sessionId': 'taste-session',
@@ -140,7 +169,11 @@ class TasteChatApi extends ChatActionsApi {
 class SuggestionChatApi extends ChatActionsApi {
   Completer<void>? pending;
   @override
-  Future<Map<String, dynamic>> chat(String message, {String? sessionId}) async {
+  Future<Map<String, dynamic>> chat(
+    String message, {
+    String? sessionId,
+    void Function(String)? onProgress,
+  }) async {
     messages.add(message);
     sessions.add(sessionId);
     if (pending != null) await pending!.future;
@@ -173,6 +206,29 @@ class LoadingTasteApi extends ChatActionsApi {
 }
 
 void main() {
+  test(
+    'mixed discussion and action keeps the answer beside the preview cards',
+    () async {
+      final container = ProviderContainer(
+        overrides: [nexApiClientProvider.overrideWithValue(MixedChatApi())],
+      );
+      addTearDown(container.dispose);
+      final controller = container.read(appControllerProvider.notifier);
+      await controller.restoreSession();
+      await controller.sendChat(
+        'Tell me about Moneyball and add it to Want to see.',
+      );
+      final blocks = container
+          .read(appControllerProvider)
+          .chatMessages
+          .last
+          .blocks;
+      expect(blocks.whereType<TextChatBlock>().map((b) => b.text), [
+        'A baseball manager rebuilds a team using statistics.',
+      ]);
+      expect(blocks.whereType<LibraryChangesChatBlock>(), hasLength(1));
+    },
+  );
   testWidgets(
     'last suggestion is separate, preserves session and draft, blocks duplicate taps',
     (tester) async {

@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:nex/src/models/chat_message.dart';
 import 'package:nex/src/state/app_controller.dart';
+import 'package:nex/src/data/chat_stream.dart';
 
 import 'chat_actions_test.dart' show ChatActionsApi;
 
@@ -46,7 +47,49 @@ class HistoryApi extends ChatActionsApi {
   }
 }
 
+class InterruptedChatApi extends HistoryApi {
+  int sends = 0;
+  @override
+  Future<Map<String, dynamic>> chat(
+    String message, {
+    String? sessionId,
+    void Function(String)? onProgress,
+  }) async {
+    sends++;
+    throw const ChatDeliveryException(
+      'Chat disconnected. Check the saved reply before retrying.',
+    );
+  }
+}
+
 void main() {
+  test('reopening an interrupted chat reads the saved reply without sending the action again', () async {
+    final api = InterruptedChatApi();
+    final c = ProviderContainer(
+      overrides: [nexApiClientProvider.overrideWithValue(api)],
+    );
+    addTearDown(c.dispose);
+    final controller = c.read(appControllerProvider.notifier);
+    await controller.restoreSession();
+    await controller.sendChat('Save this');
+    expect(controller.chatNeedsRecovery, isTrue);
+    expect(
+      (c.read(appControllerProvider).chatMessages.last.blocks.first
+              as TextChatBlock)
+          .text,
+      contains('Check the saved reply'),
+    );
+    await controller.restoreChat();
+    expect(api.sends, 1);
+    expect(api.reads, ['/api/chat']);
+    expect(controller.chatNeedsRecovery, isFalse);
+    expect(
+      (c.read(appControllerProvider).chatMessages.last.blocks.first
+              as TextChatBlock)
+          .text,
+      'Saved answer',
+    );
+  });
   test(
     'history restores once, paginates and retries without replaying actions',
     () async {

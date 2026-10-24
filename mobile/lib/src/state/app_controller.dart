@@ -1001,15 +1001,20 @@ class AppController extends Notifier<AppState> {
   }
 
   bool chatRestoring = false, chatRestored = false, chatHasOlder = false;
+  bool chatNeedsRecovery = false;
   int? _chatBefore;
   String? chatRestoreError;
   int _chatHistoryGeneration = 0;
   Future<void> restoreChat({bool older = false}) async {
-    if (!older && state.chatMessages.isNotEmpty) {
+    if (!older && !chatNeedsRecovery && state.chatMessages.isNotEmpty) {
       chatRestored = true;
       return;
     }
-    if (state.demoMode || chatRestoring || (!older && chatRestored)) return;
+    if (state.demoMode ||
+        chatRestoring ||
+        (!older && chatRestored && !chatNeedsRecovery)) {
+      return;
+    }
     final ticket = ++_chatHistoryGeneration;
     chatRestoring = true;
     chatRestoreError = null;
@@ -1027,6 +1032,9 @@ class AppController extends Notifier<AppState> {
       _chatBefore = data['before'] as int?;
       chatHasOlder = data['hasMore'] == true;
       chatRestored = true;
+      if (!older) {
+        chatNeedsRecovery = messages.isNotEmpty && messages.last.fromUser;
+      }
       state = state.copyWith(
         chatSessionId: data['sessionId'] as String?,
         chatMessages: older ? [...messages, ...state.chatMessages] : messages,
@@ -1050,6 +1058,7 @@ class AppController extends Notifier<AppState> {
       if (!state.demoMode) await _api.clearChat();
       _chatHistoryGeneration++;
       chatRestored = true;
+      chatNeedsRecovery = false;
       chatRestoring = false;
       chatHasOlder = false;
       chatRestoreError = null;
@@ -1069,8 +1078,10 @@ class AppController extends Notifier<AppState> {
     }
   }
 
+  String chatProgress = 'Thinking';
   Future<void> sendChat(String text) async {
     if (text.trim().isEmpty || state.busy) return;
+    chatProgress = 'Thinking';
     state = state.copyWith(
       busy: true,
       chatMessages: [
@@ -1161,7 +1172,15 @@ class AppController extends Notifier<AppState> {
     try {
       await Future.wait(_titleWrites.values.toList());
       if (!ref.mounted || !state.authenticated) return;
-      final response = await _api.chat(text, sessionId: state.chatSessionId);
+      final response = await _api.chat(
+        text,
+        sessionId: state.chatSessionId,
+        onProgress: (label) {
+          if (!ref.mounted || !state.authenticated || !state.busy) return;
+          chatProgress = label;
+          state = state.copyWith();
+        },
+      );
       final blocks = <NexChatBlock>[];
       final hasLibraryCards = (response['blocks'] as List? ?? []).any(
         (b) => b['type'] == 'library_changes',
@@ -1179,7 +1198,7 @@ class AppController extends Notifier<AppState> {
               ),
             );
           case 'text':
-            if (!hasLibraryCards) {
+            if (!hasLibraryCards || block['purpose'] == 'answer') {
               blocks.add(TextChatBlock(block['content'] as String));
             }
           case 'library_changes':
@@ -1291,19 +1310,17 @@ class AppController extends Notifier<AppState> {
           ChatMessage(fromUser: false, blocks: blocks),
         ],
       );
+      chatNeedsRecovery = false;
     } catch (error) {
+      chatNeedsRecovery = true;
       state = state.copyWith(
         busy: false,
         error: readableApiError(error),
         chatMessages: [
           ...state.chatMessages,
-          const ChatMessage(
+          ChatMessage(
             fromUser: false,
-            blocks: [
-              TextChatBlock(
-                'Chat is temporarily unavailable, but Browse and Search still work.',
-              ),
-            ],
+            blocks: [TextChatBlock(readableApiError(error))],
           ),
         ],
       );
@@ -1615,6 +1632,7 @@ class AppController extends Notifier<AppState> {
     _chatHistoryGeneration++;
     chatRestoring = false;
     chatRestored = false;
+    chatNeedsRecovery = false;
     chatHasOlder = false;
     chatRestoreError = null;
     _chatBefore = null;

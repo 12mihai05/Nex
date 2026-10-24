@@ -108,7 +108,11 @@ class MutableApi extends OfflineCatalogApi {
   }
 
   @override
-  Future<Map<String, dynamic>> chat(String message, {String? sessionId}) async {
+  Future<Map<String, dynamic>> chat(
+    String message, {
+    String? sessionId,
+    void Function(String)? onProgress,
+  }) async {
     failPersonalRead = true;
     return {
       'sessionId': 'test-session',

@@ -12,7 +12,6 @@ import {AiService} from '../src/services/ai.js';
 import {ChatActions} from '../src/services/chat-actions.js';
 import {EpgService} from '../src/services/epg/service.js';
 import type {ChatActionIntent,ChatActionPlan,TitleChange} from '../src/services/chat-action-types.js';
-import {localDayWindow} from '../src/services/tv-window.js';
 import {localClockTime} from '../src/services/tv-window.js';
 import {ChatService} from '../src/services/chat.js';
 import {ChatKnowledge} from '../src/services/chat-knowledge.js';
@@ -351,7 +350,7 @@ it('bulk ratings produce the same taste as individual feedback and clearing does
 });
 
 it('matches non-favorite EPG by country/channel/day, uses actual time, and rejects a changed schedule',async()=>{
- const day=new Date(Date.now()+2*86400000).toISOString().slice(0,10),window=localDayWindow(day,'Europe/Bucharest'),startAt=new Date(+window.start+20*3600000);
+ const day=new Date(Date.now()+2*86400000).toISOString().slice(0,10),startAt=localClockTime(day,20,0,'Europe/Bucharest');
  await db.insert(schema.channels).values({id:'protv',sourceId:'test',externalId:'protv',displayName:'Pro TV',country:'RO'});
  await db.insert(schema.epgPrograms).values({id:'airing',sourceId:'test',sourceProgramId:'airing',channelId:'protv',title:'Test Film 1',startAt,endAt:new Date(+startAt+7200000)});
  await db.insert(schema.epgPrograms).values({id:'later-airing',sourceId:'test',sourceProgramId:'later-airing',channelId:'protv',title:'Test Film 1',startAt:new Date(+startAt+3600000),endAt:new Date(+startAt+10800000)});

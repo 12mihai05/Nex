@@ -5,7 +5,7 @@ import { getDatabase } from "../db/client.js";
 import {
   aiUsage, conversationDisplayedItems, conversationMessages, conversationSessions, epgPrograms, profiles, reminders,
   sessionContext, userEvents, userLanguagePreferences, userStreamingServices, userTastePreferences, userTitleFeedback,
-  watchHistory, watchlist, channels, userTasteSummaries, tmdbCache,
+  watchHistory, watchlist, channels, userTasteSummaries, tmdbCache, chatRequests,
 } from "../db/schema.js";
 import type { ContentItem, TasteSignal, ChatBlock } from "../domain/types.js";
 import type {ChatActionPlan} from '../services/chat-action-types.js';
@@ -16,6 +16,7 @@ import { RecommendationStore } from './recommendation-store.js';
 import {cleanChatBlocks,cleanChatCopy} from '../domain/chat-copy.js';
 import {createHash} from 'node:crypto';
 import type {TasteEditPlan} from '../services/chat-taste-edit.js';
+import {ConversationMemoryRepository} from './conversation-memory-repository.js';
 
 export interface SettingsInput {
   country?: string | undefined;
@@ -28,6 +29,7 @@ export interface SettingsInput {
 }
 
 export class UserRepository {
+  conversationMemory(){return new ConversationMemoryRepository(this.db);}
   constructor(private readonly db: Pick<NexDatabase,"select"|"insert"|"update"|"delete"|"transaction"> = getDatabase()) {}
   recommendationStore() { return new RecommendationStore(this.db); }
 
@@ -268,8 +270,12 @@ export class UserRepository {
 
   async getSessionContext(userId: string, conversationSessionId: string) {
     if (!await this.assertConversation(userId,conversationSessionId)) throw new Error("CONVERSATION_NOT_FOUND");
-    const row = (await this.db.select().from(sessionContext).where(and(eq(sessionContext.userId,userId),eq(sessionContext.conversationSessionId,conversationSessionId),gt(sessionContext.expiresAt,new Date()))).limit(1))[0];
-    return row ? JSON.parse(row.contextJson) as Record<string,unknown> : {};
+    const row = (await this.db.select().from(sessionContext).where(and(eq(sessionContext.userId,userId),eq(sessionContext.conversationSessionId,conversationSessionId))).limit(1))[0];
+    if(!row)return {};
+    const value=JSON.parse(row.contextJson) as Record<string,unknown>;
+    // Canonical conversation memory survives reopening. Proposals, schedule
+    // snapshots and temporary legacy context still expire independently.
+    return row.expiresAt>new Date()?value:value.assistantMemory?{assistantMemory:value.assistantMemory}:{};
   }
 
   async commitChatPlan(userId:string,sessionId:string,planId:string|undefined,cancel=false):Promise<ChatBlock[]>{
@@ -396,9 +402,12 @@ export class UserRepository {
     // Foreign-key cascades remove messages, displayed references and temporary
     // context/proposals. Explicitly saved library/taste/reminders are independent.
     await this.db.transaction(async tx=>{
+      const active=await tx.select({id:chatRequests.requestId}).from(chatRequests).where(and(eq(chatRequests.userId,userId),eq(chatRequests.status,'running'),sql`${chatRequests.updatedAt} >= ${Date.now()-600_000}`)).limit(1);
+      if(active.length)throw new Error('CHAT_BUSY');
       await tx.delete(userEvents).where(and(eq(userEvents.userId,userId),eq(userEvents.eventType,'shown'),
         inArray(sql<string>`json_extract(${userEvents.metadataJson}, '$.context')`,tx.select({id:conversationSessions.id}).from(conversationSessions).where(eq(conversationSessions.userId,userId)))));
       await tx.delete(conversationSessions).where(eq(conversationSessions.userId,userId));
+      await tx.delete(chatRequests).where(eq(chatRequests.userId,userId));
     });
   }
 
@@ -416,11 +425,11 @@ export class UserRepository {
     return id;
   }
 
-  async recentConversationMessages(userId:string,sessionId:string) {
+  async recentConversationMessages(userId:string,sessionId:string,limit=8) {
     if(!await this.assertConversation(userId,sessionId))throw new Error('CONVERSATION_NOT_FOUND');
     const rows=await this.db.select({role:conversationMessages.role,content:conversationMessages.content})
       .from(conversationMessages).where(eq(conversationMessages.sessionId,sessionId))
-      .orderBy(desc(conversationMessages.createdAt),sql`conversation_messages.rowid desc`).limit(8);
+      .orderBy(desc(conversationMessages.createdAt),sql`conversation_messages.rowid desc`).limit(Math.max(1,Math.min(24,limit)));
     return rows.reverse().map(r=>({...r,content:r.content.slice(0,2000)}));
   }
 

@@ -1,6 +1,9 @@
 import 'package:dio/dio.dart';
 
 import 'dart:convert';
+import 'dart:math';
+
+import 'chat_stream.dart';
 
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 
@@ -8,21 +11,23 @@ import '../models/content.dart';
 import '../services/release_notification_service.dart';
 
 class NexApiClient {
-  NexApiClient({FlutterSecureStorage? storage})
+  NexApiClient({FlutterSecureStorage? storage, Dio? client})
     : _storage = storage ?? const FlutterSecureStorage() {
-    _dio = Dio(
-      BaseOptions(
-        baseUrl: baseUrl,
-        connectTimeout: const Duration(seconds: 10),
-        receiveTimeout: const Duration(seconds: 120),
-        // Native clients do not add Origin automatically. Better Auth requires
-        // a trusted origin for production credential/session mutations.
-        headers: {
-          'Accept': 'application/json',
-          'Origin': Uri.parse(baseUrl).origin,
-        },
-      ),
-    );
+    _dio =
+        client ??
+        Dio(
+          BaseOptions(
+            baseUrl: baseUrl,
+            connectTimeout: const Duration(seconds: 10),
+            receiveTimeout: const Duration(seconds: 120),
+            // Native clients do not add Origin automatically. Better Auth requires
+            // a trusted origin for production credential/session mutations.
+            headers: {
+              'Accept': 'application/json',
+              'Origin': Uri.parse(baseUrl).origin,
+            },
+          ),
+        );
     _dio.interceptors.add(
       InterceptorsWrapper(
         onRequest: (options, handler) async {
@@ -170,14 +175,80 @@ class NexApiClient {
         data: {'ids': ids, 'kind': kind},
       );
 
-  Future<Map<String, dynamic>> chat(String message, {String? sessionId}) async {
-    final data = <String, dynamic>{'message': message};
+  Future<Map<String, dynamic>> chat(
+    String message, {
+    String? sessionId,
+    void Function(String)? onProgress,
+  }) async {
+    final random = Random.secure();
+    final bytes = List<int>.generate(16, (_) => random.nextInt(256));
+    bytes[6] = (bytes[6] & 15) | 64;
+    bytes[8] = (bytes[8] & 63) | 128;
+    final hex = bytes.map((b) => b.toRadixString(16).padLeft(2, '0')).join();
+    final requestId =
+        '${hex.substring(0, 8)}-${hex.substring(8, 12)}-${hex.substring(12, 16)}-${hex.substring(16, 20)}-${hex.substring(20)}';
+    final data = <String, dynamic>{'message': message, 'requestId': requestId};
     if (sessionId case final value?) data['sessionId'] = value;
-    final response = await _dio.post<Map<String, dynamic>>(
-      '/api/chat',
-      data: data,
+    late final Response<ResponseBody> response;
+    try {
+      response = await _dio.post<ResponseBody>(
+        '/api/chat',
+        data: data,
+        options: Options(
+          responseType: ResponseType.stream,
+          headers: {'Accept': 'text/event-stream'},
+        ),
+      );
+    } on DioException catch (error) {
+      final errorBody = error.response?.data;
+      if (errorBody is ResponseBody) {
+        try {
+          error.response?.data = jsonDecode(
+            await utf8.decoder.bind(errorBody.stream).join(),
+          );
+        } catch (_) {
+          // An HTML gateway failure is not a trusted server error message.
+        }
+      }
+      rethrow;
+    }
+    final body = response.data!;
+    // Backwards-compatible with the existing deployment and replayed receipts.
+    if (!(response.headers.value('content-type') ?? '').contains(
+      'text/event-stream',
+    )) {
+      final payload =
+          jsonDecode(await utf8.decoder.bind(body.stream).join()) as Map;
+      return (payload['data'] as Map).cast<String, dynamic>();
+    }
+    try {
+      await for (final event in decodeChatEvents(body.stream)) {
+        final payload = (event['data'] as Map).cast<String, dynamic>();
+        if (event['event'] == 'progress') {
+          onProgress?.call(
+            chatProgressLabel(payload['phase'] as String? ?? ''),
+          );
+        }
+        if (event['event'] == 'result') {
+          return (payload['data'] as Map).cast<String, dynamic>();
+        }
+        if (event['event'] == 'error') {
+          throw const ChatDeliveryException(
+            'Chat could not finish. Check your conversation and saved changes before retrying.',
+          );
+        }
+      }
+    } on ChatDeliveryException {
+      rethrow;
+    } catch (_) {
+      throw const ChatDeliveryException(
+        'Chat disconnected. Check the saved reply before sending the request again.',
+      );
+    }
+    // Never automatically repeat an uncertain write after a broken stream.
+    throw const ChatDeliveryException(
+      'Chat disconnected. Reopen Chat to check the saved reply before retrying.',
     );
-    return (response.data?['data'] as Map).cast<String, dynamic>();
   }
 
   Future<void> saveWatchlist(ContentItem item) => _dio.post<void>(
@@ -380,6 +451,7 @@ class NexApiClient {
 }
 
 String readableApiError(Object error) {
+  if (error is ChatDeliveryException) return error.message;
   if (error is DioException) {
     final body = error.response?.data;
     if (body is Map && body['error'] is Map) {

@@ -70,6 +70,26 @@ it('uses the same title broadcast lookup as detail pages',async()=>{
  expect(lookup).toHaveBeenCalledWith(title,'RO',expect.any(Date));
  expect(JSON.stringify(result.blocks)).toContain('isn’t a guarantee');
 });
+it('searches all channels across an explicit rolling window, without off-air or later listings',async()=>{
+ const now=Date.now();
+ await db.insert(schema.epgPrograms).values({id:'late',sourceId:'fixture',sourceProgramId:'late',channelId:'ppv2',title:'Later film',startAt:new Date(now+4*3600000),endAt:new Date(now+5*3600000)});
+ vi.spyOn(ai,'planTv').mockResolvedValue(plan({mode:'recommend',channelIds:[],horizonHours:3}));
+ const selector=vi.spyOn(ai,'selectTv').mockResolvedValue({intro:'Some options',ids:['next','other']});
+ const out=await chat.respond('alice','What is good in the next three hours?',session);
+ expect(selector.mock.calls[0]?.[2].map(p=>p.id).sort()).toEqual(['next','other']);
+ expect(out.blocks.flatMap(b=>b.type==='tv_carousel'?b.items.map(p=>p.id):[])).toEqual(['next','other']);
+});
+it.each(['same','foreign','conflict','explicit'])('resolves broadcast follow-up years conservatively: %s',async mode=>{
+ const title={...(await catalog.search({query:'',region:'RO'}))[0]!,title:'Same name',originalTitle:'Same name',year:2011};
+ const other={...title,id:title.id+1,mediaType:'series' as const,year:2021};
+ vi.spyOn(catalog,'search').mockResolvedValue([title,other]);
+ await users.setSessionContext('alice',session,{tv:{country:mode==='foreign'?'GB':'RO',programs:[{title:title.title,year:2011},...(mode==='conflict'?[{title:title.title,year:2021}]:[])]}});
+ vi.spyOn(ai,'planTv').mockResolvedValue(plan({mode:'title_airings',title:title.title,year:mode==='explicit'?2021:null,channelIds:[]}));
+ const lookup=vi.spyOn(epg,'broadcastsForTitle').mockResolvedValue([]);
+ await chat.respond('alice','When is it on TV?',session);
+ if(mode==='same'||mode==='explicit')expect(lookup).toHaveBeenCalledWith(mode==='explicit'?other:title,'RO',expect.any(Date));
+ else expect(lookup).not.toHaveBeenCalled();
+});
 it('reads only the signed-in user Taste without changing it or losing conditional exclusions',async()=>{
  await users.upsertTaste('alice',[{dimension:'genre',key:'romance',score:-1,confidence:1,evidenceCount:1,source:'chat_explicit',explicit:true,exclude:true,conditions:[{dimension:'country',values:['KR'],match:'only'}]}]);
  await users.upsertTaste('bob',[{dimension:'genre',key:'horror',score:1,confidence:1,evidenceCount:1,source:'chat'}]);

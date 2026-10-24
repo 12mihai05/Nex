@@ -148,9 +148,18 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
             const LinearProgressIndicator(minHeight: 2),
           if (controller.chatRestoreError != null)
             TextButton(
-              onPressed: () =>
-                  controller.restoreChat(older: controller.chatRestored),
+              onPressed: () => controller.restoreChat(
+                older: controller.chatRestored && !controller.chatNeedsRecovery,
+              ),
               child: Text(controller.chatRestoreError!),
+            )
+          else if (controller.chatNeedsRecovery)
+            TextButton.icon(
+              onPressed: controller.chatRestoring
+                  ? null
+                  : () => controller.restoreChat(),
+              icon: const Icon(Icons.sync_rounded),
+              label: const Text('Check saved reply'),
             )
           else if (controller.chatHasOlder)
             TextButton(
@@ -182,14 +191,35 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                     separatorBuilder: (_, _) => const SizedBox(height: 18),
                     itemBuilder: (_, index) {
                       if (index == state.chatMessages.length) {
-                        return const Align(
+                        return Align(
                           alignment: Alignment.centerLeft,
                           child: Padding(
-                            padding: EdgeInsets.all(14),
-                            child: SizedBox(
-                              width: 20,
-                              height: 20,
-                              child: CircularProgressIndicator(strokeWidth: 2),
+                            padding: const EdgeInsets.all(14),
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                const SizedBox(
+                                  width: 16,
+                                  height: 16,
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: 2,
+                                  ),
+                                ),
+                                const SizedBox(width: 12),
+                                Flexible(
+                                  child: Text(
+                                    controller.chatProgress,
+                                    style: Theme.of(context)
+                                        .textTheme
+                                        .bodyMedium
+                                        ?.copyWith(
+                                          color: Theme.of(context)
+                                              .colorScheme
+                                              .onSurfaceVariant,
+                                        ),
+                                  ),
+                                ),
+                              ],
                             ),
                           ),
                         );

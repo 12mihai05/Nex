@@ -265,10 +265,20 @@ export const reminders = sqliteTable("reminders", {
 export const conversationSessions = sqliteTable("conversation_sessions", {
   id: text("id").primaryKey(),
   userId: text("user_id").notNull().references(() => user.id, { onDelete: "cascade" }),
+  memoryJson: text("memory_json"),
+  memoryLeaseToken: text("memory_lease_token"),
+  memoryLeaseUntil: integer("memory_lease_until").notNull().default(0),
   title: text("title").notNull().default("New conversation"),
   createdAt: createdAt(),
   updatedAt: updatedAt(),
 }, (table) => [index("conversation_user_updated_idx").on(table.userId, table.updatedAt)]);
+
+export const chatRequests=sqliteTable('chat_requests',{
+  userId:text('user_id').notNull().references(()=>user.id,{onDelete:'cascade'}),
+  requestId:text('request_id').notNull(),payloadHash:text('payload_hash').notNull(),
+  status:text('status',{enum:['running','completed','interrupted']}).notNull(),
+  responseJson:text('response_json'),createdAt:createdAt(),updatedAt:updatedAt(),
+},table=>[primaryKey({columns:[table.userId,table.requestId]}),uniqueIndex('chat_one_active_user').on(table.userId).where(sql`${table.status} = 'running'`)]);
 
 export const conversationMessages = sqliteTable("conversation_messages", {
   id: text("id").primaryKey(),
@@ -329,6 +339,6 @@ export const schema = {
   user, session, account, verification, profiles, userStreamingServices,
   userLanguagePreferences, userTastePreferences, userTitleFeedback, watchlist,
   watchHistory, channels, channelFavorites, epgPrograms, epgTmdbMatches, epgSyncRuns, reminders,
-  conversationSessions, conversationMessages, conversationDisplayedItems,
+  conversationSessions, conversationMessages, conversationDisplayedItems, chatRequests,
   userEvents, sessionContext, tmdbCache, aiUsage, contentEmbeddings, userRecommendationCache,
 };

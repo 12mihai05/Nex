@@ -1,4 +1,7 @@
-import { timingSafeEqual } from "node:crypto";
+import { timingSafeEqual, randomUUID } from "node:crypto";
+import {streamSSE} from 'hono/streaming';
+import {waitUntil} from '@vercel/functions';
+import {ChatRequestRepository} from './repositories/chat-request-repository.js';
 import { Hono } from "hono";
 import { cors } from "hono/cors";
 import { bodyLimit } from "hono/body-limit";
@@ -42,7 +45,12 @@ const epg = new EpgService();
 const releases = new ReleaseTracking(catalog);
 // Same-model combined planning passed the live comparison and continuation QA.
 // The separate path remains available to the comparison harness.
-const chat = new ChatService(users, catalog, ai, epg, {combinedPlanner:true});
+const chat = new ChatService(users, catalog, ai, epg, {combinedPlanner:true,deferMemory:work=>{
+  // Tests await work for deterministic accounting. Deployed replies do not wait
+  // for occasional compaction; Vercel keeps that bounded task alive afterwards.
+  if(process.env.NODE_ENV==='test')return work;
+  if(process.env.VERCEL==='1')waitUntil(work);
+}});
 const personalizer = personalizationFor(users,catalog);
 app.use("/api/*",bodyLimit({maxSize:128*1024,onError:(c)=>c.json({error:{code:"REQUEST_TOO_LARGE",message:"Request is too large."}},413)}));
 
@@ -271,16 +279,38 @@ app.post('/api/me/taste-summary',async c=>{
   catch {throw new HTTPException(503,{message:'Your taste summary could not be updated. Your preferences are unchanged.'});}
 });
 app.delete('/api/chat',async(c)=>{
-  await users.clearConversations(c.get('authSession').user.id);
+  try{await users.clearConversations(c.get('authSession').user.id);}catch(error){if(error instanceof Error&&error.message==='CHAT_BUSY')return c.json({error:{code:'CHAT_BUSY',message:'Wait for your current reply before clearing Chat.'}},409);throw error;}
   return c.json({data:{cleared:true}});
 });
 
 app.post("/api/chat", async (c) => {
   const body = chatBodySchema.parse(await c.req.json());
   const userId = c.get("authSession").user.id;
+  const requestId=body.requestId??randomUUID(),requests=new ChatRequestRepository();
+  const claimed=await requests.claim(userId,requestId,body.message,body.sessionId);
+  if(claimed.status==='completed')return c.json({data:claimed.response});
+  if(claimed.status!=='claimed')return c.json({error:{code:'CHAT_'+claimed.status.toUpperCase(),message:claimed.status==='busy'?'Nex is still finishing your previous message. Please wait.':'This request could not be safely repeated. Check your chat history and any saved changes before sending a new message.'}},409);
   const confirming=/^(confirm|cancel) changes(?: [a-f0-9-]{36})?$/i.test(body.message);
-  if (!confirming && !await users.incrementAiUsage(userId, config.AI_DAILY_MESSAGE_LIMIT)) return c.json({ error: { code: "AI_DAILY_LIMIT", message: "Daily AI limit reached. Browse and search still work." } }, 429);
-  return c.json({ data: await chat.respond(userId, body.message, body.sessionId) });
+  if (!confirming && !await users.incrementAiUsage(userId, config.AI_DAILY_MESSAGE_LIMIT)){await requests.interrupt(userId,requestId);return c.json({ error: { code: "AI_DAILY_LIMIT", message: "Daily AI limit reached. Browse and search still work." } }, 429);}
+  const run=async(progress?:(event:{phase:string})=>void)=>{
+    try{const result=await chat.respond(userId,body.message,body.sessionId,progress);await requests.complete(userId,requestId,result);return result;}
+    catch(error){await requests.interrupt(userId,requestId);throw error;}
+  };
+  if(!c.req.header('accept')?.includes('text/event-stream'))return c.json({data:await run()});
+  c.header('Cache-Control','no-cache, no-transform');
+  return streamSSE(c,async stream=>{
+    let disconnected=false;stream.onAbort(()=>{disconnected=true;});
+    const write=async(event:string,data:unknown)=>{if(!disconnected)await stream.writeSSE({event,data:JSON.stringify(data)}).catch(()=>{disconnected=true;});};
+    await write('progress',{phase:'understanding'});
+    const heartbeat=setInterval(()=>{void write('ping',{});},15000);
+    const work=run(event=>{void write('progress',event);});
+    // Finish/persist the one bounded request after a phone disconnect. A retry
+    // with the same UUID never performs changes a second time.
+    if(process.env.VERCEL==='1')waitUntil(work.catch(()=>undefined));
+    try{await write('result',{data:await work});}
+    catch{await write('error',{code:'CHAT_INCOMPLETE',message:'The connection could not complete this reply. Check chat history and saved changes before retrying.'});}
+    finally{clearInterval(heartbeat);}
+  });
 });
 
 app.get("/api/tv/channels",async c=>{
