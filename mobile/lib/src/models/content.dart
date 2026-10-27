@@ -44,6 +44,8 @@ class ContentItem {
     this.metadataOnly = false,
     this.releaseDate,
     this.releaseCountry,
+    this.cinemaDateKind,
+    this.overviewLanguage,
   });
   final int id;
   final MediaType mediaType;
@@ -63,6 +65,7 @@ class ContentItem {
   final List<String> cast;
   final bool metadataOnly;
   final String? releaseDate, releaseCountry;
+  final String? cinemaDateKind, overviewLanguage;
 
   String get key => '${mediaType.name}:$id';
   String get metadata => [
@@ -86,6 +89,8 @@ class ContentItem {
     metadataOnly: json['metadataOnly'] as bool? ?? false,
     releaseDate: json['releaseDate'] as String?,
     releaseCountry: json['releaseCountry'] as String?,
+    cinemaDateKind: json['cinemaDateKind'] as String?,
+    overviewLanguage: json['overviewLanguage'] as String?,
     mediaType: json['mediaType'] == 'series'
         ? MediaType.series
         : MediaType.movie,

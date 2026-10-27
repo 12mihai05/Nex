@@ -137,7 +137,7 @@ class ContentCard extends ConsumerWidget {
                 Padding(
                   padding: const EdgeInsets.only(top: 4),
                   child: Text(
-                    'Cinema · ${DateFormat.yMMMd().format(date)}',
+                    '${item.cinemaDateKind == 'reissue' ? 'Cinema run' : 'Cinema'} · ${DateFormat.yMMMd().format(date)}',
                     maxLines: 2,
                     overflow: TextOverflow.ellipsis,
                     style: Theme.of(context).textTheme.bodySmall?.copyWith(

@@ -1,0 +1,29 @@
+name: Refresh Romanian cinema listings
+on:
+  schedule:
+    - cron: '17 7 * * *'
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: nex-cinema-sync
+  cancel-in-progress: false
+jobs:
+  sync:
+    if: vars.CINEMA_IMPORT_ENABLED == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci
+      - name: Import validated national listings
+        env:
+          CINEMA_IMPORT_ENABLED: 'true'
+          TURSO_DATABASE_URL: ${{ secrets.TURSO_DATABASE_URL }}
+          TURSO_AUTH_TOKEN: ${{ secrets.TURSO_AUTH_TOKEN }}
+          TMDB_READ_ACCESS_TOKEN: ${{ secrets.TMDB_READ_ACCESS_TOKEN }}
+        run: npx tsx backend/scripts/sync-cinema.ts --apply

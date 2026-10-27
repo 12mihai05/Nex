@@ -4,6 +4,28 @@ import { index, integer, primaryKey, real, sqliteTable, text, uniqueIndex } from
 const createdAt = () => integer("created_at", { mode: "timestamp_ms" }).notNull().default(sql`(unixepoch() * 1000)`);
 const updatedAt = () => integer("updated_at", { mode: "timestamp_ms" }).notNull().default(sql`(unixepoch() * 1000)`);
 
+export const cinemaSources=sqliteTable('cinema_sources',{
+  chain:text('chain').primaryKey(),version:integer('version').notNull().default(0),
+  checkedAt:integer('checked_at').notNull().default(0),attemptedAt:integer('attempted_at').notNull().default(0),
+  health:text('health').notNull().default('pending'),currentCount:integer('current_count').notNull().default(0),upcomingCount:integer('upcoming_count').notNull().default(0),snapshotHash:text('snapshot_hash').notNull().default(''),
+});
+export const cinemaMappings=sqliteTable('cinema_mappings',{
+  chain:text('chain').notNull(),sourceId:text('source_id').notNull(),tmdbId:integer('tmdb_id'),
+  title:text('title').notNull(),identityHash:text('identity_hash').notNull(),evidenceJson:text('evidence_json').notNull(),
+  movieJson:text('movie_json'),checkedAt:integer('checked_at').notNull(),
+  // Last dated provenance survives inactive listing cleanup; never user data.
+  dateHistoryJson:text('date_history_json').notNull().default('[]'),
+},t=>[primaryKey({columns:[t.chain,t.sourceId]}),index('cinema_mapping_title').on(t.tmdbId)]);
+export const cinemaListings=sqliteTable('cinema_listings',{
+  chain:text('chain').notNull(),sourceId:text('source_id').notNull(),tmdbId:integer('tmdb_id'),
+  runDate:text('run_date'),sourceUrl:text('source_url').notNull(),dateKind:text('date_kind').notNull(),
+  current:integer('current',{mode:'boolean'}).notNull(),upcoming:integer('upcoming',{mode:'boolean'}).notNull(),
+  active:integer('active',{mode:'boolean'}).notNull().default(true),
+  firstObservedAt:integer('first_observed_at').notNull(),dateObservedAt:integer('date_observed_at').notNull(),
+  missingSince:integer('missing_since'),lastAbsentAt:integer('last_absent_at'),missingChecks:integer('missing_checks').notNull().default(0),
+  factsHash:text('facts_hash').notNull(),
+},t=>[primaryKey({columns:[t.chain,t.sourceId]}),index('cinema_listing_title_active').on(t.tmdbId,t.active),index('cinema_listing_future').on(t.runDate,t.active)]);
+
 export const releaseSettings = sqliteTable('release_settings', {
   userId:text('user_id').primaryKey().references(()=>user.id,{onDelete:'cascade'}),
   followSeenSeries:integer('follow_seen_series',{mode:'boolean'}).notNull().default(false),

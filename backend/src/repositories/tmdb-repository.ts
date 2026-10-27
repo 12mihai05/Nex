@@ -11,6 +11,7 @@ import {createHash} from "node:crypto";
 import {lt} from "drizzle-orm";
 import { normalizeVideos, seasonSummarySchema, episodeSchema, type TitleExtras, type SeasonExtras } from "../domain/title-extras.js";
 import { releaseDate, movieReleases, seriesReleases, type ReleaseInfo } from '../domain/releases.js';
+import {CinemaRepository,supplementReleases} from './cinema-repository.js';
 
 export interface CatalogSearchOptions {
   query: string;
@@ -101,19 +102,48 @@ const tmdbResultSchema = contentItemSchema.partial().passthrough();
 export class LiveTmdbRepository implements TmdbRepository {
   async releases(mediaType:MediaType,id:number,country:string):Promise<ReleaseInfo> {
     // Fresh bounded lookup for scheduled checks, independent of the week-long metadata cache.
-    const data=await this.fetchRequest<Record<string,unknown>>(`/${mediaType==='series'?'tv':'movie'}/${id}`,mediaType==='movie'?{append_to_response:'release_dates',language:'en-US'}:{language:'en-US'});
-    return {title:String(data.title??data.name??'Untitled'),releases:mediaType==='movie'?movieReleases(data.release_dates,country):seriesReleases(data)};
+    const cinemaPromise=mediaType==='movie'&&country==='RO'&&getConfig().CINEMA_IMPORT_ENABLED==='true'
+      ?new CinemaRepository(this.db).info(id).catch(()=>undefined):Promise.resolve(undefined);
+    const [data,cinema]=await Promise.all([
+      this.fetchRequest<Record<string,unknown>>(`/${mediaType==='series'?'tv':'movie'}/${id}`,mediaType==='movie'?{append_to_response:'release_dates',language:'en-US'}:{language:'en-US'}),cinemaPromise,
+    ]);
+    const info:ReleaseInfo={title:String(data.title??data.name??'Untitled'),releases:mediaType==='movie'?movieReleases(data.release_dates,country):seriesReleases(data)};
+    return cinema?supplementReleases(info,cinema):info;
   }
   async upcoming(country:string,day:string,page:number) {
+    let supplement:ContentItem[]=[];
+    if(country==='RO'&&getConfig().CINEMA_IMPORT_ENABLED==='true'){
+      // Freeze supplemental membership for this calendar/day browse. Stable
+      // prefix pages prevent skipped IDs when an importer publishes mid-browse.
+      const key=`cinema-upcoming:v1:${country}:${day}`;
+      const cached=await this.readCache(key);
+      if(Array.isArray(cached))supplement=cached.map(i=>contentItemSchema.parse(i));
+      else{
+        try{
+          supplement=await new CinemaRepository(this.db).upcoming(day);
+          await this.writeCache(key,'cinema_upcoming',supplement,86400);
+        }catch{
+          // A transient database failure must not freeze an empty cinema list
+          // for the rest of the day. The next request can retry the supplement.
+          supplement=[];
+        }
+      }
+    }
+    const prefixPages=Math.ceil(supplement.length/20);
+    if(page<=prefixPages)return {items:supplement.slice((page-1)*20,page*20).map(i=>({...i,metadataOnly:true})),hasMore:true};
+    const upstreamPage=page-prefixPages;
     const payload=await this.request<{results:Record<string,unknown>[];total_pages:number}>('/discover/movie',{
       region:country,with_release_type:'3|2','release_date.gte':day,sort_by:'primary_release_date.asc',
-      include_adult:'false',language:'en-US',page:String(page),
+      include_adult:'false',language:'en-US',page:String(upstreamPage),
     });
     const items=await Promise.all(payload.results.map(async raw=>{
       const item=await this.summaryToItem({...raw,media_type:'movie'},country,true);
-      return {...item,releaseDate:releaseDate(raw.release_date),releaseCountry:country,metadataOnly:true};
+      const dates=await this.request(`/movie/${item.id}/release_dates`,{});
+      const localDate=movieReleases(dates,country).find(r=>r.kind==='cinema')?.date??null;
+      return {...item,releaseDate:localDate,releaseCountry:country,metadataOnly:true};
     }));
-    return {items:items.filter(i=>i.releaseDate&&i.releaseDate>day).sort((a,b)=>a.releaseDate!.localeCompare(b.releaseDate!)||a.id-b.id),hasMore:page<Math.min(payload.total_pages,500)};
+    const supplementalIds=new Set(supplement.map(i=>i.id));
+    return {items:items.filter(i=>i.releaseDate&&i.releaseDate>day&&!supplementalIds.has(i.id)).sort((a,b)=>a.releaseDate!.localeCompare(b.releaseDate!)||a.id-b.id),hasMore:upstreamPage<Math.min(payload.total_pages,500)};
   }
   async episodeKnowledge(seriesId:number,season:number,episode:number):Promise<Record<string,unknown>> {
     const data=await this.request<Record<string,unknown>>(`/tv/${seriesId}/season/${season}/episode/${episode}`,{language:'en-US',append_to_response:'credits'});
@@ -267,12 +297,16 @@ export class LiveTmdbRepository implements TmdbRepository {
     if (cached) {
       const item = contentItemSchema.parse(cached);
       const availability = await this.readCache(`availability:${mediaType}:${id}:${region}`);
-      if (availability && (mediaType !== 'series' || item.seasonCount !== undefined) && (item.releaseDate!==undefined || (item.year??9999)<new Date().getUTCFullYear())) return this.markOwned({ ...item, availability: contentItemSchema.shape.availability.parse(availability) },ownedProviderIds);
+      if (availability && (mediaType !== 'series' || item.seasonCount !== undefined) && (item.releaseDate!==undefined || (item.year??9999)<new Date().getUTCFullYear())) {
+        const filled=await this.fillMissingOverview(item);
+        if(filled!==item)await this.writeCache(key,'metadata',filled,getConfig().TMDB_METADATA_CACHE_TTL_SECONDS);
+        return this.markOwned({ ...filled, availability: contentItemSchema.shape.availability.parse(availability) },ownedProviderIds);
+      }
     }
     try {
       const path = `/${mediaType === "series" ? "tv" : "movie"}/${id}`;
       const detail = await this.request<Record<string, unknown>>(path, { append_to_response: "credits,keywords,watch/providers", language: "en-US" });
-      const item = this.detailToItem(detail, mediaType, region, ownedProviderIds);
+      const item = await this.fillMissingOverview(this.detailToItem(detail, mediaType, region, ownedProviderIds));
       await this.writeCaches([
         {key, kind:"metadata", payload:item, ttlSeconds:getConfig().TMDB_METADATA_CACHE_TTL_SECONDS},
         {key:`availability:${mediaType}:${id}:${region}`, kind:"availability", payload:item.availability, ttlSeconds:getConfig().TMDB_AVAILABILITY_CACHE_TTL_SECONDS},
@@ -282,6 +316,18 @@ export class LiveTmdbRepository implements TmdbRepository {
       if (error instanceof TmdbError && error.status === 404) return null;
       throw error;
     }
+  }
+
+  private async fillMissingOverview(item:ContentItem):Promise<ContentItem> {
+    if(item.overview.trim()||item.overviewFallbackChecked||!item.originalLanguage)return item;
+    try {
+      const data=await this.request<{translations?:Array<{iso_639_1:string;data?:{overview?:string}}>}>(`/${item.mediaType==='series'?'tv':'movie'}/${item.id}/translations`,{});
+      for(const language of [...new Set(['en','ro',item.originalLanguage])]) {
+        const translation=data.translations?.find(t=>t.iso_639_1===language&&t.data?.overview?.trim());
+        if(translation)return {...item,overview:translation.data!.overview!.trim(),overviewLanguage:language,overviewFallbackChecked:true};
+      }
+      return {...item,overviewFallbackChecked:true};
+    } catch { return item; } // A failed optional translation must not hide valid title metadata.
   }
 
   async getProviders(region: string): Promise<Array<{ id: number; name: string; logoUrl: string | null }>> {
@@ -369,14 +415,14 @@ export class LiveTmdbRepository implements TmdbRepository {
   private async request<T>(path: string, params: Record<string, string>): Promise<T> {
     // Detailed title metadata already has a normalized, country-keyed cache.
     // Persisting the giant raw credits/providers response duplicates every write.
-    const cacheable=/^\/(genre\/|search\/|discover\/)|\/(recommendations|videos)$/.test(path)||Boolean(params.append_to_response && params.append_to_response!=='credits,keywords,watch/providers');
+    const cacheable=/^\/(genre\/|search\/|discover\/)|\/(recommendations|videos|release_dates|translations)$/.test(path)||Boolean(params.append_to_response && params.append_to_response!=='credits,keywords,watch/providers');
     const key=`request:${createHash("sha256").update(JSON.stringify([path,Object.entries(params).sort()])).digest("hex")}`;
     if(!cacheable)return this.fetchRequest<T>(path,params);
     const pending=this.inFlight.get(key);if(pending)return pending as Promise<T>;
     const task=(async()=>{
       const cached=await this.readCache(key);if(cached)return cached as T;
       const value=await this.fetchRequest<T>(path,params);
-      const ttl=params.append_to_response==="videos"?getConfig().TMDB_METADATA_CACHE_TTL_SECONDS:path.startsWith("/genre/")||path==="/search/keyword"?86400:path.endsWith("/recommendations")?3600:300;
+      const ttl=params.append_to_response==="videos"?getConfig().TMDB_METADATA_CACHE_TTL_SECONDS:path.startsWith("/genre/")||path==="/search/keyword"||path.endsWith('/translations')?86400:path.endsWith("/recommendations")||path.endsWith('/release_dates')?3600:300;
       await this.writeCache(key,"public_request",value,ttl);return value;
     })();
     if(this.inFlight.size<128)this.inFlight.set(key,task);

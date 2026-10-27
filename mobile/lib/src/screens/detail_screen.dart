@@ -97,10 +97,20 @@ class DetailScreen extends ConsumerWidget {
                   ),
                   const SizedBox(height: 9),
                   SelectableText(
-                    item.overview,
+                    item.overview.trim().isEmpty
+                        ? 'A synopsis is not available right now.'
+                        : item.overview,
                     style: Theme.of(context).textTheme.bodyLarge,
                   ),
-                  if (item.director != null || item.cast.isNotEmpty) ...[
+                  if (item.overviewLanguage == 'ro')
+                    Padding(
+                      padding: const EdgeInsets.only(top: 6),
+                      child: Text(
+                        'Synopsis available in Romanian',
+                        style: Theme.of(context).textTheme.bodySmall,
+                      ),
+                    ),
+                  ...[
                     const SizedBox(height: 20),
                     Text(
                       'Cast & crew',
@@ -109,9 +119,15 @@ class DetailScreen extends ConsumerWidget {
                     const SizedBox(height: 8),
                     SelectableText(
                       [
-                        if (item.director != null)
+                        if (item.director?.trim().isNotEmpty ?? false)
                           'Directed by ${item.director}',
-                        if (item.cast.isNotEmpty) item.cast.join(', '),
+                        if (item.cast.any((name) => name.trim().isNotEmpty))
+                          item.cast
+                              .where((name) => name.trim().isNotEmpty)
+                              .join(', '),
+                        if (!(item.director?.trim().isNotEmpty ?? false) &&
+                            !item.cast.any((name) => name.trim().isNotEmpty))
+                          'Cast and crew information is not available right now.',
                       ].join('\n'),
                       style: Theme.of(context).textTheme.bodyLarge,
                     ),

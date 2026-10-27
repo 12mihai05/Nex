@@ -22,6 +22,7 @@ jobs:
       - run: npm ci
       - name: Check releases and save opted-in inbox updates
         env:
+          CINEMA_IMPORT_ENABLED: ${{ vars.CINEMA_IMPORT_ENABLED || 'false' }}
           TURSO_DATABASE_URL: ${{ secrets.TURSO_DATABASE_URL }}
           TURSO_AUTH_TOKEN: ${{ secrets.TURSO_AUTH_TOKEN }}
           TMDB_READ_ACCESS_TOKEN: ${{ secrets.TMDB_READ_ACCESS_TOKEN }}

@@ -52,6 +52,6 @@ export class ChatReleases {
   const [release,detail]=await Promise.all([this.catalog.releases?.(item.mediaType,item.id,plan.country),this.catalog.knowledge?.(item.mediaType,item.id)]);
   await this.users.setSessionContext(userId,sessionId,{...context,focus:{type:item.mediaType,id:String(item.id),tmdbId:item.id,title:item.title,source:'tmdb'}});
   return [await this.ai.answerKnowledge(message,{title:item.title,country:plan.country,today,release,detail,
-    interpretation:'Cinema/digital dates are country-specific. Series season dates are original premiere dates, not proof of local streaming availability. Missing date is unknown, never cancellation. A next episode is not necessarily a new season. Mark TMDB dates as listed dates; official announcements take precedence when dated and cited.'},plan.news||!release?.releases.some(r=>r.date&&r.date>=today))];
+    interpretation:'Cinema/digital dates are country-specific. Series season dates are original premiere dates, not proof of local streaming availability. Missing date is unknown, never cancellation. A next episode is not necessarily a new season. Cinema source links belong to named national chains, not every venue. Reissues do not change original premieres. Preserve conflicting chain dates; never invent an agreed date. Cite the supplied source links.'},plan.news||!release?.releases.some(r=>r.date&&r.date>=today))];
  }
 }

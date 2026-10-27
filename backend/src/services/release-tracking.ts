@@ -8,7 +8,7 @@ import type {MediaType} from '../domain/types.js';
 
 export function eligibleReleases(info:ReleaseInfo,kind:string,baseline:string[],today:string):Release[] {
   const oldest=new Date(`${today}T12:00:00Z`);oldest.setUTCDate(oldest.getUTCDate()-7);
-  return info.releases.filter(r=>r.kind===kind&&r.date&&r.date<=today&&r.date>=oldest.toISOString().slice(0,10)&&!baseline.includes(r.key));
+  return info.releases.filter(r=>r.alertEligible!==false&&r.kind===kind&&r.date&&r.date<=today&&r.date>=oldest.toISOString().slice(0,10)&&!baseline.includes(r.key));
 }
 export class ReleaseTracking {
   constructor(private catalog:TmdbRepository,private db:NexDatabase=getDatabase()){}

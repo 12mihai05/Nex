@@ -84,7 +84,7 @@ void main() {
       await tester.tap(find.text('Upcoming in cinemas'));
       await tester.pumpAndSettle();
       expect(find.byType(UpcomingMovies), findsOneWidget);
-      await tester.tap(find.text('Back to streaming'));
+      await tester.tap(find.byTooltip('Back to streaming'));
       await tester.pumpAndSettle();
       expect(
         tester

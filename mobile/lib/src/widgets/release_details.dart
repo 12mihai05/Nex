@@ -7,6 +7,7 @@ import '../state/app_controller.dart';
 import '../services/release_notification_service.dart';
 import 'nex_notice.dart';
 import 'skeleton.dart';
+import 'cinema_details.dart';
 
 String displayReleaseDate(String? value) {
   final date = DateTime.tryParse(value ?? '');
@@ -110,6 +111,10 @@ class _ReleaseDetailsState extends ConsumerState<ReleaseDetails> {
         );
       }
       final data = snapshot.data ?? {};
+      final cinema = data['cinema'] as Map?;
+      final hasCinema = (cinema?['listings'] as List? ?? []).any(
+        (r) => r['status'] == 'listed' || r['status'] == 'upcoming',
+      );
       final day =
           data['day'] as String? ??
           DateTime.now().toIso8601String().substring(0, 10);
@@ -146,6 +151,7 @@ class _ReleaseDetailsState extends ConsumerState<ReleaseDetails> {
         );
       }).toList();
       if (releases.isEmpty &&
+          !hasCinema &&
           subscriptions.isEmpty &&
           (widget.item.mediaType == MediaType.series ||
               (widget.item.releaseDate != null &&
@@ -163,7 +169,7 @@ class _ReleaseDetailsState extends ConsumerState<ReleaseDetails> {
                   : 'Release dates · ${data['country'] ?? ''}',
               style: Theme.of(context).textTheme.titleLarge,
             ),
-            if (releases.isEmpty)
+            if (releases.isEmpty && !hasCinema)
               const Padding(
                 padding: EdgeInsets.only(top: 8),
                 child: Text(
@@ -173,6 +179,7 @@ class _ReleaseDetailsState extends ConsumerState<ReleaseDetails> {
             if (widget.item.mediaType == MediaType.movie &&
                 widget.item.releaseDate != null &&
                 widget.item.releaseDate!.compareTo(day) > 0 &&
+                !hasCinema &&
                 releases.isEmpty)
               ListTile(
                 contentPadding: EdgeInsets.zero,
@@ -216,6 +223,7 @@ class _ReleaseDetailsState extends ConsumerState<ReleaseDetails> {
                   '${r['date'] == null ? '' : 'Expected '}${displayReleaseDate(r['date'] as String?)}',
                 ),
               ),
+            if (hasCinema) CinemaDetails(data: cinema!),
             if (releases.isNotEmpty)
               const Text(
                 'Dates may change. A premiere or digital release does not confirm availability on your subscriptions.',

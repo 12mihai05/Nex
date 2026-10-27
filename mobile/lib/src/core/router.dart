@@ -47,7 +47,9 @@ final router = GoRouter(
       path: '/title/:type/:id',
       builder: (_, state) {
         final extra = state.extra;
-        if (extra is ContentItem && !extra.metadataOnly) {
+        if (extra is ContentItem &&
+            !extra.metadataOnly &&
+            extra.overview.trim().isNotEmpty) {
           return DetailScreen(item: extra);
         }
         final id = int.tryParse(state.pathParameters['id'] ?? '');

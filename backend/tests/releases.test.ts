@@ -39,6 +39,7 @@ it('regional upcoming is paginated and never filtered by rating/provider',async(
   const {client,db}=await database();
   try{
     const fetcher=vi.fn(async(url:URL)=>{
+      if(url.pathname.endsWith('/release_dates'))return new Response(JSON.stringify({results:[{iso_3166_1:'RO',release_dates:[{type:3,release_date:url.pathname.includes('/1/')?'2026-10-20':'2020-01-01'}]}]}));
       expect(url.searchParams.get('region')).toBe('RO');expect(url.searchParams.get('with_release_type')).toBe('3|2');
       expect(url.searchParams.has('vote_count.gte')).toBe(false);expect(url.searchParams.has('with_watch_providers')).toBe(false);
       return new Response(JSON.stringify({results:[{id:1,title:'Future',release_date:'2026-10-20',vote_count:0,vote_average:0},{id:2,title:'Old',release_date:'2020-01-01'},{id:3,title:'Unknown',release_date:''}],total_pages:3}));

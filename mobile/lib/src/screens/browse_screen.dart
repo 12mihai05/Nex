@@ -320,25 +320,9 @@ class _BrowseScreenState extends ConsumerState<BrowseScreen> {
     if (upcoming) {
       return Scaffold(
         appBar: const NexTopBar(),
-        body: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 16),
-              child: Wrap(
-                spacing: 8,
-                children: [
-                  ActionChip(
-                    label: const Text('Back to streaming'),
-                    avatar: const Icon(Icons.arrow_back, size: 18),
-                    onPressed: () => setState(() => upcoming = false),
-                  ),
-                  const Chip(label: Text('Upcoming in cinemas')),
-                ],
-              ),
-            ),
-            Expanded(child: UpcomingMovies(key: ValueKey(state.country))),
-          ],
+        body: UpcomingMovies(
+          key: ValueKey(state.country),
+          onClose: () => setState(() => upcoming = false),
         ),
       );
     }

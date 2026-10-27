@@ -110,7 +110,7 @@ app.get("/api/providers", async (c) => {
 app.get('/api/upcoming',async c=>{
   const page=z.coerce.number().int().min(1).max(500).default(1).parse(c.req.query('page'));
   const {profile}=await users.getSettings(c.get('authSession').user.id);
-  const day=calendarDay(new Date(),profile.timezone);
+  const day=calendarDay(new Date(),profile.country==='RO'?'Europe/Bucharest':profile.timezone);
   const result=await catalog.upcoming?.(profile.country,day,page)??{items:[],hasMore:false};
   return c.json({data:result.items,meta:{page,hasMore:result.hasMore,country:profile.country,day}});
 });

@@ -9,7 +9,8 @@ import '../data/api_client.dart';
 import '../data/countries.dart';
 
 class UpcomingMovies extends ConsumerStatefulWidget {
-  const UpcomingMovies({super.key});
+  const UpcomingMovies({super.key, this.onClose});
+  final VoidCallback? onClose;
   @override
   ConsumerState<UpcomingMovies> createState() => _UpcomingMoviesState();
 }
@@ -107,17 +108,26 @@ class _UpcomingMoviesState extends ConsumerState<UpcomingMovies>
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(
-                      'Upcoming in cinemas',
-                      style: Theme.of(context).textTheme.headlineSmall,
+                    Row(
+                      children: [
+                        Expanded(
+                          child: Text(
+                            'Upcoming in cinemas',
+                            style: Theme.of(context).textTheme.headlineSmall,
+                          ),
+                        ),
+                        if (widget.onClose != null)
+                          IconButton.filledTonal(
+                            tooltip: 'Back to streaming',
+                            onPressed: widget.onClose,
+                            icon: const Icon(Icons.close_rounded),
+                          ),
+                      ],
                     ),
                     const SizedBox(height: 8),
                     Text(
-                      '${watchingCountries[country] ?? country} · Cinema dates listed by TMDB, subject to change. Not a complete cinema schedule or streaming availability.',
-                    ),
-                    const SizedBox(height: 8),
-                    const Text(
-                      'A film without a listed date for your country may be missing here. You can still find it in Search.',
+                      watchingCountries[country] ?? country,
+                      style: Theme.of(context).textTheme.bodySmall,
                     ),
                   ],
                 ),

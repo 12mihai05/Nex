@@ -108,7 +108,8 @@ export class AssistantTools {
               if(type&&(entry.title||entry.name)){const key=`${type}:${entry.id}`;this.known.set(key,{key,id:entry.id,type,title:entry.title??entry.name!,year:null});}
             }else if(entry.name)this.known.set(`person:${entry.id}`,{key:`person:${entry.id}`,id:entry.id,type:'person',title:entry.name,year:null});
           }
-          return {identity,...(item?{title:summary(item),viewer:{rating:ratings.find(r=>`${r.mediaType}:${r.tmdbId}`===key)?.reaction??null,markedSeen:viewerState?.watchedKeys.has(key)??false,inWatchlist:viewerState?.watchlistKeys.has(key)??false}}:{}),facts,releases,episodes,source:'tmdb',country:this.country};
+          return {identity,...(item?{title:summary(item),viewer:{rating:ratings.find(r=>`${r.mediaType}:${r.tmdbId}`===key)?.reaction??null,markedSeen:viewerState?.watchedKeys.has(key)??false,inWatchlist:viewerState?.watchlistKeys.has(key)??false}}:{}),facts,releases,episodes,source:releases?.cinema?.listings.length?'tmdb_and_cinema_sources':'tmdb',country:this.country,
+            ...(releases?.cinema?{cinemaInterpretation:'Cinema listings are nationwide chain listings, not confirmed screenings at every venue today. Cite sourceUrl. Upcoming run dates may be re-releases or delayed local openings: preserve original movie year. Conflicting dates belong to the named chains; do not invent a single premiere date.'}:{})};
         }));this.group('discussed',keys);return {results,...(keys.length>1?{personalContext:await this.tasteBrief()}:{}),note:'Unknown or absent dates are not cancellation. Season dates are not proof of regional streaming availability.'};
       }),
       tool('find_person','Resolve an actor/director name. Use IDs from credits directly with title_details when available.',z.object({name:z.string().min(1).max(160)}),async({name})=>{

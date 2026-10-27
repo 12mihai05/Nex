@@ -11,6 +11,7 @@ const envSchema = z.object({
   TURSO_DATABASE_URL: z.string().default("file:./local.db"),
   TURSO_AUTH_TOKEN: z.string().optional(),
   TMDB_READ_ACCESS_TOKEN: z.string().optional(),
+  CINEMA_IMPORT_ENABLED: z.enum(['true','false']).default('false'),
   TMDB_METADATA_CACHE_TTL_SECONDS: z.coerce.number().int().positive().default(604800),
   TMDB_AVAILABILITY_CACHE_TTL_SECONDS: z.coerce.number().int().positive().default(21600),
   OPENAI_API_KEY: z.string().optional(),
