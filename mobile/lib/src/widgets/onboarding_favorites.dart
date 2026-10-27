@@ -9,6 +9,7 @@ import '../models/content.dart';
 import '../state/app_controller.dart';
 import 'artwork.dart';
 import 'skeleton.dart';
+import 'nex_search_field.dart';
 
 class OnboardingFavorites extends ConsumerStatefulWidget {
   const OnboardingFavorites({super.key});
@@ -81,21 +82,10 @@ class _OnboardingFavoritesState extends ConsumerState<OnboardingFavorites> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        TextField(
+        NexSearchField(
           controller: input,
           onChanged: search,
-          decoration: InputDecoration(
-            hintText: 'Search movies and series',
-            prefixIcon: const Icon(Icons.search),
-            suffixIcon: IconButton(
-              tooltip: 'Clear search',
-              icon: const Icon(Icons.close),
-              onPressed: () {
-                input.clear();
-                search('');
-              },
-            ),
-          ),
+          hintText: 'Search movies and series',
         ),
         const SizedBox(height: 12),
         Text('${selected.length} of 5 selected'),

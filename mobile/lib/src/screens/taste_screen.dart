@@ -1,4 +1,7 @@
 import 'package:flutter/material.dart';
+
+import '../widgets/nex_search_field.dart';
+
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../state/app_controller.dart';
@@ -271,23 +274,10 @@ class _TasteScreenState extends ConsumerState<TasteScreen> {
                         ],
                       ),
                     const SizedBox(height: 12),
-                    TextField(
+                    NexSearchField(
                       controller: search,
                       onChanged: (_) => setState(() {}),
-                      decoration: InputDecoration(
-                        hintText: 'Find a preference',
-                        prefixIcon: const Icon(Icons.search),
-                        suffixIcon: search.text.isEmpty
-                            ? null
-                            : IconButton(
-                                tooltip: 'Clear search',
-                                icon: const Icon(Icons.close),
-                                onPressed: () {
-                                  search.clear();
-                                  setState(() {});
-                                },
-                              ),
-                      ),
+                      hintText: 'Find a preference',
                     ),
                     const SizedBox(height: 12),
                     Row(

@@ -7,6 +7,7 @@ import '../widgets/content_card.dart';
 import '../widgets/content_row.dart';
 import '../widgets/catalog_filter_sheet.dart';
 import '../widgets/skeleton.dart';
+import '../widgets/nex_search_field.dart';
 
 bool libraryMatches(
   ContentItem item, {
@@ -221,13 +222,10 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
                 padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
                 child: Column(
                   children: [
-                    TextField(
+                    NexSearchField(
                       controller: search,
                       onChanged: (value) => setState(() => query = value),
-                      decoration: const InputDecoration(
-                        prefixIcon: Icon(Icons.search),
-                        hintText: 'Search your library',
-                      ),
+                      hintText: 'Search your library',
                     ),
                     const SizedBox(height: 12),
                     Align(

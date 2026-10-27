@@ -3,6 +3,9 @@ import 'dart:convert';
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
+
+import '../widgets/nex_search_field.dart';
+
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 
@@ -616,25 +619,17 @@ class _TvGuideScreenState extends ConsumerState<TvGuideScreen> {
           children: [
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 16),
-              child: TextField(
+              child: NexSearchField(
                 controller: search,
-                decoration: InputDecoration(
-                  hintText: 'Find a channel',
-                  prefixIcon: const Icon(Icons.search),
-                  suffixIcon: search.text.isEmpty
-                      ? null
-                      : IconButton(
-                          tooltip: 'Clear search',
-                          icon: const Icon(Icons.close),
-                          onPressed: () {
-                            search.clear();
-                            query = '';
-                            load();
-                          },
-                        ),
-                ),
+                hintText: 'Find a channel',
                 onChanged: (v) {
                   debounce?.cancel();
+                  generation++;
+                  if (v.isEmpty) {
+                    query = '';
+                    load();
+                    return;
+                  }
                   setState(() {});
                   debounce = Timer(const Duration(milliseconds: 300), () {
                     query = v.trim();

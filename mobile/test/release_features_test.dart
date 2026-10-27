@@ -295,7 +295,7 @@ void main() {
       );
       await tester.pumpAndSettle();
       expect(find.textContaining('Dec 18, 2026'), findsOneWidget);
-      await tester.tap(find.text('Notify me · cinema release'));
+      await tester.tap(find.widgetWithText(OutlinedButton, 'Cinema'));
       await tester.pump();
       expect(api.followed, isTrue);
       expect(find.textContaining('Phone popups are off'), findsOneWidget);

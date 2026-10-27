@@ -45,7 +45,8 @@ void main() {
       container.read(appControllerProvider).reactions[item.key],
       'dislike',
     );
-    await tester.tap(find.text('Clear opinion'));
+    expect(find.text('Clear opinion'), findsNothing);
+    await tester.tap(find.text('Dislike'));
     await tester.pumpAndSettle();
     expect(container.read(appControllerProvider).watched, contains(item.key));
     expect(container.read(appControllerProvider).reactions, isEmpty);

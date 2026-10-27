@@ -22,54 +22,119 @@ class _TitleFeedbackState extends ConsumerState<TitleFeedback> {
     final controller = ref.read(appControllerProvider.notifier);
     final seen = state.watched.contains(item.key);
     final reaction = state.reactions[item.key];
+    final colors = Theme.of(context).colorScheme;
     return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
+      crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        FilterChip(
-          label: Text(seen ? 'Seen' : 'Mark as seen'),
-          avatar: Icon(
-            seen ? Icons.check_circle : Icons.check_circle_outline,
-            size: 18,
-          ),
-          selected: seen,
-          onSelected: (value) => save(
-            () => value
-                ? controller.markWatched(item)
-                : controller.removeWatched(item),
-          ),
-        ),
-        const SizedBox(height: 6),
-        Text(
-          seen
-              ? 'Your opinion · optional'
-              : 'Viewing status unspecified. You can still rate it.',
-          style: Theme.of(context).textTheme.bodySmall,
-        ),
-        const SizedBox(height: 8),
-        Wrap(
-          spacing: 8,
-          runSpacing: 6,
-          children: [
-            for (final entry in const {
-              'like': 'Like',
-              'dislike': 'Dislike',
-              'meh': 'Meh',
-              'super_like': 'Super Like',
-            }.entries)
-              ChoiceChip(
-                label: Text(entry.value),
-                selected: reaction == entry.key,
-                onSelected: (selected) => save(
-                  () => controller.react(item, selected ? entry.key : null),
+        Center(
+          child: Semantics(
+            toggled: seen,
+            child: OutlinedButton.icon(
+              style: OutlinedButton.styleFrom(
+                minimumSize: const Size(0, 44),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 18,
+                  vertical: 10,
                 ),
+                foregroundColor: seen ? colors.primary : colors.onSurface,
+                backgroundColor: colors.surfaceContainerLow,
+                side: BorderSide(color: seen ? colors.primary : colors.outline),
+                shape: const StadiumBorder(),
               ),
-          ],
-        ),
-        if (reaction != null)
-          TextButton(
-            onPressed: () => save(() => controller.react(item, null)),
-            child: const Text('Clear opinion'),
+              label: Text(seen ? 'Seen' : 'Mark as seen'),
+              icon: Icon(
+                seen
+                    ? Icons.check_circle_rounded
+                    : Icons.check_circle_outline_rounded,
+                size: 19,
+              ),
+              onPressed: () => save(
+                () => seen
+                    ? controller.removeWatched(item)
+                    : controller.markWatched(item),
+              ),
+            ),
           ),
+        ),
+        const SizedBox(height: 38),
+        Center(
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 360),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                LayoutBuilder(
+                  builder: (context, constraints) {
+                    final largeText =
+                        MediaQuery.textScalerOf(context).scale(13) > 17;
+                    final columns = constraints.maxWidth < 300 || largeText
+                        ? 2
+                        : 4;
+                    final width =
+                        (constraints.maxWidth - 8 * (columns - 1)) / columns;
+                    return Wrap(
+                      alignment: WrapAlignment.center,
+                      spacing: 8,
+                      runSpacing: 8,
+                      children: [
+                        for (final option in const [
+                          ('dislike', 'Dislike'),
+                          ('meh', 'Meh'),
+                          ('like', 'Like'),
+                          ('super_like', 'Super Like'),
+                        ])
+                          SizedBox(
+                            width: width,
+                            child: Semantics(
+                              selected: reaction == option.$1,
+                              hint: reaction == option.$1
+                                  ? 'Tap again to remove this rating'
+                                  : null,
+                              child: OutlinedButton(
+                                style: OutlinedButton.styleFrom(
+                                  minimumSize: const Size(0, 40),
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 4,
+                                    vertical: 8,
+                                  ),
+                                  foregroundColor: reaction == option.$1
+                                      ? colors.onPrimaryContainer
+                                      : colors.onSurface,
+                                  backgroundColor: reaction == option.$1
+                                      ? colors.primaryContainer
+                                      : colors.surfaceContainerLow,
+                                  side: BorderSide(
+                                    color: reaction == option.$1
+                                        ? colors.primary
+                                        : colors.outlineVariant,
+                                  ),
+                                  shape: const StadiumBorder(),
+                                ),
+                                onPressed: () => save(
+                                  () => controller.react(
+                                    item,
+                                    reaction == option.$1 ? null : option.$1,
+                                  ),
+                                ),
+                                child: Text(
+                                  option.$2,
+                                  textAlign: TextAlign.center,
+                                  style: const TextStyle(
+                                    fontSize: 13,
+                                    fontWeight: FontWeight.w600,
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ),
+                      ],
+                    );
+                  },
+                ),
+              ],
+            ),
+          ),
+        ),
         if (state.error != null)
           Text(
             state.error!,

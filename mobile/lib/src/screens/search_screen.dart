@@ -7,6 +7,7 @@ import '../state/app_controller.dart';
 import '../widgets/content_card.dart';
 import '../widgets/content_row.dart';
 import '../widgets/skeleton.dart';
+import '../widgets/nex_search_field.dart';
 
 class SearchScreen extends ConsumerStatefulWidget {
   const SearchScreen({super.key});
@@ -36,6 +37,7 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
       searching = value.trim().isNotEmpty;
       searchError = null;
     });
+    if (value.trim().isEmpty) return;
     debounce = Timer(const Duration(milliseconds: 320), () async {
       await ref.read(appControllerProvider.notifier).search(value);
       if (mounted && ticket == generation) {
@@ -56,15 +58,11 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
         children: [
           Padding(
             padding: const EdgeInsets.fromLTRB(16, 8, 16, 12),
-            child: TextField(
+            child: NexSearchField(
               controller: input,
               autofocus: true,
               onChanged: changed,
-              textInputAction: TextInputAction.search,
-              decoration: const InputDecoration(
-                prefixIcon: Icon(Icons.search),
-                hintText: 'Search movies and series by title',
-              ),
+              hintText: 'Search movies and series by title',
             ),
           ),
           if (searching)

@@ -10,7 +10,7 @@ import 'skeleton.dart';
 
 String displayReleaseDate(String? value) {
   final date = DateTime.tryParse(value ?? '');
-  return date == null ? 'Date not announced' : DateFormat.yMMMd().format(date);
+  return date == null ? 'Date not listed yet' : DateFormat.yMMMd().format(date);
 }
 
 class ReleaseDetails extends ConsumerStatefulWidget {
@@ -22,14 +22,25 @@ class ReleaseDetails extends ConsumerStatefulWidget {
 
 class _ReleaseDetailsState extends ConsumerState<ReleaseDetails> {
   late Future<Map<String, dynamic>> request;
-  bool saving = false;
+  final Map<String, bool> followOverrides = {};
+  final Set<String> savingKinds = {};
+  int generation = 0;
   @override
   void initState() {
     super.initState();
     load();
   }
 
+  @override
+  void didUpdateWidget(covariant ReleaseDetails oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.item.key != widget.item.key) load();
+  }
+
   void load() {
+    generation++;
+    followOverrides.clear();
+    savingKinds.clear();
     request = ref.read(appControllerProvider).demoMode
         ? Future.value({'releases': []})
         : ref
@@ -40,31 +51,44 @@ class _ReleaseDetailsState extends ConsumerState<ReleaseDetails> {
   }
 
   Future<void> follow(String kind, bool enabled) async {
-    setState(() => saving = true);
+    if (savingKinds.contains(kind)) return;
+    final ticket = generation;
+    final previous = followOverrides[kind];
+    final api = ref.read(nexApiClientProvider);
+    setState(() {
+      followOverrides[kind] = enabled;
+      savingKinds.add(kind);
+    });
     try {
-      final api = ref.read(nexApiClientProvider);
       await api.setReleaseFollow(widget.item, kind, enabled);
-      if (enabled) {
-        final allowed = await ReleaseNotificationService.instance.enable();
-        if (mounted) {
-          showNexNotice(
-            context,
-            allowed
-                ? 'Alert saved. New updates appear when Nex syncs.'
-                : 'Alert saved in Notifications. Phone popups are off.',
-          );
-        }
-      }
-      if (mounted) setState(load);
     } catch (_) {
-      if (mounted) {
-        showNexNotice(
-          context,
-          'Could not update this alert. Please try again.',
-        );
+      if (!mounted || ticket != generation) return;
+      setState(() {
+        if (previous == null) {
+          followOverrides.remove(kind);
+        } else {
+          followOverrides[kind] = previous;
+        }
+        savingKinds.remove(kind);
+      });
+      showNexNotice(context, 'Could not update this alert. Please try again.');
+      return;
+    }
+    if (!mounted || ticket != generation) return;
+    setState(() => savingKinds.remove(kind));
+    // Keep the loaded dates in place. OS permission affects popups, not the
+    // subscription already saved to the inbox.
+    if (enabled) {
+      final allowed = await ReleaseNotificationService.instance.enable();
+      if (!mounted || ticket != generation || followOverrides[kind] != true) {
+        return;
       }
-    } finally {
-      if (mounted) setState(() => saving = false);
+      showNexNotice(
+        context,
+        allowed
+            ? 'Alert saved. New updates appear when Nex syncs.'
+            : 'Alert saved in Notifications. Phone popups are off.',
+      );
     }
   }
 
@@ -95,7 +119,32 @@ class _ReleaseDetailsState extends ConsumerState<ReleaseDetails> {
                 r['date'] == null || (r['date'] as String).compareTo(day) >= 0,
           )
           .toList();
-      final subscriptions = data['subscriptions'] as List? ?? [];
+      final subscriptions = [
+        for (final s in data['subscriptions'] as List? ?? [])
+          if (!followOverrides.containsKey(s['kind'])) s,
+        for (final entry in followOverrides.entries)
+          {'kind': entry.key, 'enabled': entry.value},
+      ];
+      final alertKinds = ['cinema', 'digital'].where((kind) {
+        // A toggled control stays available so the user can change it back.
+        if (followOverrides.containsKey(kind)) return true;
+        if (subscriptions.any(
+          (s) => s['kind'] == kind && s['enabled'] == true,
+        )) {
+          return true;
+        }
+        final dates = (data['releases'] as List? ?? [])
+            .where((r) => r['kind'] == kind)
+            .toList();
+        if (dates.isEmpty &&
+            (widget.item.releaseDate == null ||
+                widget.item.releaseDate!.compareTo(day) < 0)) {
+          return false;
+        }
+        return !dates.any(
+          (r) => r['date'] != null && (r['date'] as String).compareTo(day) <= 0,
+        );
+      }).toList();
       if (releases.isEmpty &&
           subscriptions.isEmpty &&
           (widget.item.mediaType == MediaType.series ||
@@ -118,7 +167,7 @@ class _ReleaseDetailsState extends ConsumerState<ReleaseDetails> {
               const Padding(
                 padding: EdgeInsets.only(top: 8),
                 child: Text(
-                  'No upcoming cinema or digital date listed for your country.',
+                  'Our data source has no upcoming local date yet. A cinema or distributor may already have announced one.',
                 ),
               ),
             if (widget.item.mediaType == MediaType.movie &&
@@ -135,7 +184,7 @@ class _ReleaseDetailsState extends ConsumerState<ReleaseDetails> {
             if (widget.item.mediaType == MediaType.series &&
                 subscriptions.any((s) => s['kind'] == 'season'))
               OutlinedButton.icon(
-                onPressed: saving
+                onPressed: savingKinds.contains('season')
                     ? null
                     : () => follow(
                         'season',
@@ -171,50 +220,148 @@ class _ReleaseDetailsState extends ConsumerState<ReleaseDetails> {
               const Text(
                 'Dates may change. A premiere or digital release does not confirm availability on your subscriptions.',
               ),
-            if (widget.item.mediaType == MediaType.movie)
-              for (final kind in ['cinema', 'digital'])
-                Builder(
-                  builder: (context) {
-                    final enabled = subscriptions.any(
-                      (s) => s['kind'] == kind && s['enabled'] == true,
-                    );
-                    final dates = (data['releases'] as List? ?? [])
-                        .where((r) => r['kind'] == kind)
-                        .toList();
-                    if (!enabled &&
-                        dates.isEmpty &&
-                        (widget.item.releaseDate == null ||
-                            widget.item.releaseDate!.compareTo(day) < 0)) {
-                      return const SizedBox.shrink();
-                    }
-                    if (!enabled &&
-                        dates.any(
-                          (r) =>
-                              r['date'] != null &&
-                              (r['date'] as String).compareTo(day) <= 0,
-                        )) {
-                      return const SizedBox.shrink();
-                    }
-                    return OutlinedButton.icon(
-                      onPressed: saving ? null : () => follow(kind, !enabled),
-                      icon: Icon(
-                        enabled
-                            ? Icons.notifications_active_outlined
-                            : Icons.notifications_none,
-                      ),
-                      label: Text(
-                        enabled
-                            ? 'Stop $kind alert'
-                            : 'Notify me · $kind release',
-                      ),
+            if (widget.item.mediaType == MediaType.movie &&
+                alertKinds.isNotEmpty)
+              Padding(
+                padding: const EdgeInsets.only(top: 16),
+                child: LayoutBuilder(
+                  builder: (context, constraints) {
+                    final stacked =
+                        constraints.maxWidth < 300 ||
+                        MediaQuery.textScalerOf(context).scale(14) > 18;
+                    final width = stacked || alertKinds.length == 1
+                        ? constraints.maxWidth
+                        : (constraints.maxWidth - 12) / 2;
+                    return Wrap(
+                      spacing: 12,
+                      runSpacing: 12,
+                      children: [
+                        for (final kind in alertKinds)
+                          SizedBox(
+                            width: width,
+                            child: _ReleaseAlertButton(
+                              kind: kind,
+                              enabled: subscriptions.any(
+                                (s) =>
+                                    s['kind'] == kind && s['enabled'] == true,
+                              ),
+                              saving: savingKinds.contains(kind),
+                              onPressed: savingKinds.contains(kind)
+                                  ? null
+                                  : () => follow(
+                                      kind,
+                                      !subscriptions.any(
+                                        (s) =>
+                                            s['kind'] == kind &&
+                                            s['enabled'] == true,
+                                      ),
+                                    ),
+                            ),
+                          ),
+                      ],
                     );
                   },
                 ),
+              ),
           ],
         ),
       );
     },
   );
+}
+
+class _ReleaseAlertButton extends StatelessWidget {
+  const _ReleaseAlertButton({
+    required this.kind,
+    required this.enabled,
+    required this.saving,
+    required this.onPressed,
+  });
+
+  final String kind;
+  final bool enabled;
+  final bool saving;
+  final VoidCallback? onPressed;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
+    final title = kind == 'cinema' ? 'Cinema' : 'Digital';
+    final foreground = enabled ? colors.onPrimaryContainer : colors.onSurface;
+    return Semantics(
+      toggled: enabled,
+      label: '$title release alert',
+      hint: enabled ? 'Turn off this alert' : 'Notify me about this release',
+      child: OutlinedButton(
+        style: OutlinedButton.styleFrom(
+          minimumSize: const Size(0, 80),
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+          foregroundColor: foreground,
+          backgroundColor: enabled
+              ? colors.primaryContainer
+              : colors.surfaceContainerLow,
+          side: BorderSide(
+            color: enabled ? colors.primary : colors.outlineVariant,
+          ),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(18),
+          ),
+        ),
+        onPressed: onPressed,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Row(
+              children: [
+                Icon(
+                  kind == 'cinema'
+                      ? Icons.theaters_outlined
+                      : Icons.play_circle_outline,
+                  size: 21,
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    title,
+                    style: const TextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 8),
+            Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    saving
+                        ? 'Saving…'
+                        : enabled
+                        ? 'Alert on'
+                        : 'Notify me',
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: enabled ? foreground : colors.onSurfaceVariant,
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 6),
+                Icon(
+                  enabled
+                      ? Icons.check_rounded
+                      : Icons.notifications_none_rounded,
+                  size: 18,
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
 }
 
 class SeriesAlertSetting extends ConsumerStatefulWidget {
