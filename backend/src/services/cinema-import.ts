@@ -12,7 +12,11 @@ export class CinemaImporter {
     const snapshot=await this.deps.fetchSnapshot(chain);
     assertHealthySnapshot(snapshot,before);
     const previous=new Map((await this.repo.mappings(chain)).map(m=>[m.sourceId,m]));
-    const matched:CinemaMapping[]=[];let attempted=0,unresolved=0,deferred=0,budgetExhausted=false;
+    const matched:CinemaMapping[]=[];let attempted=0,unresolved=0,deferred=0,enrichmentFailed=0,budgetExhausted=false;
+    const defer=(entry:CinemaEntry,old:CinemaMapping|undefined)=>{
+      deferred++;
+      if(old&&old.title!==entry.title)matched.push({...old,title:entry.title,tmdbId:null,movieJson:null,identityHash:'pending',evidenceJson:'{"version":0}',checkedAt:0,dateHistoryJson:'[]'});
+    };
     for(const entry of snapshot.entries){
       const old=previous.get(entry.sourceId);
       const reusable=old?.title===entry.title&&old.tmdbId&&now-old.checkedAt<30*86400000;
@@ -20,21 +24,25 @@ export class CinemaImporter {
       // Failed matching is retried after one day, not on every manual rerun.
       if(old?.title===entry.title&&!old.tmdbId&&now-old.checkedAt<86400000&&JSON.parse(old.evidenceJson).version===3){unresolved++;continue;}
       if(budgetExhausted||attempted>=maxMatches||Date.now()>deadline){
-        deferred++;
-        if(old&&old.title!==entry.title)matched.push({...old,title:entry.title,tmdbId:null,movieJson:null,identityHash:'pending',evidenceJson:'{"version":0}',checkedAt:0,dateHistoryJson:'[]'});
+        defer(entry,old);
         continue;
       }
       attempted++;
-      const enriched=chain==='cinema_city'?await this.deps.enrich(entry):entry;
+      let enriched:CinemaEntry;
       let item:ContentItem|null;
-      try {item=await this.deps.match(enriched);}
+      try {
+        enriched=chain==='cinema_city'?await this.deps.enrich(entry):entry;
+        item=await this.deps.match(enriched);
+      }
       catch(error){
         if(error instanceof Error&&error.message==='CINEMA_MATCH_BUDGET'){
-          budgetExhausted=true;deferred++;
-          if(old&&old.title!==entry.title)matched.push({...old,title:entry.title,tmdbId:null,movieJson:null,identityHash:'pending',evidenceJson:'{"version":0}',checkedAt:0,dateHistoryJson:'[]'});
-          continue;
-        }
-        throw error;
+          budgetExhausted=true;
+        }else enrichmentFailed++;
+        // The complete list pair is already validated. One unavailable film
+        // detail must not stop membership updates for all the other films.
+        // Do not record a failed lookup as "unmatched" for the next 24 hours.
+        defer(entry,old);
+        continue;
       }
       if(!item)unresolved++;
       matched.push({chain,sourceId:entry.sourceId,title:entry.title,identityHash:identityFingerprint(enriched),tmdbId:item?.id??null,
@@ -45,6 +53,6 @@ export class CinemaImporter {
     // participates in membership reconciliation so deferred matches are not absences.
     const result=dryRun?{changed:0,total:snapshot.entries.length,matched:matched.filter(m=>m.tmdbId).length}
       :await this.repo.publish(snapshot,matched,before?.version??0,now);
-    return {chain,dryRun,...result,attempted,unresolved,deferred};
+    return {chain,dryRun,...result,attempted,unresolved,deferred,enrichmentFailed};
   }
 }

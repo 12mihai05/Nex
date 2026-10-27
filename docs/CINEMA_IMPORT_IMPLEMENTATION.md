@@ -22,7 +22,7 @@ Rollback: disable CINEMA_IMPORT_ENABLED and the workflow variable; existing TMDb
 - Production Turso migration `0016_real_klaw.sql` applied successfully; existing user/profile counts remained 1/1.
 - Initial production import completed in two bounded passes: Cineplexx 91 source variants, 57 confidently matched; Cinema City 105 variants, 65 matched. All source entries participate in membership tracking, including unresolved entries. Variants are not unique movies. Unresolved theatre/concert/event entries and insufficiently identified movies are withheld, never guessed.
 - Local repeat import: 0 changed listings, 0 matching requests; both chains completed in under half a second combined. Remote cold/bootstrap work is slower and runs only in the scheduler.
-- Backend full check/build passed: 417 tests; an additional transient-database regression then passed with all 18 cinema tests. Flutter full suite passed: 139 tests, 20 pre-existing skips; analyzer clean. Light/dark cinema-card renders reviewed, including large text tests.
+- Backend typecheck/lint/build passed. Final test suite includes 419 tests, including 19 cinema cases. Flutter full suite passed: 139 tests, 20 pre-existing skips; analyzer clean. Light/dark cinema-card renders reviewed, including large text tests. Android debug APK built successfully against the production backend.
 - Verified failures: malformed/empty/oversized payloads, HTTP/HTML errors, suspicious population drops, chain isolation, stale sources, duplicate variants, ambiguous identities, reissues, conflicting dates, initial backfills, spaced absence/removal/reappearance, unchanged imports, concurrent publishers, matching budgets, stable Upcoming pagination and country isolation.
 - Fixed a related regional-date bug: Upcoming now checks actual country-specific TMDb theatrical dates instead of presenting a worldwide premiere as Romania's date.
 - Secret scan: 1,449 text artifacts checked, no configured secret values found. No OpenAI calls are used by import/matching.
@@ -33,6 +33,20 @@ Rollback: disable CINEMA_IMPORT_ENABLED and the workflow variable; existing TMDb
 
 Manual sync: `npx tsx backend/scripts/sync-cinema.ts --apply` with the feature flag enabled. Omit `--apply` for a read/matching trial (TMDb public cache may still populate). `--local --apply` writes only the isolated local cinema trial database. Source failures return a nonzero status and retain the last healthy data. A partial identity batch resumes on the next run; unmatched identities retry daily, verified identities refresh after 30 days.
 
+A failed detail/identity lookup no longer discards a healthy full-list snapshot: that movie is deferred, changed identities are invalidated, other membership updates are published, and the scheduler exits nonzero to flag the incomplete enrichment. A retry is permitted immediately. Unchanged verified mappings remain available. Full list/schema failures still reject the chain snapshot.
+
 No location-level screenings are promised. "Listed at" reflects a chain's national catalog; a cinema run can be a reissue or delayed local opening. Unknown identities remain unavailable until evidence is sufficient. Public website endpoints can change or become unavailable, so this is not guaranteed complete coverage of Romanian cinemas. First-premiere alerts deliberately exclude reissues and past-date backfills. Confirmed listings disappear after two healthy absences, not immediately on a transient failure. Minimal identity/date provenance remains after inactive listing cleanup; user history and movie records are never deleted by this importer.
 
 Upcoming supplemental membership is frozen per calendar day for stable numbered pagination; a newly imported title may appear the next day if that day's snapshot was already opened. This does not delay fresh detail-page dates. Source freshness is 72 hours, with up to one additional daily Upcoming snapshot lifetime. Device notification delivery and physical Samsung rendering still require the user's phone check.
+
+## Production end-to-end result
+
+`verify-cinema-deployment.ts` passed against `https://nex-three-omega.vercel.app` using a new disposable account, deleted successfully afterward. Checks covered unauthorized access, Romanian dates/provenance, translation/credits, Endgame retaining its 2019 identity and no fake 2026 premiere, four Upcoming pages without duplicate IDs, alert opt-in/out persistence, GB isolation, empty notification inbox and unchanged Taste/history/watchlist.
+
+Confirmed source facts at verification: How to Rob a Bank (TMDb 1437511), 13 November 2026, both chains; Dune 3 (1170608), 18 December 2026, both chains; Avengers: Doomsday (1003596), 18 December 2026, confidently mapped Cinema City. The dates are source claims and can change. Measured live release endpoints: 180–354 ms; Upcoming pages: 159–820 ms in this run, including network/authentication. These samples are not latency guarantees.
+
+Production feature flag and GitHub variable enabled. The manually dispatched cinema workflow [40602277411](https://github.com/12mihai05/Nex/actions/runs/40602277411) succeeded, including the actual import step. Daily schedule execution on a future day has not yet been observed. No AI extraction, embeddings or paid service was used for this import.
+
+The existing movie/season release workflow also succeeded with cinema support enabled: [40602520252](https://github.com/12mihai05/Nex/actions/runs/40602520252).
+
+Phone check: rerun Flutter, search the three titles above, open their dates, enable/disable an alert, check Upcoming scroll/close, and check Vacanță all inclusive's Romanian synopsis. Try both themes. The existing phone notification permission/delivery behavior was not retested on hardware in this run.

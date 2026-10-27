@@ -29,7 +29,13 @@ async function main(){
   let failed=0;
   for(const chain of selected?[selected as CinemaChain]:['cineplexx','cinema_city'] as const){
     const started=Date.now();
-    try{console.log(JSON.stringify({...await importer.sync(chain,{dryRun:!apply,deadline}),elapsedMs:Date.now()-started}));}
+    try{
+      const result=await importer.sync(chain,{dryRun:!apply,deadline});
+      console.log(JSON.stringify({...result,elapsedMs:Date.now()-started}));
+      // Publish validated membership, but keep partial enrichment failures
+      // visible to the scheduler rather than silently reporting full success.
+      if(result.enrichmentFailed)failed++;
+    }
     catch(error){
       failed++;
       if(apply)await repo.failure(chain,started).catch(()=>{});

@@ -200,3 +200,15 @@ it('a temporary cinema lookup failure does not cache an empty upcoming list',asy
   expect((await catalog.upcoming('RO','2026-10-28',1)).items.map(i=>i.id)).toEqual([100]);
   expect(lookup).toHaveBeenCalledTimes(2);
 });
+it('one unavailable identity keeps healthy membership fresh, invalidates changed titles and retries next run',async()=>{
+  const database=await db(),repo=new CinemaRepository(database);
+  await repo.publish(snapshot(),[mapping()],0,now);
+  const changed={...entry,title:'A different film'},b={...entry,sourceId:'b'};
+  const importer=new CinemaImporter(repo,{fetchSnapshot:async()=>snapshot([changed,b]),enrich:async e=>{if(e.sourceId==='a')throw new Error('CINEMA_HTTP_404');return e;},match:async()=>({...movie,id:101})});
+  expect(await importer.sync('cinema_city',{now:now+day})).toMatchObject({total:2,matched:1,deferred:1,enrichmentFailed:1});
+  expect((await repo.info(100,now+day)).listings).toEqual([]);
+  expect((await repo.info(101,now+day)).listings).toHaveLength(1);
+  expect((await repo.state('cinema_city'))?.checkedAt).toBe(now+day);
+  const retry=new CinemaImporter(repo,{fetchSnapshot:async()=>snapshot([changed,b]),enrich:async e=>e,match:async()=>({...movie,id:102})});
+  expect(await retry.sync('cinema_city',{now:now+day+1000})).toMatchObject({matched:2,deferred:0,enrichmentFailed:0});
+});
