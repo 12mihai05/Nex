@@ -24,10 +24,12 @@ Audit date: 2026-10-28. Sources: Cinema City Romania and Cineplexx Romania. No n
 ## Verification
 
 - Backend: 426 tests across 44 files; typecheck, lint and production build passed.
-- Flutter: 140 tests passed, 20 existing skips; analyzer passed. No physical-device check in this audit.
+- Flutter: 140 tests passed, 20 existing skips; analyzer and Android debug APK build passed. No physical-device check in this audit.
 - Secret scan: 1,459 files checked; no credential matches.
 - Full production source/database audit passed after import: 141 matched variants, 87 unique titles, zero membership mismatches or identity-review flags.
-- Baseline deployed endpoint audit checked all 76 then-matched movies, all Upcoming pages and UK isolation, with no failures. Repeat the updated deployment audit after publishing these fixes; it additionally checks standard-version preference and film-specific Cineplexx links.
+- Final deployed endpoint audit on code commit `8567088`: all 87 matched movie endpoints in Romania and again in the UK, standard-version preference, film-specific Cineplexx links, and every Upcoming page passed with zero failures. The catalog contained 33 currently listed and 54 upcoming matched movies. All 54 expected future source movies appeared; Upcoming had 58 distinct movies including TMDb-only entries, in pages of 20, 20, 14 and 4. No duplicate IDs. Request latency across this audit: median 188 ms, minimum 146 ms, maximum 2,890 ms (not a load test).
+- Additional deployed checks passed for the three reported Romanian premiere dates, Romanian synopsis fallback, original-year preservation on rereleases, cinema-alert enable/disable, absence of unsolicited notifications and unchanged empty test-user Taste/libraries. Both disposable test accounts were deleted successfully. Physical OS notification delivery was not tested.
+- Production domains `nex-three-omega.vercel.app` and `nex-mihai19.vercel.app` both served ready code commit `8567088`. The scheduled importer was manually dispatched on that commit and all steps passed: https://github.com/12mihai05/Nex/actions/runs/40605908343 .
 
 Reproducible checks: `backend/scripts/audit-cinema-catalog.ts` and `backend/scripts/audit-cinema-deployment.ts`. Reports contain public movie facts/counts only and are saved under ignored `.tooling/`. The deployment audit uses a disposable account and deletes it afterward.
 
