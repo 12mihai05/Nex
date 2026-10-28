@@ -7,6 +7,15 @@ import {contentItemSchema,type ContentItem} from '../domain/types.js';
 
 export type CinemaMapping=typeof mappings.$inferInsert;
 export const cinemaFreshMs=72*3600000;
+type CinemaRow={listing:typeof listings.$inferSelect;mapping:typeof mappings.$inferSelect};
+function foreignDub(row:CinemaRow){
+  const original=JSON.parse(row.mapping.evidenceJson).originalTitle??'';
+  return [row.mapping.title,original].some(t=>/^hu\s|\bhu[\s-]+dub\b/i.test(t));
+}
+function preferredVariants<T extends CinemaRow>(rows:T[]):T[]{
+  const standard=new Set(rows.filter(r=>!foreignDub(r)).map(r=>`${r.listing.chain}:${r.listing.tmdbId}`));
+  return rows.filter(r=>!foreignDub(r)||!standard.has(`${r.listing.chain}:${r.listing.tmdbId}`));
+}
 export class CinemaRepository {
   constructor(private db:NexDatabase){}
   async state(chain:CinemaChain){return (await this.db.select().from(sources).where(eq(sources.chain,chain)))[0];}
@@ -63,29 +72,36 @@ export class CinemaRepository {
   }
 
   async info(id:number,now=Date.now()):Promise<CinemaInfo>{
-    const rows=await this.db.select({listing:listings,source:sources}).from(listings).innerJoin(sources,eq(listings.chain,sources.chain))
+    const rows=await this.db.select({listing:listings,source:sources,mapping:mappings}).from(listings).innerJoin(sources,eq(listings.chain,sources.chain))
+      .innerJoin(mappings,and(eq(listings.chain,mappings.chain),eq(listings.sourceId,mappings.sourceId)))
       .where(and(eq(listings.tmdbId,id),eq(listings.active,true),gt(sources.checkedAt,now-cinemaFreshMs)));
     const day=calendarDay(new Date(now),'Europe/Bucharest');
     const unique=new Map<string,CinemaListing>();
-    for(const {listing:r,source:s} of rows){
+    for(const row of preferredVariants(rows)){
+      const {listing:r,source:s}=row;
       const chain=r.chain as CinemaChain;
       const status=r.runDate&&r.runDate>day?'upcoming':r.current&&r.runDate&&r.runDate<=day?'listed':'past';
-      const item:CinemaListing={chain,name:chainNames[chain],date:r.runDate,dateKind:r.dateKind as CinemaListing['dateKind'],status,sourceUrl:r.sourceUrl,checkedAt:new Date(r.missingSince??s.checkedAt).toISOString(),firstObservedAt:new Date(r.dateObservedAt).toISOString()};
+      const item:CinemaListing={chain,name:chainNames[chain],date:r.runDate,dateKind:r.dateKind as CinemaListing['dateKind'],status,sourceUrl:r.sourceUrl,checkedAt:new Date(r.missingSince??s.checkedAt).toISOString(),firstObservedAt:new Date(r.dateObservedAt).toISOString(),...(foreignDub(row)?{variant:'Hungarian dubbed' as const}:{})};
       const key=`${chain}:${r.runDate}`;
       const previous=unique.get(key);
       if(!previous||status==='listed')unique.set(key,item);
     }
     const result=[...unique.values()].sort((a,b)=>(a.date??'').localeCompare(b.date??'')||a.name.localeCompare(b.name));
-    return {country:'RO',listings:result,dateConflict:new Set(result.filter(r=>r.dateKind==='initial'&&r.date).map(r=>r.date)).size>1};
+    return {country:'RO',listings:result,dateConflict:new Set(result.filter(r=>r.dateKind==='initial'&&r.date&&!r.variant).map(r=>r.date)).size>1};
   }
 
   async upcoming(day:string,now=Date.now()):Promise<ContentItem[]>{
     const rows=await this.db.select({listing:listings,mapping:mappings}).from(listings)
       .innerJoin(sources,eq(listings.chain,sources.chain))
       .innerJoin(mappings,and(eq(listings.chain,mappings.chain),eq(listings.sourceId,mappings.sourceId)))
-      .where(and(eq(listings.active,true),gt(listings.runDate,day),gt(sources.checkedAt,now-cinemaFreshMs)));
+      .where(and(eq(listings.active,true),gt(sources.checkedAt,now-cinemaFreshMs)));
     const movies=new Map<number,ContentItem>();
-    for(const {listing:r,mapping:m} of rows){
+    for(const row of preferredVariants(rows)){
+      const {listing:r,mapping:m}=row;
+      // A later foreign dub is not a new Romanian cinema premiere. Select
+      // variants before date filtering, so a currently playing standard film
+      // does not return to Upcoming solely because of its later dub.
+      if(foreignDub(row)||!r.runDate||r.runDate<=day)continue;
       if(!m.tmdbId||!m.movieJson)continue;
       const parsed=contentItemSchema.safeParse(JSON.parse(m.movieJson));if(!parsed.success)continue;
       const previous=movies.get(m.tmdbId);
@@ -98,7 +114,7 @@ export class CinemaRepository {
 }
 
 export function supplementReleases(info:ReleaseInfo,cinema:CinemaInfo,now=Date.now()):ReleaseInfo{
-  const dateRows=cinema.listings.filter(l=>l.date&&l.dateKind==='initial');
+  const dateRows=cinema.listings.filter(l=>l.date&&l.dateKind==='initial'&&!l.variant);
   const dates=[...new Set(dateRows.map(l=>l.date!))];
   const existing=info.releases.find(r=>r.kind==='cinema');
   const conflict=cinema.dateConflict||!!(existing?.date&&dates.some(d=>d!==existing.date));

@@ -4,8 +4,16 @@ import type {CinemaEntry} from '../domain/cinema.js';
 import type {TmdbRepository} from '../repositories/tmdb-repository.js';
 
 export function cinemaTitle(value:string){
-  return normalizeSearch(value.replace(/\bhu\s+dub\b|\b(?:2d|3d|imax|4dx)\b|\b(?:dublat|subtitrat)\b/gi,'').replace(/^hu\s+/i,'').replace(/\s+(?:dub|encore|proiec[tț]ie special[aă])\s*$/i,''));
+  return normalizeSearch(value.replace(/\s*\((?:18[89]\d|19\d{2}|20\d{2}|21\d{2})\)\s*$/,'').replace(/\bhu\s+dub\b|\b(?:2d|3d|imax|4dx)\b|\b(?:dublat|subtitrat)\b/gi,'').replace(/^hu\s+/i,'').replace(/\s+(?:dub|encore|proiec[tț]ie special[aă])\s*$/i,''));
 }
+export const cinemaMatchVersion=6;
+function titleSimilarity(a:string,b:string){
+  // Cinema City's feed can truncate a long title in the middle of its final
+  // word. Credits are still mandatory for every non-exact title match.
+  const truncated=(a.length>=32&&b.startsWith(a))||(b.length>=32&&a.startsWith(b));
+  return Math.max(titleRelevance(a,b),titleRelevance(b,a),truncated?.94:0);
+}
+function originalYear(entry:CinemaEntry){return entry.originalYear??(Number(entry.originalTitle?.match(/\((18[89]\d|19\d{2}|20\d{2}|21\d{2})\)\s*$/)?.[1])||null);}
 export type CinemaCandidate={item:ContentItem;aliases:string[]};
 export function chooseCinemaMatch(entry:CinemaEntry,candidates:CinemaCandidate[]):ContentItem|null {
   const titles=[entry.title,entry.originalTitle??''].map(cinemaTitle).filter(Boolean);
@@ -13,14 +21,15 @@ export function chooseCinemaMatch(entry:CinemaEntry,candidates:CinemaCandidate[]
     if(item.mediaType!=='movie')return false;
     const names=[item.title,item.originalTitle??'',...aliases].map(cinemaTitle).filter(Boolean);
     const exact=titles.some(t=>names.includes(t));
-    const strong=exact||titles.some(t=>names.some(n=>titleRelevance(t,n)>=.9));
+    const strong=exact||titles.some(t=>names.some(n=>titleSimilarity(t,n)>=.9));
     if(!strong)return false;
     const director=!!item.director&&entry.directors.some(d=>normalizeSearch(d)===normalizeSearch(item.director!));
-    const cast=entry.actors.filter(a=>item.cast.some(c=>normalizeSearch(a)===normalizeSearch(c))).length;
+    const cast=[...new Set(entry.actors.map(normalizeSearch))].filter(a=>item.cast.some(c=>a===normalizeSearch(c))).length;
     // Production year is used only when the source explicitly provides it.
     // A cinema run's date/year NEVER supplies identity evidence.
-    const year=entry.originalYear!==null&&item.year!==null&&Math.abs(entry.originalYear-item.year)<=1;
-    if(entry.originalYear!==null&&item.year!==null&&!year)return false;
+    const sourceYear=originalYear(entry);
+    const year=sourceYear!==null&&item.year!==null&&Math.abs(sourceYear-item.year)<=1;
+    if(sourceYear!==null&&item.year!==null&&!year)return false;
     return exact?(year||director||cast>=2):(director&&cast>=2);
   });
   const distinct=new Map(accepted.map(c=>[c.item.id,c.item]));
@@ -28,7 +37,7 @@ export function chooseCinemaMatch(entry:CinemaEntry,candidates:CinemaCandidate[]
 }
 
 export class CinemaMatcher {
-  private searches=new Map<string,Promise<Array<{id:number;title:string}>>>();
+  private searches=new Map<string,Promise<Array<{id:number;title:string;original_title?:string;release_date?:string}>>>();
   private details=new Map<number,Promise<ContentItem|null>>();
   requests=0;
   constructor(private token:string,private catalog:TmdbRepository,private maxRequests=250,private known:CinemaCandidate[]=[]){}
@@ -41,7 +50,7 @@ export class CinemaMatcher {
       url.searchParams.set('query',query);url.searchParams.set('language',language);url.searchParams.set('include_adult','false');
       const response=await fetch(url,{headers:{Authorization:`Bearer ${this.token}`},signal:AbortSignal.timeout(12000)});
       if(!response.ok)throw new Error('CINEMA_TMDB_SEARCH_FAILED');
-      const data=await response.json() as {results:Array<{id:number;title:string}>};
+      const data=await response.json() as {results:Array<{id:number;title:string;original_title?:string;release_date?:string}>};
       if(!Array.isArray(data.results))throw new Error('CINEMA_TMDB_SCHEMA');
       return data.results.slice(0,20);
     })();this.searches.set(key,pending);}
@@ -57,15 +66,19 @@ export class CinemaMatcher {
     const candidates=new Map<number,string[]>();
     for(const row of found.flat()){
       if(!Number.isInteger(row.id)||!row.title)continue;
-      if(![entry.title,entry.originalTitle??''].some(t=>t&&titleRelevance(cinemaTitle(t),cinemaTitle(row.title))>=.8))continue;
-      candidates.set(row.id,[...(candidates.get(row.id)??[]),row.title]);
+      const names=[row.title,row.original_title??''].filter(Boolean);
+      if(![entry.title,entry.originalTitle??''].some(t=>t&&names.some(n=>titleSimilarity(cinemaTitle(t),cinemaTitle(n))>=.8)))continue;
+      const sourceYear=originalYear(entry),candidateYear=Number(row.release_date?.slice(0,4))||null;
+      if(sourceYear&&candidateYear&&Math.abs(sourceYear-candidateYear)>1)continue;
+      candidates.set(row.id,[...new Set([...(candidates.get(row.id)??[]),...names])]);
     }
     const exactTitles=[entry.title,entry.originalTitle??''].map(cinemaTitle).filter(Boolean);
     const exactIds=[...candidates].filter(([,aliases])=>aliases.some(a=>exactTitles.includes(cinemaTitle(a)))).map(([id])=>id);
     if(exactIds.length)for(const id of candidates.keys())if(!exactIds.includes(id))candidates.delete(id);
-    // Too many plausible identities means ambiguity, not permission to pick
-    // the most popular. Never silently truncate ambiguous candidates.
-    if(candidates.size>6)return null;
+    // Check the entire bounded search result set. A common title is not itself
+    // ambiguity: credits/year may uniquely identify it. Budget exhaustion is
+    // deferred by the importer, never permission to accept a partial shortlist.
+    if(candidates.size>40)return null;
     const detailed:CinemaCandidate[]=[];
     for(const [id,aliases] of candidates){
       if(!this.details.has(id)){

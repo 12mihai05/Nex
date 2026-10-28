@@ -50,6 +50,38 @@ class CinemaApi extends ReleaseApi {
 
 void main() {
   final visual = Platform.environment['NEX_VISUAL_QA'] == '1';
+  testWidgets(
+    'current cinema copy is natural and a sole foreign dub is identified',
+    (tester) async {
+      await tester.pumpWidget(
+        const MaterialApp(
+          home: Scaffold(
+            body: CinemaDetails(
+              data: {
+                'listings': [
+                  {
+                    'name': 'Cinema City',
+                    'status': 'listed',
+                    'sourceUrl': 'https://www.cinemacity.ro/',
+                  },
+                  {
+                    'name': 'Cineplexx',
+                    'status': 'listed',
+                    'variant': 'Hungarian dubbed',
+                    'sourceUrl': 'https://www.cineplexx.ro/film/HO00007086',
+                  },
+                ],
+              },
+            ),
+          ),
+        ),
+      );
+      expect(find.text('In cinemas now'), findsOneWidget);
+      expect(find.text('In cinemas now · Hungarian dubbed'), findsOneWidget);
+      expect(find.text('Listed at this cinema chain'), findsNothing);
+      expect(tester.takeException(), isNull);
+    },
+  );
   if (visual) LiveTestWidgetsFlutterBinding();
   for (final dark in [false, true]) {
     for (final scale in [1.0, 1.6]) {

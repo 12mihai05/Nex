@@ -2,6 +2,7 @@ import {assertHealthySnapshot,identityFingerprint,type CinemaChain,type CinemaEn
 import {CinemaRepository,type CinemaMapping} from '../repositories/cinema-repository.js';
 import {cinemaCityIdentity,fetchCinemaSnapshot} from './cinema-sources.js';
 import type {ContentItem} from '../domain/types.js';
+import {cinemaMatchVersion} from './cinema-matching.js';
 
 type ImportDependencies={fetchSnapshot:(chain:CinemaChain)=>Promise<CinemaSnapshot>;enrich:(entry:CinemaEntry)=>Promise<CinemaEntry>;match:(entry:CinemaEntry)=>Promise<ContentItem|null>};
 export class CinemaImporter {
@@ -22,7 +23,7 @@ export class CinemaImporter {
       const reusable=old?.title===entry.title&&old.tmdbId&&now-old.checkedAt<30*86400000;
       if(reusable){matched.push(old);continue;}
       // Failed matching is retried after one day, not on every manual rerun.
-      if(old?.title===entry.title&&!old.tmdbId&&now-old.checkedAt<86400000&&JSON.parse(old.evidenceJson).version===3){unresolved++;continue;}
+      if(old?.title===entry.title&&!old.tmdbId&&now-old.checkedAt<86400000&&JSON.parse(old.evidenceJson).version===cinemaMatchVersion){unresolved++;continue;}
       if(budgetExhausted||attempted>=maxMatches||Date.now()>deadline){
         defer(entry,old);
         continue;
@@ -46,7 +47,7 @@ export class CinemaImporter {
       }
       if(!item)unresolved++;
       matched.push({chain,sourceId:entry.sourceId,title:entry.title,identityHash:identityFingerprint(enriched),tmdbId:item?.id??null,
-        evidenceJson:JSON.stringify({originalTitle:enriched.originalTitle,originalYear:enriched.originalYear,directors:enriched.directors,actors:enriched.actors,version:3}),
+        evidenceJson:JSON.stringify({originalTitle:enriched.originalTitle,originalYear:enriched.originalYear,directors:enriched.directors,actors:enriched.actors,version:cinemaMatchVersion}),
         movieJson:item?JSON.stringify({...item,availability:[]}):null,checkedAt:now,dateHistoryJson:old?.dateHistoryJson??'[]'});
     }
     // A partial identity-enrichment batch is allowed; every source ID still

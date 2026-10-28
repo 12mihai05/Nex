@@ -10,7 +10,8 @@ import {matchesGenre} from '../services/content-traits.js';
 import {createHash} from "node:crypto";
 import {lt} from "drizzle-orm";
 import { normalizeVideos, seasonSummarySchema, episodeSchema, type TitleExtras, type SeasonExtras } from "../domain/title-extras.js";
-import { releaseDate, movieReleases, seriesReleases, type ReleaseInfo } from '../domain/releases.js';
+import { releaseDate, movieReleases, nextCinemaDate, seriesReleases, type ReleaseInfo } from '../domain/releases.js';
+import {cinemaDateKind} from '../domain/cinema.js';
 import {CinemaRepository,supplementReleases} from './cinema-repository.js';
 
 export interface CatalogSearchOptions {
@@ -115,7 +116,7 @@ export class LiveTmdbRepository implements TmdbRepository {
     if(country==='RO'&&getConfig().CINEMA_IMPORT_ENABLED==='true'){
       // Freeze supplemental membership for this calendar/day browse. Stable
       // prefix pages prevent skipped IDs when an importer publishes mid-browse.
-      const key=`cinema-upcoming:v1:${country}:${day}`;
+      const key=`cinema-upcoming:v2:${country}:${day}`;
       const cached=await this.readCache(key);
       if(Array.isArray(cached))supplement=cached.map(i=>contentItemSchema.parse(i));
       else{
@@ -139,8 +140,8 @@ export class LiveTmdbRepository implements TmdbRepository {
     const items=await Promise.all(payload.results.map(async raw=>{
       const item=await this.summaryToItem({...raw,media_type:'movie'},country,true);
       const dates=await this.request(`/movie/${item.id}/release_dates`,{});
-      const localDate=movieReleases(dates,country).find(r=>r.kind==='cinema')?.date??null;
-      return {...item,releaseDate:localDate,releaseCountry:country,metadataOnly:true};
+      const localDate=nextCinemaDate(dates,country,day);
+      return {...item,releaseDate:localDate,releaseCountry:country,cinemaDateKind:cinemaDateKind(item.releaseDate??null,localDate),metadataOnly:true};
     }));
     const supplementalIds=new Set(supplement.map(i=>i.id));
     return {items:items.filter(i=>i.releaseDate&&i.releaseDate>day&&!supplementalIds.has(i.id)).sort((a,b)=>a.releaseDate!.localeCompare(b.releaseDate!)||a.id-b.id),hasMore:upstreamPage<Math.min(payload.total_pages,500)};

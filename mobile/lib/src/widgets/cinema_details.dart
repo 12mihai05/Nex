@@ -73,12 +73,14 @@ class CinemaDetails extends StatelessWidget {
   }
 
   String _status(Map row) {
-    if (row['status'] == 'listed') return 'Listed at this cinema chain';
+    final variant = row['variant'] as String?;
+    final suffix = variant == null ? '' : ' · $variant';
+    if (row['status'] == 'listed') return 'In cinemas now$suffix';
     final date = DateTime.tryParse(row['date'] as String? ?? '');
     final label = row['dateKind'] == 'reissue' ? 'Cinema run' : 'Expected';
     return date == null
-        ? 'Date not listed yet'
-        : '$label ${DateFormat.yMMMd().format(date)}';
+        ? 'Date not listed yet$suffix'
+        : '$label ${DateFormat.yMMMd().format(date)}$suffix';
   }
 
   Future<void> _open(BuildContext context, String value) async {

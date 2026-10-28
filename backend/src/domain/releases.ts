@@ -14,6 +14,10 @@ export function calendarDay(now = new Date(), timezone = 'Europe/Bucharest'): st
 export type Release = {key:string; kind:'cinema'|'digital'|'season'; date:string|null; season:number|null; country:string|null;source?:'cinema_listing';sourceUrl?:string;alertEligible?:boolean};
 export type ReleaseInfo = {title:string; releases:Release[];cinema?:import('./cinema.js').CinemaInfo};
 const movieDates = z.object({results:z.array(z.object({iso_3166_1:z.string(),release_dates:z.array(z.object({type:z.number(),release_date:z.string()}))})).default([])});
+export function nextCinemaDate(raw:unknown,country:string,afterDay:string):string|null {
+  const rows=movieDates.parse(raw).results.find(r=>r.iso_3166_1===country)?.release_dates??[];
+  return rows.filter(r=>[2,3].includes(r.type)).map(r=>releaseDate(r.release_date)).filter((d):d is string=>!!d&&d>afterDay).sort()[0]??null;
+}
 export function movieReleases(raw:unknown,country:string):Release[] {
   const parsed=movieDates.parse(raw);
   const rows=parsed.results.find(r=>r.iso_3166_1===country)?.release_dates??[];

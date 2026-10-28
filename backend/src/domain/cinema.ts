@@ -9,7 +9,7 @@ export type CinemaEntry={sourceId:string;title:string;originalTitle:string|null;
 export type CinemaSnapshot={chain:CinemaChain;entries:CinemaEntry[];currentCount:number;upcomingCount:number;hash:string};
 export const fingerprint=(value:unknown)=>createHash('sha256').update(JSON.stringify(value)).digest('hex');
 export function identityFingerprint(entry:CinemaEntry){return fingerprint([entry.title,entry.originalTitle,entry.originalYear,entry.directors,entry.actors]);}
-export type CinemaListing={chain:CinemaChain;name:string;date:string|null;dateKind:'initial'|'reissue'|'unknown';status:'listed'|'upcoming'|'past';sourceUrl:string;checkedAt:string;firstObservedAt:string};
+export type CinemaListing={chain:CinemaChain;name:string;date:string|null;dateKind:'initial'|'reissue'|'unknown';status:'listed'|'upcoming'|'past';sourceUrl:string;checkedAt:string;firstObservedAt:string;variant?:'Hungarian dubbed'};
 export type CinemaInfo={country:'RO';listings:CinemaListing[];dateConflict:boolean};
 
 const short=z.string().min(1).max(500);
@@ -32,7 +32,7 @@ export function assertSourceUrl(url:string,chain:CinemaChain):string {
 export function parseCinemaSnapshot(chain:CinemaChain,current:unknown,upcoming:unknown):CinemaSnapshot {
   const parse=(raw:unknown,isCurrent:boolean):CinemaEntry[]=>chain==='cinema_city'
     ?ccFeed.parse(raw).body.posters.map(r=>({sourceId:r.code,title:r.featureTitle.trim(),originalTitle:null,originalYear:null,directors:[],actors:[],date:r.dateStarted,url:assertSourceUrl(r.url,chain),current:isCurrent,upcoming:!isCurrent}))
-    :cpFeed.parse(raw).map(r=>({sourceId:r.id,title:(r.titleCalculated||r.title).trim(),originalTitle:r.titleOriginalCalculated?.trim()||null,originalYear:null,directors:r.directors,actors:r.actors,date:r.startDate??r.openingDate,url:'https://www.cineplexx.ro/',current:isCurrent,upcoming:!isCurrent}));
+    :cpFeed.parse(raw).map(r=>({sourceId:r.id,title:(r.titleCalculated||r.title).trim(),originalTitle:r.titleOriginalCalculated?.trim()||null,originalYear:null,directors:r.directors,actors:r.actors,date:r.startDate??r.openingDate,url:assertSourceUrl(`https://www.cineplexx.ro/film/${encodeURIComponent(r.id)}`,chain),current:isCurrent,upcoming:!isCurrent}));
   const a=parse(current,true),b=parse(upcoming,false),entries=new Map<string,CinemaEntry>();
   for(const list of [a,b]){
     if(new Set(list.map(e=>e.sourceId)).size!==list.length)throw new Error('CINEMA_DUPLICATE_SOURCE_ID');

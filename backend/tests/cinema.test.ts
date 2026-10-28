@@ -6,11 +6,11 @@ import {eq} from 'drizzle-orm';
 import {fileURLToPath} from 'node:url';
 import * as schema from '../src/db/schema.js';
 import {assertHealthySnapshot,cinemaDateKind,enrichCinemaCity,fingerprint,parseCinemaSnapshot,type CinemaEntry,type CinemaSnapshot} from '../src/domain/cinema.js';
-import {chooseCinemaMatch} from '../src/services/cinema-matching.js';
+import {chooseCinemaMatch,CinemaMatcher,cinemaTitle} from '../src/services/cinema-matching.js';
 import {CinemaRepository,supplementReleases,type CinemaMapping} from '../src/repositories/cinema-repository.js';
 import {CinemaImporter} from '../src/services/cinema-import.js';
 import {eligibleReleases} from '../src/services/release-tracking.js';
-import {LiveTmdbRepository} from '../src/repositories/tmdb-repository.js';
+import {LiveTmdbRepository,FixtureTmdbRepository} from '../src/repositories/tmdb-repository.js';
 import {fixtureCatalog} from '../src/fixtures/catalog.js';
 import {resetConfigForTests} from '../src/config.js';
 import {fetchCinemaText} from '../src/services/cinema-sources.js';
@@ -32,6 +32,8 @@ it('validates every source entry, collapses variant membership and preserves loc
   expect(()=>parseCinemaSnapshot('cinema_city',{body:{posters:[...raw.body.posters,{...raw.body.posters[0],code:'b',dateStarted:'2026-02-30'}]}},raw)).toThrow();
   expect(()=>parseCinemaSnapshot('cinema_city',{body:{posters:[{...raw.body.posters[0],url:'http://localhost/admin'}]}},raw)).toThrow();
   expect(()=>parseCinemaSnapshot('cineplexx',{items:[],nextPage:2},[])).toThrow();
+  const cp=[{id:'HO00007086',title:'Dune',startDate:'2026-12-04'}];
+  expect(parseCinemaSnapshot('cineplexx',cp,cp).entries[0]?.url).toBe('https://www.cineplexx.ro/film/HO00007086');
 });
 it('quarantines mass drops and parses optional detail fields without executing source scripts',()=>{
   expect(()=>assertHealthySnapshot({...snapshot(),currentCount:3},{currentCount:20,upcomingCount:1})).toThrow('CINEMA_SUSPICIOUS_POPULATION_DROP');
@@ -48,6 +50,30 @@ it('matches reissues by original year and evidence, never run year, popularity o
   expect(cinemaDateKind(movie.releaseDate,entry.date)).toBe('reissue');
   expect(chooseCinemaMatch({...entry,title:'Duna',originalTitle:null},[{item:movie,aliases:['Duna']}])?.id).toBe(100);
 });
+it('uses original-language search titles even when TMDb displays an English translation',async()=>{
+  const catalog=new FixtureTmdbRepository();vi.spyOn(catalog,'getTitle').mockResolvedValue({...movie,title:'Bitter Christmas',originalTitle:'Amarga Navidad',year:2026,director:'Pedro Almodovar'});
+  vi.stubGlobal('fetch',vi.fn(async()=>new Response(JSON.stringify({results:[{id:100,title:'Bitter Christmas',original_title:'Amarga Navidad',release_date:'2026-03-01'}]}))));
+  expect((await new CinemaMatcher('synthetic',catalog).match({...entry,title:'Crăciun amar',originalTitle:'Amarga Navidad',originalYear:null,directors:['Pedro Almodovar']}))?.id).toBe(100);
+});
+it('checks all bounded same-name candidates using credits instead of rejecting titles with over six matches',async()=>{
+  const catalog=new FixtureTmdbRepository();vi.spyOn(catalog,'getTitle').mockImplementation(async(_type,id)=>({...movie,id,title:'Artificial',originalTitle:'Artificial',director:id===107?'Luca Guadagnino':'Different director',cast:[]}));
+  vi.stubGlobal('fetch',vi.fn(async()=>new Response(JSON.stringify({results:Array.from({length:9},(_,i)=>({id:100+i,title:'Artificial',original_title:'Artificial',release_date:'2026-01-01'}))}))));
+  expect((await new CinemaMatcher('synthetic',catalog).match({...entry,title:'Artificial',originalTitle:'Artificial',originalYear:null,directors:['Luca Guadagnino']}))?.id).toBe(107);
+});
+it('extracts explicit original-title years for reissues without stripping numeric movie titles or guessing from screening dates',()=>{
+  expect(cinemaTitle('Fight Club (1999)')).toBe('fight club');expect(cinemaTitle('1984')).toBe('1984');
+  const old={...movie,title:'Fight Club',originalTitle:'Fight Club',year:1999};
+  expect(chooseCinemaMatch({...entry,title:'Fight Club',originalTitle:'Fight Club (1999)',originalYear:null,directors:[],date:'2026-11-23'},[{item:old,aliases:[]},{item:{...old,id:101,year:2023},aliases:[]}])?.id).toBe(100);
+  expect(chooseCinemaMatch({...entry,originalYear:null,directors:[],actors:['Rebecca Ferguson','Rebecca Ferguson']},[{item:movie,aliases:[]}])).toBeNull();
+});
+it('accepts shortened titles only with corroborating director and two distinct cast members',()=>{
+ const e={...entry,title:'Ebenezer: A Christmas Carol',originalTitle:'Ebenezer: A Christmas Carol',actors:['Rebecca Ferguson','Jason Momoa']};
+ const target={...movie,title:'Ebenezer',originalTitle:'Ebenezer'};
+ expect(chooseCinemaMatch(e,[{item:target,aliases:[]}])?.id).toBe(100);
+ expect(chooseCinemaMatch({...e,actors:[]},[{item:target,aliases:[]}])).toBeNull();
+ const long={...e,title:'Jocurile foamei: Răsăritul în ziua extra',originalTitle:null};
+ expect(chooseCinemaMatch(long,[{item:movie,aliases:['Jocurile foamei: Răsăritul în ziua extragerii']}])?.id).toBe(100);
+});
 it('future ticket sales are upcoming, source failures become stale rather than confirmed absence',async()=>{
   const database=await db(),repo=new CinemaRepository(database);
   await repo.publish(snapshot(),[mapping()],0,now);
@@ -56,6 +82,25 @@ it('future ticket sales are upcoming, source failures become stale rather than c
   expect((await repo.info(100,now+day)).listings).toHaveLength(1);
   expect((await repo.info(100,now+4*day)).listings).toHaveLength(0);
   expect(await database.select().from(schema.cinemaListings)).toHaveLength(1);
+});
+it('prefers the standard run over a later Hungarian dub consistently in details, Upcoming and alerts',async()=>{
+ const database=await db(),repo=new CinemaRepository(database);
+ const standard={...entry,date:'2026-09-25'},dub={...entry,sourceId:'hu',title:'Dune hu dub',date:'2026-12-25',current:false,upcoming:true};
+ const futureMovie={...movie,year:2026,releaseDate:'2026-09-24'};
+ await repo.publish(snapshot([standard,dub]),[{...mapping(),movieJson:JSON.stringify(futureMovie)},{...mapping(dub),movieJson:JSON.stringify(futureMovie)}],0,now);
+ const info=await repo.info(100,now);expect(info.listings).toHaveLength(1);expect(info.listings[0]).toMatchObject({status:'listed',date:'2026-09-25'});expect(info.dateConflict).toBe(false);
+ expect(await repo.upcoming('2026-10-28',now)).toEqual([]);
+ expect(supplementReleases({title:'Film',releases:[]},info,now).releases.some(r=>r.date==='2026-12-25')).toBe(false);
+ // Preserve complete source tracking, even though the extra variant is hidden.
+ expect(await database.select().from(schema.cinemaListings)).toHaveLength(2);
+});
+it('labels a sole Hungarian dub honestly and does not turn it into a first-premiere alert',async()=>{
+ const database=await db(),repo=new CinemaRepository(database);
+ const dub={...entry,title:'Dune hu dub',date:'2026-11-13'};
+ await repo.publish(snapshot([dub]),[{...mapping(dub),movieJson:JSON.stringify({...movie,year:2026,releaseDate:'2026-11-01'})}],0,now);
+ const info=await repo.info(100,now);expect(info.listings[0]?.variant).toBe('Hungarian dubbed');
+ expect(await repo.upcoming('2026-10-28',now)).toEqual([]);
+ expect(supplementReleases({title:'Film',releases:[]},info,now).releases).toEqual([]);
 });
 it('requires independent absences, retains a surviving variant, cleans only listings and restores reappearance',async()=>{
   const database=await db(),repo=new CinemaRepository(database),variant={...entry,sourceId:'b'};
@@ -189,6 +234,14 @@ it('Upcoming never labels a worldwide date as a Romanian release',async()=>{
     :{results:[{iso_3166_1:'US',release_dates:[{type:3,release_date:'2026-11-01'}]},...(url.pathname.includes('/1/')?[{iso_3166_1:'RO',release_dates:[{type:3,release_date:'2026-11-13'}]}]:[])]}))));
   const result=await new LiveTmdbRepository('synthetic',database).upcoming('RO','2026-10-28',1);
   expect(result.items.map(i=>({id:i.id,date:i.releaseDate}))).toEqual([{id:1,date:'2026-11-13'}]);
+});
+it('TMDb-only Upcoming retains a future reissue without changing the original movie year',async()=>{
+ const database=await db();
+ vi.stubGlobal('fetch',vi.fn(async(url:URL)=>new Response(JSON.stringify(url.pathname.includes('/discover/')
+  ?{results:[{id:550,title:'Fight Club',release_date:'1999-10-15'}],total_pages:1}
+  :{results:[{iso_3166_1:'RO',release_dates:[{type:3,release_date:'1999-12-01'},{type:4,release_date:'2026-11-01'},{type:3,release_date:'2026-11-23'}]}]}))));
+ const result=await new LiveTmdbRepository('synthetic',database).upcoming('RO','2026-10-28',1);
+ expect(result.items[0]).toMatchObject({id:550,year:1999,releaseDate:'2026-11-23',cinemaDateKind:'reissue'});
 });
 it('a temporary cinema lookup failure does not cache an empty upcoming list',async()=>{
   vi.stubEnv('CINEMA_IMPORT_ENABLED','true');resetConfigForTests();
