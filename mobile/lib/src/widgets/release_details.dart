@@ -141,6 +141,14 @@ class _ReleaseDetailsState extends ConsumerState<ReleaseDetails> {
         final dates = (data['releases'] as List? ?? [])
             .where((r) => r['kind'] == kind)
             .toList();
+        if (dates.any(
+          (r) =>
+              r['alertEligible'] != false &&
+              r['date'] != null &&
+              (r['date'] as String).compareTo(day) > 0,
+        )) {
+          return true;
+        }
         if (dates.isEmpty &&
             (widget.item.releaseDate == null ||
                 widget.item.releaseDate!.compareTo(day) < 0)) {
@@ -216,7 +224,9 @@ class _ReleaseDetailsState extends ConsumerState<ReleaseDetails> {
                   r['kind'] == 'season'
                       ? 'Season ${r['season']}'
                       : r['kind'] == 'cinema'
-                      ? 'In cinemas'
+                      ? (r['reissue'] == true
+                            ? 'Back in cinemas'
+                            : 'In cinemas')
                       : 'Digital release',
                 ),
                 subtitle: Text(

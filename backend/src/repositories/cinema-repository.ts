@@ -125,5 +125,13 @@ export function supplementReleases(info:ReleaseInfo,cinema:CinemaInfo,now=Date.n
     const observedDay=calendarDay(new Date(firstObserved),'Europe/Bucharest');
     releases.push({key:'cinema:RO',kind:'cinema',date,season:null,country:'RO',source:'cinema_listing',sourceUrl:dateRows[0]!.sourceUrl,alertEligible:observedDay<date&&now-Date.parse(dateRows[0]!.checkedAt)<cinemaFreshMs});
   }
+  // Cinema returns are distinct events, not replacements for the original
+  // premiere. Keep due events as well as future ones for the daily scheduler.
+  for(const row of cinema.listings.filter(l=>l.date&&l.dateKind==='reissue'&&!l.variant)){
+    const key=`cinema:RO:reissue:${row.date}`;
+    if(releases.some(r=>r.key===key))continue;
+    releases.push({key,kind:'cinema',date:row.date,season:null,country:'RO',reissue:true,source:'cinema_listing',sourceUrl:row.sourceUrl,
+      alertEligible:calendarDay(new Date(row.firstObservedAt),'Europe/Bucharest')<row.date!&&now-Date.parse(row.checkedAt)<cinemaFreshMs});
+  }
   return {...info,releases,cinema:{...cinema,dateConflict:conflict}};
 }

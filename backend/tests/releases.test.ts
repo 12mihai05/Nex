@@ -29,6 +29,23 @@ it('postponements, baseline and expiry prevent premature or stale alerts',()=>{
   expect(eligibleReleases(info,'season',[],'2026-10-18')).toEqual([]);
   expect(eligibleReleases(info,'season',[],'2026-10-11')).toHaveLength(1);
 });
+it('a subscribed cinema return notifies once without replaying the old premiere',async()=>{
+  const {client,db}=await database();
+  const info:ReleaseInfo={title:'Fight Club',releases:[
+    {key:'cinema:RO',kind:'cinema',date:'1999-10-15',season:null,country:'RO'},
+    {key:'cinema:RO:reissue:2030-11-23',kind:'cinema',date:'2030-11-23',season:null,country:'RO',reissue:true,alertEligible:true},
+  ]};
+  const tracking=new ReleaseTracking(Object.assign(new FixtureTmdbRepository(),{releases:async()=>info}),db);
+  try{
+    await db.insert(schema.user).values({id:'return-user',name:'Test',email:'return@example.test'});
+    await db.insert(schema.profiles).values({userId:'return-user',country:'RO'});
+    await tracking.follow('return-user','movie',550,'cinema','RO',true);
+    expect((await tracking.sync(new Date('2030-11-22T12:00:00Z'))).created).toBe(0);
+    expect((await tracking.sync(new Date('2030-11-23T12:00:00Z'))).created).toBe(1);
+    expect((await tracking.sync(new Date('2030-11-23T13:00:00Z'))).created).toBe(0);
+    expect((await tracking.inbox('return-user','RO')).items[0]!.body).toContain('Back in cinemas');
+  }finally{client.close();}
+});
 it('unreleased content is searchable but not a normal recommendation',()=>{
   const item={...fixtureCatalog[0]!,releaseDate:'2099-01-01'};
   const state={viewerIds:['u'],taste:[],temporaryMoods:[],ownedProviderIds:[],watchedIds:new Set<number>(),watchlistIds:new Set<number>()};

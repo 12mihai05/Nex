@@ -29,10 +29,20 @@ try{
   }
   stage='Romanian synopsis';const title=await data<ContentItem>('/api/title/movie/1679416');
   assert.ok(title.overview.trim().length>50);assert.equal(title.overviewLanguage,'ro');assert.ok(title.cast.length>0);assert.ok(title.director);
+  assert.ok(title.posterUrl,'Romanian movie poster missing');
+  console.log(JSON.stringify({stage:'Romanian artwork',hasPoster:!!title.posterUrl,hasBackdrop:!!title.backdropUrl}));
   stage='reissue';const old=await data<ContentItem>('/api/title/movie/299534');assert.equal(old.year,2019);
   const reissue=await data<ReleaseInfo>('/api/title/movie/299534/releases');
   assert.ok(reissue.cinema?.listings.some(l=>l.dateKind==='reissue'));
-  assert.ok(!reissue.releases.some(r=>r.kind==='cinema'&&r.date==='2026-09-25'));
+  assert.ok(!reissue.releases.some(r=>r.kind==='cinema'&&r.date==='2026-09-25'&&!r.reissue));
+  stage='Fight Club cinema return';
+  const fight=await data<ReleaseInfo>('/api/title/movie/550/releases');
+  assert.ok(fight.releases.some(r=>r.reissue&&r.date==='2026-11-23'&&r.alertEligible));
+  for(const enabled of [true,false]){
+    assert.equal((await request('/api/me/release-subscriptions','POST',{mediaType:'movie',tmdbId:550,kind:'cinema',enabled})).status,200);
+    const saved=await data<{subscriptions:Array<{kind:string;enabled:boolean}>}>('/api/title/movie/550/releases');
+    assert.equal(saved.subscriptions.some(s=>s.kind==='cinema'&&s.enabled),enabled);
+  }
   stage='upcoming pagination';const ids=new Set<number>();
   // Read enough pages to cross the imported prefix into normal TMDb results.
   for(let page=1;page<=5;page++){

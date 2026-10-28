@@ -30,7 +30,11 @@ class DetailScreen extends ConsumerWidget {
               background: Stack(
                 fit: StackFit.expand,
                 children: [
-                  Artwork(url: item.backdropUrl, borderRadius: 0),
+                  Artwork(
+                    url: item.backdropUrl,
+                    fallbackUrl: item.posterUrl,
+                    borderRadius: 0,
+                  ),
                   const DecoratedBox(
                     decoration: BoxDecoration(
                       gradient: LinearGradient(

@@ -13,6 +13,7 @@ class ControlledReleaseApi extends ReleaseApi {
   int reads = 0;
   final writes = <({String kind, bool enabled, Completer<void> result})>[];
   final initialSubscriptions = <Map<String, dynamic>>[];
+  bool reissue = false;
 
   @override
   Future<Map<String, dynamic>> object(String path) async {
@@ -22,6 +23,7 @@ class ControlledReleaseApi extends ReleaseApi {
       'country': 'RO',
       'day': '2026-10-28',
       'releases': [
+        if (reissue) {'kind': 'cinema', 'date': '1999-11-12'},
         {'kind': 'cinema', 'date': '2026-12-18'},
         {'kind': 'digital', 'date': '2027-03-18'},
       ],
@@ -67,6 +69,29 @@ bool isOn(WidgetTester tester, String title) => tester
     .toggled!;
 
 void main() {
+  testWidgets(
+    'a future cinema return keeps its alert despite an old premiere',
+    (tester) async {
+      final api = ControlledReleaseApi()..reissue = true;
+      final container = await viewer(api);
+      addTearDown(container.dispose);
+      final item = ContentItem.fromJson({
+        'id': 550,
+        'title': 'Fight Club',
+        'releaseDate': '1999-10-15',
+      });
+      await tester.pumpWidget(screen(container, item));
+      await tester.pumpAndSettle();
+      expect(alert('Cinema'), findsOneWidget);
+      await tester.tap(alert('Cinema'));
+      await tester.pump();
+      expect(api.writes.single.kind, 'cinema');
+      expect(api.writes.single.enabled, isTrue);
+      api.writes.single.result.complete();
+      await tester.pumpAndSettle();
+      await tester.pump(const Duration(seconds: 6));
+    },
+  );
   testWidgets(
     'alerts change immediately and save independently without reloading dates',
     (tester) async {

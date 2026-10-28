@@ -11,7 +11,7 @@ export function releaseDate(value: unknown): string | null {
 export function calendarDay(now = new Date(), timezone = 'Europe/Bucharest'): string {
   return new Intl.DateTimeFormat('en-CA', {timeZone: timezone, year:'numeric',month:'2-digit',day:'2-digit'}).format(now);
 }
-export type Release = {key:string; kind:'cinema'|'digital'|'season'; date:string|null; season:number|null; country:string|null;source?:'cinema_listing';sourceUrl?:string;alertEligible?:boolean};
+export type Release = {key:string; kind:'cinema'|'digital'|'season'; date:string|null; season:number|null; country:string|null;source?:'cinema_listing';sourceUrl?:string;alertEligible?:boolean;reissue?:boolean};
 export type ReleaseInfo = {title:string; releases:Release[];cinema?:import('./cinema.js').CinemaInfo};
 const movieDates = z.object({results:z.array(z.object({iso_3166_1:z.string(),release_dates:z.array(z.object({type:z.number(),release_date:z.string()}))})).default([])});
 export function nextCinemaDate(raw:unknown,country:string,afterDay:string):string|null {

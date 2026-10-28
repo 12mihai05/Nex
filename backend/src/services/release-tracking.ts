@@ -69,7 +69,7 @@ export class ReleaseTracking {
         }
         const events=eligibleReleases(info,s.kind,JSON.parse(s.baselineJson) as string[],today);
         for(const event of events){
-          const body=event.kind==='season'?`Season ${event.season} premiered on ${event.date}.`:`${event.kind==='cinema'?'Cinema':'Digital'} release in ${s.country}: ${event.date}.`;
+          const body=event.kind==='season'?`Season ${event.season} premiered on ${event.date}.`:event.reissue?`Back in cinemas in ${s.country} from ${event.date}.`:`${event.kind==='cinema'?'Cinema':'Digital'} release in ${s.country}: ${event.date}.`;
           // Atomic recheck after provider lookup; uniqueness prevents duplicate inbox
           // events on retries or concurrent runs. No external delivery service.
           const result=await this.db.run(sql`INSERT OR IGNORE INTO release_notifications

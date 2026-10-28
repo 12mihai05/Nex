@@ -131,7 +131,12 @@ it('keeps original premieres, suppresses conflict/backfill alerts and never anno
   const database=await db(),repo=new CinemaRepository(database);
   await repo.publish(snapshot(),[mapping()],0,now);
   const reissue=await repo.info(100,now);
-  expect(supplementReleases({title:'Dune',releases:[]},reissue,now).releases).toEqual([]);
+  const returnInfo=supplementReleases({title:'Dune',releases:[{key:'cinema:RO',kind:'cinema',date:'2021-10-22',season:null,country:'RO'}]},reissue,now);
+  expect(returnInfo.releases[0]!.date).toBe('2021-10-22');
+  expect(returnInfo.releases[1]).toMatchObject({key:'cinema:RO:reissue:2026-12-04',reissue:true,alertEligible:true});
+  expect(eligibleReleases(returnInfo,'cinema',['cinema:RO'],'2026-12-03')).toEqual([]);
+  expect(eligibleReleases(returnInfo,'cinema',['cinema:RO'],'2026-12-04')).toHaveLength(1);
+  expect(eligibleReleases(returnInfo,'cinema',['cinema:RO','cinema:RO:reissue:2026-12-04'],'2026-12-04')).toEqual([]);
   const initial={...reissue,listings:reissue.listings.map(l=>({...l,dateKind:'initial' as const,date:'2026-11-13'}))};
   const info=supplementReleases({title:'New film',releases:[]},initial,now);
   expect(info.releases[0]).toMatchObject({date:'2026-11-13',source:'cinema_listing',alertEligible:true});
